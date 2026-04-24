@@ -799,3 +799,199 @@ async def get_registros_revision(
         "grises": len([i for i in issues if i["nivel"] == "GRIS"]),
         "issues": issues
     }
+
+
+# ══════════════════════════════════════════════════════════════
+# MÓDULO PCV — Control de Promesas de Compraventa
+# ══════════════════════════════════════════════════════════════
+
+PCV_FIRMADO = "Contrato Promesa de Compra venta"
+
+@router.get("/pcv/kpis")
+async def get_pcv_kpis(
+    proyecto: Optional[str] = Query(None),
+    vendedor: Optional[str] = Query(None),
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user)
+):
+    pf = "AND p.nombre_proyecto = :proyecto" if proyecto else ""
+    vf = "AND l.vendedor = :vendedor" if vendedor else ""
+    params = {}
+    if proyecto: params["proyecto"] = proyecto
+    if vendedor: params["vendedor"] = vendedor
+
+    r = db.execute(text(f"""
+        SELECT
+            COUNT(*) AS total_ventas,
+            COUNT(*) FILTER (WHERE l.status_promesa_compraventa = :pcv_val) AS con_pcv,
+            COUNT(*) FILTER (WHERE l.status_promesa_compraventa != :pcv_val
+                              OR l.status_promesa_compraventa IS NULL) AS sin_pcv,
+            -- 2026
+            COUNT(*) FILTER (WHERE EXTRACT(YEAR FROM l.fecha_venta) = 2026) AS ventas_2026,
+            COUNT(*) FILTER (WHERE EXTRACT(YEAR FROM l.fecha_venta) = 2026
+                              AND (l.status_promesa_compraventa != :pcv_val
+                                   OR l.status_promesa_compraventa IS NULL)) AS sin_pcv_2026,
+            -- Por antigüedad sin PCV
+            COUNT(*) FILTER (WHERE (l.status_promesa_compraventa != :pcv_val OR l.status_promesa_compraventa IS NULL)
+                              AND l.fecha_venta IS NOT NULL
+                              AND CURRENT_DATE - l.fecha_venta::date BETWEEN 1 AND 15) AS sin_pcv_0_15,
+            COUNT(*) FILTER (WHERE (l.status_promesa_compraventa != :pcv_val OR l.status_promesa_compraventa IS NULL)
+                              AND l.fecha_venta IS NOT NULL
+                              AND CURRENT_DATE - l.fecha_venta::date BETWEEN 16 AND 30) AS sin_pcv_16_30,
+            COUNT(*) FILTER (WHERE (l.status_promesa_compraventa != :pcv_val OR l.status_promesa_compraventa IS NULL)
+                              AND l.fecha_venta IS NOT NULL
+                              AND CURRENT_DATE - l.fecha_venta::date BETWEEN 31 AND 90) AS sin_pcv_31_90,
+            COUNT(*) FILTER (WHERE (l.status_promesa_compraventa != :pcv_val OR l.status_promesa_compraventa IS NULL)
+                              AND l.fecha_venta IS NOT NULL
+                              AND CURRENT_DATE - l.fecha_venta::date > 30) AS sin_pcv_mas30,
+            COUNT(*) FILTER (WHERE (l.status_promesa_compraventa != :pcv_val OR l.status_promesa_compraventa IS NULL)
+                              AND l.fecha_venta IS NOT NULL
+                              AND CURRENT_DATE - l.fecha_venta::date > 90) AS sin_pcv_mas90,
+            -- Tiempo promedio de gestión (para los que tienen PCV)
+            COALESCE(AVG(
+                CASE WHEN l.status_promesa_compraventa = :pcv_val
+                     AND l.fecha_solicitud_pcv IS NOT NULL AND l.fecha_venta IS NOT NULL
+                THEN l.fecha_solicitud_pcv::date - l.fecha_venta::date END
+            ), 0) AS dias_prom_gestion
+        FROM lotes l
+        JOIN proyectos p ON p.id = l.proyecto_id
+        WHERE l.estatus IN ('VENTA','RESERVADO')
+          AND l.fecha_venta IS NOT NULL
+          AND l.vendedor NOT IN (
+              '-Ningún empleado del departamento de ventas-',
+              'Canje A','Bloqueado','Bloqueo Municipal','Apartado Proyecto Aptos'
+          )
+          {pf} {vf}
+    """), {**params, "pcv_val": PCV_FIRMADO}).fetchone()
+
+    d = dict(r._mapping)
+    total = int(d.get("total_ventas") or 0)
+    con = int(d.get("con_pcv") or 0)
+    d["pct_cumplimiento"] = round(con / total * 100, 1) if total > 0 else 0
+
+    v2026 = int(d.get("ventas_2026") or 0)
+    sin2026 = int(d.get("sin_pcv_2026") or 0)
+    d["pct_sin_pcv_2026"] = round(sin2026 / v2026 * 100, 1) if v2026 > 0 else 0
+
+    return {k: float(v) if isinstance(v, (int, float)) and v is not None else v
+            for k, v in d.items()}
+
+
+@router.get("/pcv/pendientes")
+async def get_pcv_pendientes(
+    proyecto: Optional[str] = Query(None),
+    vendedor: Optional[str] = Query(None),
+    antiguedad: Optional[str] = Query(None),  # 0-15, 15-30, 30-90, 90+
+    page: int = Query(1, ge=1),
+    page_size: int = Query(50, ge=1, le=200),
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user)
+):
+    """Lotes vendidos sin PCV firmado."""
+    conditions = [
+        "l.estatus IN ('VENTA','RESERVADO')",
+        "l.fecha_venta IS NOT NULL",
+        f"(l.status_promesa_compraventa != '{PCV_FIRMADO}' OR l.status_promesa_compraventa IS NULL)",
+        """l.vendedor NOT IN ('-Ningún empleado del departamento de ventas-',
+           'Canje A','Bloqueado','Bloqueo Municipal','Apartado Proyecto Aptos')"""
+    ]
+    params = {}
+
+    if proyecto:
+        conditions.append("p.nombre_proyecto = :proyecto")
+        params["proyecto"] = proyecto
+    if vendedor:
+        conditions.append("l.vendedor ILIKE :vendedor")
+        params["vendedor"] = f"%{vendedor}%"
+    if antiguedad:
+        if antiguedad == "0-15":
+            conditions.append("CURRENT_DATE - l.fecha_venta::date <= 15")
+        elif antiguedad == "15-30":
+            conditions.append("CURRENT_DATE - l.fecha_venta::date BETWEEN 16 AND 30")
+        elif antiguedad == "30-90":
+            conditions.append("CURRENT_DATE - l.fecha_venta::date BETWEEN 31 AND 90")
+        elif antiguedad == "90+":
+            conditions.append("CURRENT_DATE - l.fecha_venta::date > 90")
+
+    where = " AND ".join(conditions)
+    offset = (page - 1) * page_size
+
+    total = db.execute(text(f"SELECT COUNT(*) FROM lotes l JOIN proyectos p ON p.id=l.proyecto_id WHERE {where}"), params).scalar()
+
+    rows = db.execute(text(f"""
+        SELECT
+            l.unidad_key, l.manzana, l.card_name, l.card_code,
+            l.vendedor, p.nombre_proyecto,
+            l.fecha_venta, l.fecha_solicitud_pcv,
+            l.status_promesa_compraventa,
+            l.precio_final, l.forma_pago, l.plazo,
+            COALESCE(v.equipo, 'SIN_ASIGNAR') AS equipo,
+            CURRENT_DATE - l.fecha_venta::date AS dias_sin_pcv,
+            CASE
+                WHEN CURRENT_DATE - l.fecha_venta::date <= 15 THEN 'VERDE'
+                WHEN CURRENT_DATE - l.fecha_venta::date <= 30 THEN 'AMARILLO'
+                WHEN CURRENT_DATE - l.fecha_venta::date <= 90 THEN 'ROJO'
+                ELSE 'CRITICO'
+            END AS semaforo
+        FROM lotes l
+        JOIN proyectos p ON p.id = l.proyecto_id
+        LEFT JOIN vendedores v ON v.nombre = l.vendedor
+        WHERE {where}
+        ORDER BY dias_sin_pcv DESC
+        LIMIT :limit OFFSET :offset
+    """), {**params, "limit": page_size, "offset": offset}).fetchall()
+
+    return {
+        "pendientes": [dict(r._mapping) for r in rows],
+        "total": total,
+        "page": page,
+        "pages": -(-total // page_size)
+    }
+
+
+@router.get("/pcv/por-vendedor")
+async def get_pcv_por_vendedor(
+    proyecto: Optional[str] = Query(None),
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user)
+):
+    """Cumplimiento de PCV por vendedor."""
+    pf = "AND p.nombre_proyecto = :proyecto" if proyecto else ""
+    params = {}
+    if proyecto: params["proyecto"] = proyecto
+
+    rows = db.execute(text(f"""
+        SELECT
+            l.vendedor,
+            COALESCE(v.equipo, 'SIN_ASIGNAR') AS equipo,
+            COUNT(*) AS total_ventas,
+            COUNT(*) FILTER (WHERE l.status_promesa_compraventa = :pcv_val) AS con_pcv,
+            COUNT(*) FILTER (WHERE l.status_promesa_compraventa != :pcv_val
+                              OR l.status_promesa_compraventa IS NULL) AS sin_pcv,
+            COUNT(*) FILTER (WHERE (l.status_promesa_compraventa != :pcv_val
+                              OR l.status_promesa_compraventa IS NULL)
+                              AND CURRENT_DATE - l.fecha_venta::date > 30) AS sin_pcv_critico,
+            ROUND(
+                COUNT(*) FILTER (WHERE l.status_promesa_compraventa = :pcv_val)::numeric
+                / NULLIF(COUNT(*), 0) * 100, 1
+            ) AS pct_cumplimiento,
+            COALESCE(AVG(
+                CASE WHEN l.status_promesa_compraventa = :pcv_val
+                     AND l.fecha_solicitud_pcv IS NOT NULL AND l.fecha_venta IS NOT NULL
+                THEN l.fecha_solicitud_pcv::date - l.fecha_venta::date END
+            ), 0) AS dias_prom_gestion
+        FROM lotes l
+        JOIN proyectos p ON p.id = l.proyecto_id
+        LEFT JOIN vendedores v ON v.nombre = l.vendedor
+        WHERE l.estatus IN ('VENTA','RESERVADO')
+          AND l.fecha_venta IS NOT NULL
+          AND l.vendedor NOT IN (
+              '-Ningún empleado del departamento de ventas-',
+              'Canje A','Bloqueado','Bloqueo Municipal','Apartado Proyecto Aptos'
+          )
+          {pf}
+        GROUP BY l.vendedor, v.equipo
+        ORDER BY sin_pcv DESC
+    """), {**params, "pcv_val": PCV_FIRMADO}).fetchall()
+
+    return [dict(r._mapping) for r in rows]
