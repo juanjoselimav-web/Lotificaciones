@@ -1,0 +1,1155 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RV4 — Ventas</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --azul:#1B3A6B;--dorado:#D4A800;--negro:#0f1117;--blanco:#ffffff;
+  --gris:#f4f5f7;--borde:#dde1e7;--borde-lt:#eaecf0;--texto:#1a1f2e;--muted:#6b7280;
+  --sidebar-w:220px;
+  --green:#16a34a;--green-bg:#f0fdf4;--green-bd:#bbf7d0;
+  --blue:#1d4ed8;--blue-bg:#eff6ff;--blue-bd:#bfdbfe;
+  --red:#b91c1c;--red-bg:#fef2f2;--red-bd:#fecaca;
+  --amber:#b45309;--amber-bg:#fffbeb;--amber-bd:#fde68a;
+  --purple:#6d28d9;--purple-bg:#f5f3ff;
+  --consersa:#1B3A6B;--rv4:#D4A800;
+}
+body{font-family:'Montserrat',sans-serif;background:var(--gris);color:var(--texto);min-height:100vh;display:flex;font-size:13px}
+
+/* SIDEBAR */
+.sidebar{width:var(--sidebar-w);background:var(--azul);min-height:100vh;display:flex;flex-direction:column;position:fixed;left:0;top:0;bottom:0;z-index:100}
+.sidebar-brand{padding:18px 16px 14px;border-bottom:1px solid rgba(255,255,255,.1)}
+.brand-fallback{font-size:20px;font-weight:700;color:#fff}.brand-fallback span{color:var(--dorado)}
+.brand-env{font-size:9px;letter-spacing:.2em;text-transform:uppercase;color:rgba(255,255,255,.35);margin-top:5px;font-weight:600}
+.sidebar-nav{flex:1;padding:14px 0;overflow-y:auto}
+.nav-section{padding:0 10px;margin-bottom:2px}
+.nav-label{font-size:9px;letter-spacing:.2em;text-transform:uppercase;color:rgba(255,255,255,.3);padding:10px 8px 4px;display:block;font-weight:600}
+.nav-item{display:flex;align-items:center;gap:9px;padding:8px 10px;border-radius:5px;color:rgba(255,255,255,.6);font-size:12px;font-weight:500;cursor:pointer;transition:background .15s,color .15s;text-decoration:none;margin-bottom:1px}
+.nav-item:hover{background:rgba(255,255,255,.1);color:#fff}
+.nav-item.active{background:var(--dorado);color:var(--negro);font-weight:700}
+.nav-item svg{width:14px;height:14px;flex-shrink:0;opacity:.75}
+.nav-badge{margin-left:auto;background:rgba(255,255,255,.12);color:rgba(255,255,255,.5);font-size:8.5px;font-weight:700;padding:2px 6px;border-radius:10px}
+.sidebar-footer{padding:12px 10px;border-top:1px solid rgba(255,255,255,.1)}
+.user-pill{display:flex;align-items:center;gap:8px;padding:7px 9px;border-radius:5px;background:rgba(255,255,255,.08)}
+.user-avatar{width:27px;height:27px;border-radius:50%;background:var(--dorado);color:var(--negro);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex-shrink:0}
+.user-info{flex:1;overflow:hidden}
+.user-name{font-size:11px;color:#fff;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.user-role{font-size:9px;color:rgba(255,255,255,.35);text-transform:uppercase;letter-spacing:.1em;font-weight:600}
+.btn-logout{background:none;border:none;cursor:pointer;color:rgba(255,255,255,.3);padding:4px}
+.btn-logout:hover{color:#f87171}
+.btn-logout svg{width:13px;height:13px}
+
+/* MAIN */
+.main{margin-left:var(--sidebar-w);flex:1;display:flex;flex-direction:column}
+.topbar{background:var(--blanco);border-bottom:1px solid var(--borde);padding:0 26px;height:54px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:50;box-shadow:0 1px 3px rgba(0,0,0,.05)}
+.page-title{font-size:15px;font-weight:700;color:var(--azul)}
+.topbar-filters{display:flex;align-items:center;gap:8px}
+.tb-select,.tb-input{padding:6px 10px;border:1px solid var(--borde);border-radius:4px;background:var(--gris);font-family:'Montserrat',sans-serif;font-size:12px;font-weight:500;color:var(--texto);outline:none;cursor:pointer}
+.tb-select:focus,.tb-input:focus{border-color:var(--azul)}
+
+/* CONTENT */
+.content{padding:22px 26px;flex:1}
+
+/* TABS */
+.tabs{display:flex;gap:2px;margin-bottom:22px;border-bottom:2px solid var(--borde)}
+.tab{padding:10px 18px;font-size:12px;font-weight:600;color:var(--muted);cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-2px;transition:all .15s;display:flex;align-items:center;gap:6px}
+.tab:hover{color:var(--azul)}
+.tab.active{color:var(--azul);border-bottom-color:var(--dorado)}
+.tab-badge{background:var(--red-bg);color:var(--red);font-size:9px;font-weight:700;padding:1px 6px;border-radius:10px}
+.tab-badge.amber{background:var(--amber-bg);color:var(--amber)}
+.tab-content{display:none}.tab-content.active{display:block}
+
+/* KPI GRID */
+.kpi-grid{display:grid;grid-template-columns:repeat(6,1fr);gap:12px;margin-bottom:22px}
+.kpi-card{background:var(--blanco);border:1px solid var(--borde);border-radius:6px;padding:16px 18px;position:relative;overflow:hidden}
+.kpi-card::before{content:'';position:absolute;top:0;left:0;right:0;height:3px}
+.kc-azul::before{background:var(--azul)}.kc-green::before{background:var(--green)}
+.kc-red::before{background:var(--red)}.kc-dorado::before{background:var(--dorado)}
+.kc-blue::before{background:var(--blue)}.kc-purple::before{background:var(--purple)}
+.kpi-label{font-size:9px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin-bottom:8px}
+.kpi-value{font-size:22px;font-weight:700;color:var(--texto);line-height:1;margin-bottom:3px}
+.kpi-sub{font-size:10.5px;color:var(--muted);font-weight:500}
+.kpi-sub.red{color:var(--red);font-weight:600}.kpi-sub.green{color:var(--green);font-weight:600}
+
+/* CHARTS ROW */
+.charts-row{display:grid;grid-template-columns:2fr 1fr;gap:14px;margin-bottom:22px}
+.chart-box{background:var(--blanco);border:1px solid var(--borde);border-radius:6px;padding:18px 20px}
+.chart-title{font-size:12px;font-weight:700;color:var(--azul);margin-bottom:14px;display:flex;justify-content:space-between;align-items:center}
+.chart-sub{font-size:10px;font-weight:500;color:var(--muted)}
+
+/* TABLE */
+.table-wrap{background:var(--blanco);border:1px solid var(--borde);border-radius:6px;overflow:hidden;margin-bottom:22px}
+.section-header{padding:14px 18px;border-bottom:1px solid var(--borde);display:flex;align-items:center;justify-content:space-between;background:var(--blanco)}
+.section-title{font-size:13px;font-weight:700;color:var(--azul)}
+.filter-bar{padding:10px 16px;border-bottom:1px solid var(--borde);display:flex;gap:8px;align-items:center;background:var(--gris);flex-wrap:wrap}
+table{width:100%;border-collapse:collapse}
+thead th{padding:9px 13px;text-align:left;font-size:9.5px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);background:var(--gris);border-bottom:1px solid var(--borde);white-space:nowrap}
+tbody tr{border-bottom:1px solid var(--borde-lt);transition:background .1s}
+tbody tr:hover{background:#f0f4fb}
+tbody tr:last-child{border-bottom:none}
+td{padding:9px 13px;vertical-align:middle}
+
+/* EQUIPO BADGE */
+.eq-badge{display:inline-flex;align-items:center;gap:4px;padding:2px 9px;font-size:10px;font-weight:700;border-radius:3px}
+.eq-consersa{background:#eff6ff;color:var(--consersa)}
+.eq-rv4{background:#fffbeb;color:var(--rv4)}
+.eq-sin{background:var(--gris);color:var(--muted)}
+
+/* CUMPLIMIENTO SEMAFORO */
+.semaforo{display:flex;align-items:center;gap:6px}
+.sem-bar-bg{flex:1;height:6px;background:#e5e7eb;border-radius:3px;max-width:80px}
+.sem-bar{height:6px;border-radius:3px;transition:width .3s}
+.sem-pct{font-size:11px;font-weight:700;min-width:36px}
+.sem-verde .sem-bar{background:var(--green)}.sem-verde .sem-pct{color:var(--green)}
+.sem-amarillo .sem-bar{background:var(--amber)}.sem-amarillo .sem-pct{color:var(--amber)}
+.sem-rojo .sem-bar{background:var(--red)}.sem-rojo .sem-pct{color:var(--red)}
+.sem-gris .sem-bar{background:#9ca3af}.sem-gris .sem-pct{color:var(--muted)}
+
+/* ISSUE CARDS */
+.issue{display:flex;align-items:flex-start;gap:12px;padding:12px 16px;border-radius:5px;margin-bottom:8px;border:1px solid}
+.issue.rojo{background:#fef2f2;border-color:#fecaca}
+.issue.amarillo{background:#fffbeb;border-color:#fde68a}
+.issue.gris{background:var(--gris);border-color:var(--borde)}
+.issue-icon{font-size:15px;flex-shrink:0;margin-top:1px}
+.issue-tipo{font-size:9px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin-bottom:2px}
+.issue-msg{font-size:12.5px;font-weight:600;color:var(--texto)}
+.issue-det{font-size:11px;color:var(--muted);margin-top:2px}
+.issue-accion{font-size:10.5px;color:var(--blue);font-weight:600;margin-top:4px}
+
+/* VENDEDORES CONFIG */
+.vend-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:20px}
+.vend-card{background:var(--blanco);border:1px solid var(--borde);border-radius:5px;padding:12px 14px;display:flex;align-items:center;gap:10px}
+.vend-name{font-size:12px;font-weight:600;color:var(--texto);flex:1}
+.vend-select{padding:4px 8px;border:1px solid var(--borde);border-radius:3px;font-family:'Montserrat',sans-serif;font-size:11px;font-weight:600;background:var(--gris);outline:none;cursor:pointer}
+.vend-select:focus{border-color:var(--azul)}
+.btn-save{padding:4px 10px;background:var(--azul);color:#fff;border:none;border-radius:3px;font-family:'Montserrat',sans-serif;font-size:11px;font-weight:600;cursor:pointer}
+.btn-save:hover{background:var(--azul-lt,#2a5298)}
+
+.empty{text-align:center;padding:40px;color:var(--muted);font-size:13px;font-weight:500}
+
+/* TOTALS ROW */
+.total-row td{font-weight:700;background:var(--gris);border-top:2px solid var(--borde)}
+</style>
+</head>
+<body>
+
+<aside class="sidebar">
+  <div class="sidebar-brand">
+    <div class="brand-fallback">RV<span>4</span></div>
+    <div class="brand-env" id="envLabel">—</div>
+  </div>
+      <nav class="sidebar-nav">
+    <div class="nav-section">
+      <span class="nav-label">Ejecutivo</span>
+      <a class="nav-item " href="/dashboard.html">
+        <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>Dashboard
+      </a>
+    </div>
+    <div class="nav-section">
+      <span class="nav-label">Operativo</span>
+      <a class="nav-item " href="/inventario.html">
+        <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9,22 9,12 15,12 15,22"/></svg>Inventario
+      </a>
+      <a class="nav-item " href="/cartera.html">
+        <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>Cartera
+      </a>
+      <a class="nav-item active" href="/ventas.html">
+        <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>Ventas
+      </a>
+    </div>
+    <div class="nav-section">
+      <span class="nav-label">Próximamente</span>
+      <div class="nav-item" style="opacity:.4;cursor:not-allowed">
+        <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
+        Flujo de Caja<span class="nav-badge">FASE 3</span>
+      </div>
+    </div>
+    <div class="nav-section" id="adminSection" style="display:none">
+      <span class="nav-label">Administración</span>
+      <a class="nav-item" href="/usuarios.html">
+        <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>Usuarios
+      </a>
+      <a class="nav-item" href="/sync-logs.html">
+        <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 102.13-9.36L1 10"/></svg>Sincronización
+      </a>
+    </div>
+  </nav>
+  <div class="sidebar-footer">
+    <div class="user-pill">
+      <div class="user-avatar" id="userAvatar">A</div>
+      <div class="user-info">
+        <div class="user-name" id="userName">—</div>
+        <div class="user-role" id="userRole">—</div>
+      </div>
+      <button class="btn-logout" onclick="logout()">
+        <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+      </button>
+    </div>
+  </div>
+</aside>
+
+<main class="main">
+  <div class="topbar">
+    <div class="page-title">Ventas y Comercial</div>
+    <div class="topbar-filters">
+      <select class="tb-select" id="proyectoSel" onchange="onFilterChange()">
+        <option value="">Todos los proyectos</option>
+      </select>
+      <select class="tb-select" id="añoSel" onchange="onFilterChange()">
+        <option value="2026">2026</option>
+        <option value="2025">2025</option>
+        <option value="2024">2024</option>
+      </select>
+      <select class="tb-select" id="mesSel" onchange="onFilterChange()">
+        <option value="">Todo el año</option>
+        <option value="1">Enero</option><option value="2">Febrero</option>
+        <option value="3">Marzo</option><option value="4">Abril</option>
+        <option value="5">Mayo</option><option value="6">Junio</option>
+        <option value="7">Julio</option><option value="8">Agosto</option>
+        <option value="9">Septiembre</option><option value="10">Octubre</option>
+        <option value="11">Noviembre</option><option value="12">Diciembre</option>
+      </select>
+    </div>
+  </div>
+
+  <div class="content">
+    <div class="tabs">
+      <div class="tab active" onclick="showTab('resumen')">
+        <svg width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+        Resumen
+      </div>
+      <div class="tab" onclick="showTab('metas')">
+        <svg width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>
+        Metas vs Avance
+      </div>
+      <div class="tab" onclick="showTab('tendencias')">
+        <svg width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+        Tendencias
+      </div>
+      <div class="tab" onclick="showTab('revision')">
+        <svg width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/></svg>
+        Registros a Revisar <span class="tab-badge amber" id="revisionBadge">—</span>
+      </div>
+      <div class="tab" id="tabConfig" onclick="showTab('config')" style="display:none">
+        <svg width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
+        Equipos
+      </div>
+    </div>
+
+    <!-- TAB RESUMEN -->
+    <div class="tab-content active" id="tab-resumen">
+      <div class="kpi-grid" id="kpiGrid">
+        <div class="kpi-card kc-azul"><div class="kpi-label">Ventas Brutas</div><div class="kpi-value" id="kBrutas">—</div><div class="kpi-sub" id="kBrutasSub">—</div></div>
+        <div class="kpi-card kc-green"><div class="kpi-label">Ventas Netas</div><div class="kpi-value" id="kNetas">—</div><div class="kpi-sub" id="kNetasSub">—</div></div>
+        <div class="kpi-card kc-red"><div class="kpi-label">Desistimientos</div><div class="kpi-value" id="kDesist">—</div><div class="kpi-sub" id="kDesistSub">—</div></div>
+        <div class="kpi-card kc-dorado"><div class="kpi-label">Ticket Promedio</div><div class="kpi-value" id="kTicket">—</div><div class="kpi-sub" id="kTicketSub">—</div></div>
+        <div class="kpi-card kc-blue"><div class="kpi-label">Valor Bruto</div><div class="kpi-value" id="kValor">—</div><div class="kpi-sub" id="kValorSub">—</div></div>
+        <div class="kpi-card kc-purple"><div class="kpi-label">Plazo Promedio</div><div class="kpi-value" id="kPlazo">—</div><div class="kpi-sub" id="kPlazoSub">—</div></div>
+      </div>
+
+      <div class="charts-row">
+        <div class="chart-box">
+          <div class="chart-title">Ventas Brutas vs Netas vs Desistimientos <span class="chart-sub">Últimos 12 meses</span></div>
+          <canvas id="chartTendencia" height="110"></canvas>
+        </div>
+        <div class="chart-box">
+          <div class="chart-title">Mezcla Forma de Pago <span class="chart-sub">Período</span></div>
+          <canvas id="chartMezcla" height="110"></canvas>
+        </div>
+      </div>
+
+      <!-- Tabla por vendedor resumen -->
+      <div class="table-wrap">
+        <div class="section-header">
+          <div class="section-title">Resumen por Vendedor</div>
+          <div style="display:flex;gap:8px">
+            <select class="tb-select" id="filtroEquipo" onchange="loadVendedorTable()">
+              <option value="">Todos los equipos</option>
+              <option value="CONSERSA">CONSERSA</option>
+              <option value="RV4">RV4</option>
+              <option value="SIN_ASIGNAR">Sin asignar</option>
+            </select>
+          </div>
+        </div>
+        <table>
+          <thead><tr>
+            <th>Vendedor</th><th>Equipo</th><th>Proyecto</th>
+            <th>Brutas</th><th>Netas</th><th>Desist.</th>
+            <th>Valor Q</th><th>Ticket Prom.</th><th>Plazo Prom.</th>
+            <th>Contado</th><th>Sin Int.</th><th>Con Int.</th>
+          </tr></thead>
+          <tbody id="vendedorBody"><tr><td colspan="12" class="empty">Cargando...</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- TAB METAS -->
+    <div class="tab-content" id="tab-metas">
+      <div class="table-wrap">
+        <div class="section-header">
+          <div class="section-title">Metas vs Avance — <span id="metasPeriodo">2026</span></div>
+        </div>
+        <table>
+          <thead><tr>
+            <th>Responsable</th><th>Proyecto</th>
+            <th style="color:var(--consersa)">Meta CONSERSA</th>
+            <th style="color:var(--rv4)">Meta RV4</th>
+            <th>Meta Total</th>
+            <th style="color:var(--consersa)">Ventas CONSERSA</th>
+            <th style="color:var(--rv4)">Ventas RV4</th>
+            <th>Total Vendido</th>
+            <th>Cumplimiento</th>
+          </tr></thead>
+          <tbody id="metasBody"><tr><td colspan="9" class="empty">Cargando...</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- TAB TENDENCIAS -->
+    <div class="tab-content" id="tab-tendencias">
+
+      <!-- Impacto Financiero PRIMERO con KPIs -->
+      <div class="table-wrap" style="margin-bottom:14px">
+        <div class="section-header" style="background:var(--azul);border-radius:6px 6px 0 0">
+          <div class="section-title" style="color:#fff;font-size:14px">Impacto Financiero — Capital vs Intereses Pactados</div>
+          <div style="display:flex;align-items:center;gap:8px">
+            <select id="periodoFinanciero" onchange="reloadTendencias()" style="padding:5px 10px;border:1px solid rgba(255,255,255,.4);border-radius:4px;background:rgba(255,255,255,.15);color:#fff;font-family:'Montserrat',sans-serif;font-size:11px;font-weight:600;outline:none;cursor:pointer">
+              <option value="12" style="background:var(--azul);color:#fff">Últimos 12 meses</option>
+              <option value="24" style="background:var(--azul);color:#fff">Últimos 24 meses</option>
+              <option value="all" style="background:var(--azul);color:#fff">Todo el tiempo</option>
+            </select>
+          </div>
+        </div>
+        <div id="financieroKPIs" style="display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--borde)">
+          <div style="background:var(--blanco);padding:14px 18px">
+            <div style="font-size:9px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin-bottom:6px">Tasa Anual Implícita</div>
+            <div id="finTasaAnual" style="font-size:22px;font-weight:700;color:var(--azul)">—</div>
+            <div style="font-size:10px;color:var(--muted);margin-top:3px">Sobre contratos con interés</div>
+          </div>
+          <div style="background:var(--blanco);padding:14px 18px">
+            <div style="font-size:9px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin-bottom:6px">Intereses Cobrados</div>
+            <div id="finIntCobrados" style="font-size:22px;font-weight:700;color:var(--green)">—</div>
+            <div id="finIntCobradosSub" style="font-size:10px;color:var(--muted);margin-top:3px">—</div>
+          </div>
+          <div style="background:var(--blanco);padding:14px 18px">
+            <div style="font-size:9px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin-bottom:6px">Oportunidad No Cobrada</div>
+            <div id="finIntNoCobrados" style="font-size:22px;font-weight:700;color:var(--red)">—</div>
+            <div id="finIntNoCobradosSub" style="font-size:10px;color:var(--muted);margin-top:3px">Estimado a tasa implícita</div>
+          </div>
+          <div style="background:var(--blanco);padding:14px 18px">
+            <div style="font-size:9px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin-bottom:6px">% Capturado</div>
+            <div id="finRatio" style="font-size:22px;font-weight:700;color:var(--dorado)">—</div>
+            <div style="font-size:10px;color:var(--muted);margin-top:3px">Del total de interés posible</div>
+          </div>
+        </div>
+        <div style="padding:18px 20px;background:var(--blanco)">
+          <canvas id="chartFinanciero" height="100"></canvas>
+        </div>
+      </div>
+
+      <!-- Mix de Plazos -->
+      <div class="charts-row" style="grid-template-columns:1fr 1fr;margin-bottom:14px">
+        <div class="chart-box">
+          <div class="chart-title">
+            Mix de Plazos — Sin Interés
+            <span class="chart-sub" id="sinIntResumen">lotes por plazo</span>
+          </div>
+          <div id="sinIntAlert" style="display:none;margin-bottom:10px;padding:8px 12px;background:var(--amber-bg);border:1px solid var(--amber-bd);border-radius:4px;font-size:11px;color:var(--amber)"></div>
+          <canvas id="chartPlazoSinInt" height="130"></canvas>
+        </div>
+        <div class="chart-box">
+          <div class="chart-title">
+            Mix de Plazos — Con Interés
+            <span class="chart-sub" id="conIntResumen">lotes por plazo</span>
+          </div>
+          <canvas id="chartPlazoConInt" height="130"></canvas>
+        </div>
+      </div>
+
+      <!-- Plazo Promedio -->
+      <div class="chart-box" style="margin-bottom:22px">
+        <div class="chart-title">Plazo Promedio de Venta por Mes <span class="chart-sub">meses</span></div>
+        <canvas id="chartPlazo" height="70"></canvas>
+      </div>
+
+    </div>
+
+    <!-- TAB REVISION -->
+    <div class="tab-content" id="tab-revision">
+      <div id="revisionContent"><div class="empty">Cargando...</div></div>
+    </div>
+
+    <!-- TAB CONFIG EQUIPOS -->
+    <div class="tab-content" id="tab-config">
+      <div class="table-wrap">
+        <div class="section-header">
+          <div class="section-title">Asignación de Equipos — Vendedores</div>
+          <div style="display:flex;align-items:center;gap:12px">
+            <span style="font-size:11px;color:var(--muted)">Solo visible para Administrador y Gerentes</span>
+            <button id="btnGuardarTodos" onclick="guardarTodos()" style="padding:7px 18px;background:var(--azul);color:#fff;border:none;border-radius:4px;font-family:'Montserrat',sans-serif;font-size:12px;font-weight:700;cursor:pointer">
+              Guardar todos los cambios
+            </button>
+          </div>
+        </div>
+        <div style="padding:16px">
+          <div class="vend-grid" id="vendedoresGrid"><div class="empty">Cargando vendedores...</div></div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</main>
+
+<!-- MODAL DRILL-DOWN -->
+<div id="drillOverlay" onclick="closeDrill(event)" style="display:none;position:fixed;inset:0;background:rgba(15,17,23,.6);backdrop-filter:blur(3px);z-index:200;align-items:flex-start;justify-content:center;padding:30px 20px;overflow-y:auto">
+  <div style="background:#fff;border-radius:6px;width:100%;max-width:920px;box-shadow:0 20px 60px rgba(0,0,0,.2)">
+    <div style="padding:16px 22px 14px;border-bottom:1px solid var(--borde);display:flex;align-items:flex-start;justify-content:space-between;position:relative">
+      <div style="position:absolute;top:0;left:0;right:0;height:3px;background:linear-gradient(90deg,var(--azul),var(--dorado));border-radius:6px 6px 0 0"></div>
+      <div>
+        <div id="drillTitle" style="font-size:16px;font-weight:700;color:var(--azul)">Detalle</div>
+        <div id="drillSub" style="font-size:11px;color:var(--muted);margin-top:2px"></div>
+      </div>
+      <button onclick="document.getElementById('drillOverlay').style.display='none'" style="background:none;border:none;cursor:pointer;color:var(--muted);font-size:20px;padding:2px 6px;margin-top:2px">✕</button>
+    </div>
+    <div id="drillBody" style="padding:18px 22px"></div>
+  </div>
+</div>
+
+<script>
+const token = localStorage.getItem('token');
+const usuario = JSON.parse(localStorage.getItem('usuario') || 'null');
+if (!token || !usuario) window.location.href = '/index.html';
+
+document.getElementById('userName').textContent = usuario?.nombre || '—';
+document.getElementById('userRole').textContent = usuario?.rol || '—';
+document.getElementById('userAvatar').textContent = (usuario?.nombre || 'A')[0].toUpperCase();
+document.getElementById('envLabel').textContent = window.location.hostname === 'localhost' ? 'DESARROLLO' : 'PRODUCCIÓN';
+if (usuario?.nivel >= 4) document.getElementById('adminSection').style.display = 'block';
+if (usuario?.nivel >= 3) document.getElementById('tabConfig').style.display = 'flex';
+
+let charts = {};
+var _lastTendencia = null;
+const fmtQ = n => 'Q ' + Number(n || 0).toLocaleString('es-GT', {minimumFractionDigits: 0, maximumFractionDigits: 0});
+const fmtNum = n => Number(n || 0).toLocaleString('es-GT');
+const fmtMes = d => {
+  const parts = String(d).substring(0,7).split('-');
+  const months = ['ene','feb','mar','abr','may','jun','jul','ago','sept','oct','nov','dic'];
+  return months[parseInt(parts[1])-1] + ' ' + parts[0].substring(2);
+};
+
+async function api(path) {
+  const r = await fetch(path, {headers: {'Authorization': `Bearer ${token}`}});
+  if (r.status === 401) { logout(); return null; }
+  if (!r.ok) return null;
+  return r.json();
+}
+
+function getFilters() {
+  return {
+    año: document.getElementById('añoSel').value,
+    mes: document.getElementById('mesSel').value,
+    proyecto: document.getElementById('proyectoSel').value
+  };
+}
+
+function buildQ(extra = {}) {
+  const f = getFilters();
+  const p = new URLSearchParams({año: f.año, ...extra});
+  if (f.mes) p.set('mes', f.mes);
+  if (f.proyecto) p.set('proyecto', f.proyecto);
+  return '?' + p.toString();
+}
+
+async function onFilterChange() {
+  const tab = document.querySelector('.tab.active')?.getAttribute('data-tab') || 'resumen';
+  loadResumen();
+  if (document.getElementById('tab-metas').classList.contains('active')) loadMetas();
+  if (document.getElementById('tab-tendencias').classList.contains('active')) loadTendencias();
+}
+
+// ── RESUMEN ────────────────────────────────────────────────────
+async function loadResumen() {
+  const [kpis, tendencia] = await Promise.all([
+    api('/api/ventas/kpis' + buildQ()),
+    api('/api/ventas/tendencia-mensual' + buildQ({meses_atras:12}))
+  ]);
+  if (kpis) renderKPIs(kpis);
+  if (tendencia) { renderTendenciaChart(tendencia); }
+  loadVendedorTable();
+  loadMezclaDonut();
+}
+
+function renderKPIs(k) {
+  document.getElementById('kBrutas').textContent = fmtNum(k.ventas_brutas);
+  document.getElementById('kBrutasSub').innerHTML = `${fmtQ(k.valor_bruto)}${k.sin_vendedor > 0 ? ` <span style="color:var(--amber);font-weight:600">· ${k.sin_vendedor} sin asesor</span>` : ''}`;
+  document.getElementById('kNetas').textContent = fmtNum(k.ventas_netas);
+  document.getElementById('kNetasSub').innerHTML = `<span class="${k.tasa_desistimiento > 20 ? 'red' : 'green'}">Tasa desist: ${k.tasa_desistimiento}%</span>`;
+  document.getElementById('kDesist').textContent = fmtNum(k.desistimientos);
+  document.getElementById('kDesistSub').innerHTML = `<span class="${k.tasa_desistimiento > 20 ? 'red' : ''}">Tasa: ${k.tasa_desistimiento}%</span>`;
+  document.getElementById('kTicket').textContent = fmtQ(k.ticket_promedio);
+  document.getElementById('kTicketSub').textContent = 'Precio promedio por lote';
+  document.getElementById('kValor').textContent = fmtQ(k.valor_bruto);
+  document.getElementById('kValorSub').textContent = `Intereses: ${fmtQ(k.intereses_pactados)}`;
+  document.getElementById('kPlazo').textContent = Math.round(k.plazo_promedio) + ' m';
+  document.getElementById('kPlazoSub').textContent = `Contado:${k.contado} | SinInt:${k.sin_interes} | ConInt:${k.con_interes}`;
+}
+
+function renderTendenciaChart(data) {
+  _lastTendencia = data;
+  const ctx = document.getElementById('chartTendencia').getContext('2d');
+  if (charts.tendencia) charts.tendencia.destroy();
+  charts.tendencia = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: data.map(d => fmtMes(d.mes)),
+      datasets: [
+        {label: 'Ventas Brutas', data: data.map(d => d.ventas_brutas), backgroundColor: 'rgba(27,58,107,0.7)', borderRadius: 3},
+        {label: 'Ventas Netas', data: data.map(d => d.ventas_netas), backgroundColor: 'rgba(22,163,74,0.7)', borderRadius: 3},
+        {label: 'Desistimientos', data: data.map(d => d.desistimientos), backgroundColor: 'rgba(185,28,28,0.65)', borderRadius: 3, type: 'line', yAxisID: 'y1'}
+      ]
+    },
+    options: {
+      responsive: true, cursor: 'pointer',
+      onClick: function(e, elements) {
+        if (!elements.length) return;
+        var idx = elements[0].index;
+        if (_lastTendencia && _lastTendencia[idx]) drillMes(String(_lastTendencia[idx].mes).substring(0,10));
+      },
+      plugins: {legend: {labels: {font: {family: 'Montserrat', size: 11}, boxWidth: 12}}},
+      scales: {
+        x: {ticks: {font: {family: 'Montserrat', size: 10}}, grid: {display: false}},
+        y: {ticks: {font: {family: 'Montserrat', size: 10}}, grid: {color: 'rgba(0,0,0,.05)'}},
+        y1: {position: 'right', ticks: {font: {family: 'Montserrat', size: 10}}, grid: {display: false}}
+      }
+    }
+  });
+}
+
+async function loadMezclaDonut() {
+  const f = getFilters();
+  const data = await api('/api/ventas/kpis' + buildQ());
+  if (!data) return;
+  const ctx = document.getElementById('chartMezcla').getContext('2d');
+  if (charts.mezcla) charts.mezcla.destroy();
+  charts.mezcla = new Chart(ctx, {
+    type: 'doughnut',
+    data: {
+      labels: ['Contado', 'Crédito Sin Interés', 'Crédito Con Interés'],
+      datasets: [{
+        data: [data.contado, data.sin_interes, data.con_interes],
+        backgroundColor: ['rgba(22,163,74,0.8)', 'rgba(27,58,107,0.8)', 'rgba(212,168,0,0.8)'],
+        borderWidth: 1
+      }]
+    },
+    options: {
+      responsive: true,
+      plugins: {
+        legend: {position: 'bottom', labels: {font: {family: 'Montserrat', size: 11}, boxWidth: 12}},
+        tooltip: {callbacks: {label: ctx => `${ctx.label}: ${ctx.raw} lotes`}}
+      }
+    }
+  });
+}
+
+async function loadVendedorTable() {
+  const equipo = document.getElementById('filtroEquipo').value;
+  const q = buildQ(equipo ? {equipo} : {});
+  const data = await api('/api/ventas/por-vendedor' + q);
+  const tbody = document.getElementById('vendedorBody');
+  if (!data || !data.length) {tbody.innerHTML = '<tr><td colspan="12" class="empty">Sin datos</td></tr>'; return;}
+
+  // Group by vendedor (sum across projects)
+  const byVend = {};
+  data.forEach(r => {
+    if (!byVend[r.vendedor]) byVend[r.vendedor] = {...r, proyectos: []};
+    else {
+      byVend[r.vendedor].ventas_brutas += r.ventas_brutas;
+      byVend[r.vendedor].ventas_netas += r.ventas_netas;
+      byVend[r.vendedor].desistimientos += r.desistimientos;
+      byVend[r.vendedor].valor_bruto += parseFloat(r.valor_bruto);
+      byVend[r.vendedor].contado += r.contado;
+      byVend[r.vendedor].sin_interes += r.sin_interes;
+      byVend[r.vendedor].con_interes += r.con_interes;
+    }
+    byVend[r.vendedor].proyectos.push(r.proyecto);
+  });
+
+  const rows = Object.values(byVend).sort((a,b) => b.ventas_brutas - a.ventas_brutas);
+  const totBrutas = rows.reduce((s,r)=>s+r.ventas_brutas,0);
+  const totNetas = rows.reduce((s,r)=>s+r.ventas_netas,0);
+  const totDesist = rows.reduce((s,r)=>s+r.desistimientos,0);
+  const totValor = rows.reduce((s,r)=>s+parseFloat(r.valor_bruto),0);
+
+  tbody.innerHTML = rows.map(r => {
+    const eq = r.equipo || 'SIN_ASIGNAR';
+    const eqCls = eq === 'CONSERSA' ? 'eq-consersa' : eq === 'RV4' ? 'eq-rv4' : 'eq-sin';
+    const eqLabel = eq === 'CONSERSA' ? 'CONSERSA' : eq === 'RV4' ? 'RV4' : '—';
+    return `<tr>
+      <td style="font-weight:600">${r.vendedor}</td>
+      <td><span class="eq-badge ${eqCls}">${eqLabel}</span></td>
+      <td style="font-size:10.5px;color:var(--muted)">${[...new Set(r.proyectos)].slice(0,2).join(', ')}${r.proyectos.length>2?'…':''}</td>
+      <td style="font-weight:700;text-align:center">${r.ventas_brutas}</td>
+      <td style="font-weight:700;text-align:center;color:var(--green)">${r.ventas_netas}</td>
+      <td style="text-align:center;color:${r.desistimientos>0?'var(--red)':'var(--muted)'}">${r.desistimientos}</td>
+      <td style="font-variant-numeric:tabular-nums">${fmtQ(r.valor_bruto)}</td>
+      <td style="font-variant-numeric:tabular-nums;font-size:11px">${fmtQ(r.ticket_promedio)}</td>
+      <td style="text-align:center;font-size:11px">${Math.round(r.plazo_promedio || 0)}m</td>
+      <td style="text-align:center;font-size:11px;color:var(--green)">${r.contado}</td>
+      <td style="text-align:center;font-size:11px;color:var(--blue)">${r.sin_interes}</td>
+      <td style="text-align:center;font-size:11px;color:var(--amber)">${r.con_interes}</td>
+    </tr>`;
+  }).join('') + `<tr class="total-row">
+    <td colspan="3" style="font-weight:700">TOTAL</td>
+    <td style="text-align:center">${totBrutas}</td>
+    <td style="text-align:center;color:var(--green)">${totNetas}</td>
+    <td style="text-align:center;color:var(--red)">${totDesist}</td>
+    <td>${fmtQ(totValor)}</td>
+    <td colspan="5"></td>
+  </tr>`;
+}
+
+// ── METAS ──────────────────────────────────────────────────────
+async function loadMetas() {
+  const data = await api('/api/ventas/metas' + buildQ());
+  const f = getFilters();
+  const meses = ['','Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+  document.getElementById('metasPeriodo').textContent = f.mes ? `${meses[f.mes]} ${f.año}` : f.año;
+  const tbody = document.getElementById('metasBody');
+  if (!data || !data.length) {tbody.innerHTML = '<tr><td colspan="9" class="empty">Sin datos</td></tr>'; return;}
+
+  let totMC=0,totMR=0,totMT=0,totVC=0,totVR=0,totVT=0;
+  tbody.innerHTML = data.map(r => {
+    const pct = parseFloat(r.cumplimiento_pct || 0);
+    const cls = pct >= 80 ? 'sem-verde' : pct >= 50 ? 'sem-amarillo' : 'sem-rojo';
+    const w = Math.min(pct, 100);
+    totMC+=r.meta_consersa; totMR+=r.meta_rv4; totMT+=r.meta_total;
+    totVC+=r.ventas_consersa||0; totVR+=r.ventas_rv4||0; totVT+=r.ventas_total||0;
+    return `<tr>
+      <td style="font-weight:600">${r.responsable}</td>
+      <td style="font-size:11px">${r.proyecto}</td>
+      <td style="text-align:center;color:var(--consersa);font-weight:600">${r.meta_consersa}</td>
+      <td style="text-align:center;color:var(--rv4);font-weight:600">${r.meta_rv4}</td>
+      <td style="text-align:center;font-weight:700">${r.meta_total}</td>
+      <td style="text-align:center;color:var(--consersa)">${r.ventas_consersa || 0}</td>
+      <td style="text-align:center;color:var(--rv4)">${r.ventas_rv4 || 0}</td>
+      <td style="text-align:center;font-weight:700">${r.ventas_total || 0}</td>
+      <td><div class="semaforo ${cls}">
+        <div class="sem-bar-bg"><div class="sem-bar" style="width:${w}%"></div></div>
+        <span class="sem-pct">${pct}%</span>
+      </div></td>
+    </tr>`;
+  }).join('') + `<tr class="total-row">
+    <td colspan="2">TOTAL</td>
+    <td style="text-align:center;color:var(--consersa)">${totMC}</td>
+    <td style="text-align:center;color:var(--rv4)">${totMR}</td>
+    <td style="text-align:center;font-weight:700">${totMT}</td>
+    <td style="text-align:center;color:var(--consersa)">${totVC}</td>
+    <td style="text-align:center;color:var(--rv4)">${totVR}</td>
+    <td style="text-align:center;font-weight:700">${totVT}</td>
+    <td><div class="semaforo ${totVT/totMT>=.8?'sem-verde':totVT/totMT>=.5?'sem-amarillo':'sem-rojo'}">
+      <div class="sem-bar-bg"><div class="sem-bar" style="width:${Math.min(totVT/totMT*100,100)}%"></div></div>
+      <span class="sem-pct">${Math.round(totVT/totMT*100)}%</span>
+    </div></td>
+  </tr>`;
+}
+
+// ── TENDENCIAS ─────────────────────────────────────────────────
+function reloadTendencias() {
+  if (document.getElementById('tab-tendencias').classList.contains('active')) {
+    loadTendencias();
+  }
+}
+
+function buildFinancialQ() {
+  var periodo = document.getElementById('periodoFinanciero');
+  var val = periodo ? periodo.value : '12';
+  var base = buildQ();
+  if (val === 'all') {
+    return base + '&todo_el_tiempo=true';
+  }
+  return base + '&meses_atras=' + val;
+}
+
+async function loadTendencias() {
+  var fq = buildFinancialQ();
+  const [tendencia, mezcla, plazos, finAnalisis] = await Promise.all([
+    api('/api/ventas/tendencia-mensual' + fq),
+    api('/api/ventas/mezcla-financiera' + fq),
+    api('/api/ventas/mezcla-plazos' + fq),
+    api('/api/ventas/analisis-financiero' + fq)
+  ]);
+
+  var fontOpts = {family:'Montserrat', size:10};
+  var legend11 = {labels:{font:{family:'Montserrat',size:11},boxWidth:12}};
+
+  // 1. IMPACTO FINANCIERO con KPIs
+  if (finAnalisis) {
+    var fmtQs = function(n){ return 'Q ' + Number(n||0).toLocaleString('es-GT',{maximumFractionDigits:0}); };
+    document.getElementById('finTasaAnual').textContent = (finAnalisis.tasa_anual_implicita||0).toFixed(1) + '%';
+    document.getElementById('finIntCobrados').textContent = fmtQs(finAnalisis.intereses_cobrados);
+    document.getElementById('finIntCobradosSub').textContent =
+      (finAnalisis.lotes_con_int||0) + ' contratos con interés | ' +
+      (finAnalisis.tasa_total_sobre_capital||0).toFixed(1) + '% sobre capital';
+    document.getElementById('finIntNoCobrados').textContent = fmtQs(finAnalisis.intereses_no_cobrados);
+    document.getElementById('finIntNoCobradosSub').textContent =
+      (finAnalisis.lotes_sin_int||0) + ' contratos sin interés a tasa ' +
+      (finAnalisis.tasa_anual_implicita||0).toFixed(1) + '% anual';
+    document.getElementById('finRatio').textContent = (finAnalisis.ratio_cobrado_vs_oportunidad||0).toFixed(1) + '%';
+  }
+
+  if (mezcla && mezcla.length) {
+    var meses = mezcla.map(function(d){ return d.mes; })
+      .filter(function(v,i,a){ return a.indexOf(v)===i; }).sort();
+
+    var ctxF = document.getElementById('chartFinanciero').getContext('2d');
+    if (charts.financiero) charts.financiero.destroy();
+    charts.financiero = new Chart(ctxF, {
+      type: 'bar',
+      data: {
+        labels: meses.map(function(m){ return fmtMes(m); }),
+        datasets: [
+          {
+            label: 'Capital',
+            data: meses.map(function(m){
+              return mezcla.filter(function(d){ return d.mes===m; })
+                .reduce(function(s,d){ return s + parseFloat(d.valor||0); }, 0);
+            }),
+            backgroundColor: 'rgba(27,58,107,0.75)', borderRadius: 3
+          },
+          {
+            label: 'Intereses Pactados',
+            data: meses.map(function(m){
+              return mezcla.filter(function(d){ return d.mes===m; })
+                .reduce(function(s,d){ return s + parseFloat(d.intereses||0); }, 0);
+            }),
+            backgroundColor: 'rgba(212,168,0,0.8)', borderRadius: 3
+          }
+        ]
+      },
+      options: {
+        responsive: true,
+        plugins: {
+          legend: legend11,
+          tooltip: {callbacks: {label: function(ctx){
+            return ctx.dataset.label + ': Q ' + ctx.raw.toLocaleString('es-GT',{maximumFractionDigits:0});
+          }}}
+        },
+        scales: {
+          x: {ticks:{font:fontOpts}, grid:{display:false}},
+          y: {ticks:{font:fontOpts, callback: function(v){
+            return 'Q ' + Number(v).toLocaleString('es-GT',{maximumFractionDigits:0});
+          }}}
+        }
+      }
+    });
+  }
+
+  // 2. MIX DE PLAZOS con análisis de oportunidad
+  if (plazos && plazos.length) {
+    var COLORS_SIN = ['#1B3A6B','#2a5298','#3b6fd4','#6b9fd4','#9fc4e8','#c5ddf5'];
+    var COLORS_CON = ['#D4A800','#e8b800','#f5c800','#f7d454','#f9e080','#fbeaaa'];
+    var tasa = finAnalisis ? (finAnalisis.tasa_anual_implicita||0) / 100 : 0.086;
+
+    var sinInt = plazos.filter(function(d){ return d.forma_pago === 'CREDITOSININTERES'; });
+    var plazosUniqSin = sinInt.map(function(d){ return d.plazo; })
+      .filter(function(v,i,a){ return a.indexOf(v)===i; }).sort(function(a,b){return a-b;});
+
+    // Total sin interés resumen
+    var totLotesSin = sinInt.reduce(function(s,d){ return s+parseInt(d.lotes||0); },0);
+    var totCapSin = sinInt.reduce(function(s,d){ return s+parseFloat(d.valor||0); },0);
+    var totIntNoCob = 0;
+
+    if (plazosUniqSin.length) {
+      var ctxSI = document.getElementById('chartPlazoSinInt').getContext('2d');
+      if (charts.plazoSin) charts.plazoSin.destroy();
+
+      var sinLabels = plazosUniqSin.map(function(p){ return p + ' meses'; });
+      var sinData = plazosUniqSin.map(function(p){
+        var d = sinInt.find(function(x){ return x.plazo===p; });
+        return d ? parseInt(d.lotes) : 0;
+      });
+      var sinIntNoCob = plazosUniqSin.map(function(p){
+        var d = sinInt.find(function(x){ return x.plazo===p; });
+        if (!d) return 0;
+        var intNC = parseFloat(d.valor||0) * tasa * (p/12);
+        totIntNoCob += intNC;
+        return intNC;
+      });
+
+      charts.plazoSin = new Chart(ctxSI, {
+        type: 'bar', indexAxis: 'y',
+        data: {
+          labels: sinLabels,
+          datasets: [{
+            label: 'Lotes',
+            data: sinData,
+            backgroundColor: plazosUniqSin.map(function(_,i){ return COLORS_SIN[i%COLORS_SIN.length]; }),
+            borderRadius: 4
+          }]
+        },
+        options: {
+          responsive: true, cursor: 'pointer',
+          onClick: function(e, elements) {
+            if (!elements.length) return;
+            drillPlazo(plazosUniqSin[elements[0].index], 'CREDITOSININTERES');
+          },
+          plugins: {
+            legend: {display: false},
+            tooltip: {callbacks: {label: function(ctx){
+              var p = plazosUniqSin[ctx.dataIndex];
+              var d = sinInt.find(function(x){ return x.plazo===p; });
+              var cap = d ? parseFloat(d.valor||0) : 0;
+              var intNC = cap * tasa * (p/12);
+              return [
+                ctx.raw + ' lotes | Q ' + cap.toLocaleString('es-GT',{maximumFractionDigits:0}),
+                'Intereses no cobrados est.: Q ' + intNC.toLocaleString('es-GT',{maximumFractionDigits:0}),
+                '👆 Click para ver detalle'
+              ];
+            }}}
+          },
+          scales: {
+            x: {ticks:{font:fontOpts}, grid:{color:'rgba(0,0,0,.05)'}},
+            y: {ticks:{font:fontOpts}, grid:{display:false}}
+          }
+        }
+      });
+
+      // Alert below chart
+      var alertEl = document.getElementById('sinIntAlert');
+      var fmtQs2 = function(n){ return 'Q '+Number(n).toLocaleString('es-GT',{maximumFractionDigits:0}); };
+      alertEl.style.display = 'block';
+      alertEl.innerHTML = '<strong>' + totLotesSin + ' lotes sin interés</strong> | Capital: ' + fmtQs2(totCapSin) +
+        ' | Interés estimado no cobrado: <strong>' + fmtQs2(totIntNoCob) + '</strong> (a tasa ' + (tasa*100).toFixed(1) + '% anual)';
+      document.getElementById('sinIntResumen').textContent = totLotesSin + ' lotes | ' + fmtQs2(totCapSin);
+    }
+
+    var conInt = plazos.filter(function(d){ return d.forma_pago === 'CREDITOCONINTERES'; });
+    var plazosUniqCon = conInt.map(function(d){ return d.plazo; })
+      .filter(function(v,i,a){ return a.indexOf(v)===i; }).sort(function(a,b){return a-b;});
+
+    var totLotesCon = conInt.reduce(function(s,d){ return s+parseInt(d.lotes||0); },0);
+    var totIntCon = conInt.reduce(function(s,d){ return s+parseFloat(d.intereses||0); },0);
+    var fmtQs3 = function(n){ return 'Q '+Number(n).toLocaleString('es-GT',{maximumFractionDigits:0}); };
+    document.getElementById('conIntResumen').textContent = totLotesCon + ' lotes | ' + fmtQs3(totIntCon) + ' en intereses';
+
+    if (plazosUniqCon.length) {
+      var ctxCI = document.getElementById('chartPlazoConInt').getContext('2d');
+      if (charts.plazoCon) charts.plazoCon.destroy();
+      charts.plazoCon = new Chart(ctxCI, {
+        type: 'bar', indexAxis: 'y',
+        data: {
+          labels: plazosUniqCon.map(function(p){ return p + ' meses'; }),
+          datasets: [{
+            label: 'Lotes',
+            data: plazosUniqCon.map(function(p){
+              var d = conInt.find(function(x){ return x.plazo===p; });
+              return d ? parseInt(d.lotes) : 0;
+            }),
+            backgroundColor: plazosUniqCon.map(function(_,i){ return COLORS_CON[i%COLORS_CON.length]; }),
+            borderRadius: 4
+          }]
+        },
+        options: {
+          responsive: true, cursor: 'pointer',
+          onClick: function(e, elements) {
+            if (!elements.length) return;
+            drillPlazo(plazosUniqCon[elements[0].index], 'CREDITOCONINTERES');
+          },
+          plugins: {
+            legend: {display: false},
+            tooltip: {callbacks: {label: function(ctx){
+              var idx = ctx.dataIndex;
+              var d = conInt.find(function(x){ return x.plazo===plazosUniqCon[idx]; });
+              var cap = d ? parseFloat(d.valor||0) : 0;
+              var intV = d ? parseFloat(d.intereses||0) : 0;
+              var tasaP = cap > 0 ? (intV/cap*100/(plazosUniqCon[idx]/12)).toFixed(1) : '0';
+              return [
+                ctx.raw + ' lotes | Capital: Q ' + cap.toLocaleString('es-GT',{maximumFractionDigits:0}),
+                'Intereses: Q ' + intV.toLocaleString('es-GT',{maximumFractionDigits:0}),
+                'Tasa anual implícita: ' + tasaP + '%'
+              ];
+            }}}
+          },
+          scales: {
+            x: {ticks:{font:fontOpts}, grid:{color:'rgba(0,0,0,.05)'}},
+            y: {ticks:{font:fontOpts}, grid:{display:false}}
+          }
+        }
+      });
+    }
+  }
+
+  // 3. PLAZO PROMEDIO (último)
+  if (tendencia && tendencia.length) {
+    var ctxP = document.getElementById('chartPlazo').getContext('2d');
+    if (charts.plazo) charts.plazo.destroy();
+    charts.plazo = new Chart(ctxP, {
+      type: 'line',
+      data: {
+        labels: tendencia.map(function(d){ return fmtMes(d.mes); }),
+        datasets: [{
+          label: 'Plazo Promedio (meses)',
+          data: tendencia.map(function(d){ return Math.round(d.plazo_promedio || 0); }),
+          borderColor: 'rgba(27,58,107,0.8)', backgroundColor: 'rgba(27,58,107,0.1)',
+          fill: true, tension: 0.3, pointRadius: 4
+        }]
+      },
+      options: {
+        responsive: true, plugins: {legend: {display: false}},
+        scales: {
+          x: {ticks:{font:fontOpts}, grid:{display:false}},
+          y: {ticks:{font:fontOpts}, grid:{color:'rgba(0,0,0,.05)'}}
+        }
+      }
+    });
+  }
+}
+// ── DRILL-DOWN ────────────────────────────────────────────────
+function closeDrill(e) {
+  if (e.target === document.getElementById('drillOverlay'))
+    document.getElementById('drillOverlay').style.display = 'none';
+}
+document.addEventListener('keydown', function(e){ if(e.key==='Escape') document.getElementById('drillOverlay').style.display='none'; });
+
+function showDrill(title, sub, lotes, valorTotal, interesesTotal) {
+  document.getElementById('drillTitle').textContent = title;
+  document.getElementById('drillSub').textContent = sub;
+  var fmtQd = function(n){ return 'Q '+Number(n||0).toLocaleString('es-GT',{maximumFractionDigits:0}); };
+  var fmtDateD = function(d){ return d ? String(d).substring(0,10) : '—'; };
+  var fpLabel = function(fp){
+    if(!fp) return '—';
+    if(fp==='CONTADO') return 'Contado';
+    if(fp==='CREDITOSININTERES') return 'Créd. Sin Int.';
+    if(fp==='CREDITOCONINTERES') return 'Créd. Con Int.';
+    return fp;
+  };
+  var isInconsistente = function(l){
+    return (l.forma_pago==='CREDITOCONINTERES' && !(parseFloat(l.total_intereses||0)>0)) ||
+           (l.forma_pago==='CREDITOSININTERES' && parseFloat(l.total_intereses||0)>0);
+  };
+  var totalInconsis = lotes.filter(isInconsistente).length;
+
+  var renderTable = function(filtrar) {
+    var lista = filtrar ? lotes.filter(isInconsistente) : lotes;
+    return lista.map(function(l, i){
+      var inconsis = isInconsistente(l);
+      var rowBg = inconsis ? 'background:#fff3cd' : (i%2===0?'':'background:#f9fafb');
+      var intCell = inconsis
+        ? '<td style="padding:8px 10px;font-size:11px;text-align:right;color:var(--red);font-weight:700">⚠ ' + fmtQd(l.total_intereses) + '</td>'
+        : '<td style="padding:8px 10px;font-size:11px;text-align:right;font-variant-numeric:tabular-nums">' + fmtQd(l.total_intereses) + '</td>';
+      return '<tr style="border-bottom:1px solid var(--borde-lt);' + rowBg + '">' +
+        '<td style="padding:8px 10px;font-size:11px;font-weight:600">' + (inconsis?'⚠ ':'') + (l.unidad_key||'—') + '</td>' +
+        '<td style="padding:8px 10px;font-size:11px">' + (l.card_name||'—') + '</td>' +
+        '<td style="padding:8px 10px;font-size:10.5px;color:var(--muted)">' + (l.nombre_proyecto||'—') + '</td>' +
+        '<td style="padding:8px 10px;font-size:10.5px">' + (l.vendedor||'—') + '</td>' +
+        '<td style="padding:8px 10px;font-size:11px;text-align:right;font-variant-numeric:tabular-nums">' + fmtQd(l.precio_final) + '</td>' +
+        intCell +
+        '<td style="padding:8px 10px;font-size:10px;text-align:center">' + fpLabel(l.forma_pago) + '</td>' +
+        '<td style="padding:8px 10px;font-size:11px;text-align:center">' + (l.plazo||'—') + 'm</td>' +
+        '<td style="padding:8px 10px;font-size:10.5px;text-align:center;color:var(--muted)">' + fmtDateD(l.fecha_venta) + '</td>' +
+      '</tr>';
+    }).join('');
+  };
+
+  var filterBar = totalInconsis > 0
+    ? '<div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;padding:10px 14px;background:var(--amber-bg);border:1px solid var(--amber-bd);border-radius:4px">' +
+      '<span style="font-size:12px;font-weight:600;color:var(--amber)">⚠ ' + totalInconsis + ' registros con inconsistencias</span>' +
+      '<button id="drillFilterBtn" onclick="toggleDrillFilter()" style="padding:4px 12px;background:var(--amber);color:#fff;border:none;border-radius:3px;font-family:\'Montserrat\',sans-serif;font-size:11px;font-weight:700;cursor:pointer">Ver solo inconsistentes</button>' +
+      '</div>' : '';
+
+  var body = '<div style="display:flex;gap:20px;margin-bottom:16px;padding-bottom:14px;border-bottom:1px solid var(--borde)">' +
+    '<div><div style="font-size:9px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)">Total Lotes</div>' +
+    '<div style="font-size:20px;font-weight:700;color:var(--azul)">' + lotes.length + '</div></div>' +
+    '<div><div style="font-size:9px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)">Valor Capital</div>' +
+    '<div style="font-size:20px;font-weight:700">' + fmtQd(valorTotal) + '</div></div>' +
+    (interesesTotal > 0 ? '<div><div style="font-size:9px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)">Intereses Pactados</div>' +
+    '<div style="font-size:20px;font-weight:700;color:var(--dorado)">' + fmtQd(interesesTotal) + '</div></div>' : '') +
+    (totalInconsis > 0 ? '<div><div style="font-size:9px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--red)">Inconsistentes</div>' +
+    '<div style="font-size:20px;font-weight:700;color:var(--red)">' + totalInconsis + '</div></div>' : '') +
+    '</div>' +
+    filterBar +
+    '<div style="overflow-x:auto"><table id="drillTable" style="width:100%;border-collapse:collapse">' +
+    '<thead><tr style="border-bottom:2px solid var(--borde)">' +
+    '<th style="padding:8px 10px;text-align:left;font-size:9px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)">Lote</th>' +
+    '<th style="padding:8px 10px;text-align:left;font-size:9px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)">Cliente</th>' +
+    '<th style="padding:8px 10px;text-align:left;font-size:9px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)">Proyecto</th>' +
+    '<th style="padding:8px 10px;text-align:left;font-size:9px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)">Asesor</th>' +
+    '<th style="padding:8px 10px;text-align:right;font-size:9px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)">Capital</th>' +
+    '<th style="padding:8px 10px;text-align:right;font-size:9px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)">Intereses</th>' +
+    '<th style="padding:8px 10px;text-align:center;font-size:9px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)">Forma Pago</th>' +
+    '<th style="padding:8px 10px;text-align:center;font-size:9px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)">Plazo</th>' +
+    '<th style="padding:8px 10px;text-align:center;font-size:9px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)">Fecha</th>' +
+    '</tr></thead><tbody id="drillTableBody">' +
+    renderTable(false) +
+    '</tbody></table></div>';
+
+  document.getElementById('drillBody').innerHTML = body;
+  document.getElementById('drillBody')._lotes = lotes;
+  document.getElementById('drillBody')._renderTable = renderTable;
+  document.getElementById('drillBody')._filterActive = false;
+  document.getElementById('drillOverlay').style.display = 'flex';
+}
+
+function toggleDrillFilter() {
+  var bodyEl = document.getElementById('drillBody');
+  var active = bodyEl._filterActive;
+  bodyEl._filterActive = !active;
+  document.getElementById('drillTableBody').innerHTML = bodyEl._renderTable(!active);
+  var btn = document.getElementById('drillFilterBtn');
+  if (btn) {
+    btn.textContent = !active ? 'Ver todos' : 'Ver solo inconsistentes';
+    btn.style.background = !active ? 'var(--azul)' : 'var(--amber)';
+  }
+}
+
+async function drillMes(mes) {
+  var proyecto = document.getElementById('proyectoSel').value;
+  var q = '/api/ventas/detalle-mes?mes=' + mes;
+  if (proyecto) q += '&proyecto=' + encodeURIComponent(proyecto);
+  var data = await api(q);
+  if (!data) return;
+  var meses = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sept','Oct','Nov','Dic'];
+  var parts = mes.substring(0,7).split('-');
+  var label = meses[parseInt(parts[1])-1] + ' ' + parts[0];
+  showDrill('Ventas de ' + label, data.total + ' lotes | ' + (proyecto||'Todos los proyectos'), data.lotes, data.valor_total, data.intereses_total);
+}
+
+async function drillPlazo(plazo, formaPago) {
+  var proyecto = document.getElementById('proyectoSel').value;
+  var periodo = document.getElementById('periodoFinanciero');
+  var val = periodo ? periodo.value : '12';
+  var q = '/api/ventas/detalle-plazo?plazo=' + plazo + '&forma_pago=' + encodeURIComponent(formaPago);
+  if (proyecto) q += '&proyecto=' + encodeURIComponent(proyecto);
+  if (val === 'all') q += '&todo_el_tiempo=true';
+  else q += '&año=' + document.getElementById('añoSel').value;
+  var data = await api(q);
+  if (!data) return;
+  var fpLabel = formaPago === 'CREDITOSININTERES' ? 'Sin Interés' : 'Con Interés';
+  showDrill('Crédito ' + fpLabel + ' — ' + plazo + ' meses', data.total + ' lotes | Q ' + Number(data.valor_total).toLocaleString('es-GT',{maximumFractionDigits:0}) + ' capital', data.lotes, data.valor_total, data.intereses_total);
+}
+
+// ── REVISION (incluye inconsistencias) ───────────────────────
+async function loadRevision() {
+  const [data, inconsist] = await Promise.all([
+    api('/api/ventas/registros-revision'),
+    api('/api/ventas/inconsistencias')
+  ]);
+  var allIssues = [];
+  if (inconsist && inconsist.issues) allIssues = allIssues.concat(inconsist.issues);
+  if (data && data.issues) allIssues = allIssues.concat(data.issues);
+  var rojas = (inconsist ? inconsist.rojas : 0) + (data ? data.rojas : 0);
+  document.getElementById('revisionBadge').textContent = rojas || allIssues.length;
+  const cont = document.getElementById('revisionContent');
+  if (!allIssues.length) { cont.innerHTML = '<div class="empty">✅ Sin registros pendientes de revisión</div>'; return; }
+  var iconos = {CON_INTERES_SIN_MONTO:'🔴',SIN_INTERES_CON_MONTO:'🔴',CREDITO_SIN_PLAZO:'🟡',VENDEDOR_SIN_EQUIPO:'🟡',VENTA_SIN_VENDEDOR:'⚫',FECHA_DESISTIMIENTO_INCORRECTA:'🔴',VENDEDOR_NUEVO:'🟡'};
+  cont.innerHTML = '<div style="margin-bottom:14px;font-size:12px;color:var(--muted);font-weight:500">' +
+    rojas + ' alertas críticas · ' + (allIssues.length - rojas) + ' pendientes</div>' +
+    allIssues.map(function(i){
+      return '<div class="issue ' + i.nivel.toLowerCase() + '">' +
+        '<div class="issue-icon">' + (iconos[i.tipo]||'⚠') + '</div><div>' +
+        '<div class="issue-tipo">' + i.tipo.replace(/_/g,' ') + '</div>' +
+        '<div class="issue-msg">' + i.mensaje + '</div>' +
+        '<div class="issue-det">' + i.detalle + '</div>' +
+        '<div class="issue-accion">' + (i.accion||'') + '</div>' +
+        '</div></div>';
+    }).join('');
+}
+
+// ── CONFIG EQUIPOS ────────────────────────────────────────────
+async function loadConfig() {
+  const data = await api('/api/ventas/vendedores');
+  if (!data) return;
+  const real = data.filter(v => !v.es_sistema);
+  const grid = document.getElementById('vendedoresGrid');
+  grid.innerHTML = real.map(function(v) {
+    var eq = v.equipo || 'SIN_ASIGNAR';
+    return '<div class="vend-card">' +
+      '<div>' +
+        '<div class="vend-name">' + v.nombre + '</div>' +
+        '<div style="font-size:10px;color:var(--muted);margin-top:2px">' + v.ventas_total + ' ventas</div>' +
+      '</div>' +
+      '<select class="vend-select" id="vsel_' + v.id + '" data-id="' + v.id + '">' +
+        '<option value="CONSERSA"' + (eq==='CONSERSA'?' selected':'') + '>CONSERSA</option>' +
+        '<option value="RV4"' + (eq==='RV4'?' selected':'') + '>RV4</option>' +
+        '<option value="SIN_ASIGNAR"' + (eq==='SIN_ASIGNAR'?' selected':'') + '>Sin asignar</option>' +
+      '</select>' +
+    '</div>';
+  }).join('');
+}
+
+async function guardarTodos() {
+  var btn = document.getElementById('btnGuardarTodos');
+  btn.textContent = 'Guardando...'; btn.disabled = true;
+  
+  var selects = document.querySelectorAll('.vend-select');
+  var promises = [];
+  selects.forEach(function(sel) {
+    var id = sel.getAttribute('data-id');
+    var equipo = sel.value;
+    if (id) {
+      promises.push(
+        fetch('/api/ventas/vendedores/' + id + '?equipo=' + encodeURIComponent(equipo), {
+          method: 'PUT',
+          headers: {'Authorization': 'Bearer ' + token}
+        })
+      );
+    }
+  });
+  
+  if (promises.length === 0) {
+    btn.textContent = 'Sin cambios'; btn.disabled = false;
+    return;
+  }
+  
+  var results = await Promise.all(promises);
+  var allOk = results.every(function(r){ return r.ok; });
+  btn.textContent = allOk ? '✓ ' + promises.length + ' vendedores guardados' : '✗ Algunos fallaron';
+  btn.style.background = allOk ? 'var(--green)' : 'var(--red)';
+  setTimeout(function(){
+    btn.textContent = 'Guardar todos los cambios';
+    btn.style.background = 'var(--azul)';
+    btn.disabled = false;
+  }, 3000);
+}
+
+// ── TABS ──────────────────────────────────────────────────────
+function showTab(name) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+  // Find tab by onclick
+  document.querySelectorAll('.tab').forEach(t => {
+    if (t.getAttribute('onclick')?.includes(name)) t.classList.add('active');
+  });
+  document.getElementById('tab-' + name)?.classList.add('active');
+  if (name === 'metas') loadMetas();
+  if (name === 'tendencias') loadTendencias();
+  if (name === 'revision') loadRevision();
+  if (name === 'config') loadConfig();
+}
+
+function logout() { localStorage.clear(); window.location.href = '/index.html'; }
+
+async function init() {
+  const proyectos = await api('/api/ventas/proyectos');
+  if (proyectos) {
+    const sel = document.getElementById('proyectoSel');
+    proyectos.forEach(p => {
+      const o = document.createElement('option');
+      o.value = p; o.textContent = p;
+      sel.appendChild(o);
+    });
+  }
+  loadResumen();
+  loadRevision();
+}
+
+init();
+</script>
+</body>
+</html>

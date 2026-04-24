@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RV4 Lotificaciones — Acceso</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --azul:      #1B3A6B;
+  --azul-lt:   #2a5298;
+  --dorado:    #D4A800;
+  --dorado-lt: #F0C000;
+  --negro:     #0f1117;
+  --blanco:    #ffffff;
+  --gris:      #f4f5f7;
+  --borde:     #dde1e7;
+  --texto:     #1a1f2e;
+  --muted:     #6b7280;
+  --red:       #c0392b;
+}
+body {
+  font-family: 'Montserrat', sans-serif;
+  background: var(--azul);
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  overflow: hidden;
+}
+body::before {
+  content: '';
+  position: fixed; inset: 0;
+  background:
+    radial-gradient(ellipse 70% 60% at 100% 0%, rgba(212,168,0,0.12) 0%, transparent 60%),
+    radial-gradient(ellipse 50% 70% at 0% 100%, rgba(255,255,255,0.04) 0%, transparent 50%);
+  pointer-events: none;
+}
+.login-wrapper {
+  position: relative; z-index: 10;
+  width: 100%; max-width: 420px;
+  padding: 24px;
+  animation: fadeUp 0.5s ease both;
+}
+@keyframes fadeUp {
+  from { opacity:0; transform: translateY(16px); }
+  to   { opacity:1; transform: none; }
+}
+.brand { text-align: center; margin-bottom: 32px; }
+.brand img { height: 52px;  }
+.brand-sub {
+  font-size: 11px; letter-spacing: 0.2em; text-transform: uppercase;
+  color: rgba(255,255,255,0.45); margin-top: 10px; font-weight: 500;
+}
+.card {
+  background: var(--blanco);
+  border-radius: 4px;
+  padding: 40px 36px;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+  position: relative; overflow: hidden;
+}
+.card::before {
+  content: '';
+  position: absolute; top: 0; left: 0; right: 0; height: 4px;
+  background: linear-gradient(90deg, var(--azul), var(--dorado));
+}
+.card-title { font-size: 18px; font-weight: 700; color: var(--texto); margin-bottom: 4px; }
+.card-sub { font-size: 12px; color: var(--muted); margin-bottom: 28px; }
+.field { margin-bottom: 18px; }
+label {
+  display: block; font-size: 11px; font-weight: 600;
+  letter-spacing: 0.1em; text-transform: uppercase;
+  color: var(--azul); margin-bottom: 7px;
+}
+input {
+  width: 100%; padding: 11px 14px;
+  border: 1.5px solid var(--borde); border-radius: 3px;
+  background: var(--gris);
+  font-family: 'Montserrat', sans-serif; font-size: 13px;
+  color: var(--texto); outline: none;
+  transition: border-color 0.2s, background 0.2s;
+}
+input:focus { border-color: var(--azul); background: #fff; }
+input::placeholder { color: #aab0bc; }
+.btn-login {
+  width: 100%; padding: 13px;
+  background: var(--azul); color: #fff;
+  border: none; border-radius: 3px;
+  font-family: 'Montserrat', sans-serif;
+  font-size: 13px; font-weight: 700;
+  letter-spacing: 0.08em; text-transform: uppercase;
+  cursor: pointer; transition: background 0.2s;
+  margin-top: 6px;
+}
+.btn-login:hover { background: var(--dorado); color: var(--negro); }
+.btn-login:disabled { opacity: 0.6; cursor: not-allowed; }
+.btn-login .spinner {
+  display: none; width: 16px; height: 16px;
+  border: 2px solid rgba(255,255,255,0.3); border-top-color: #fff;
+  border-radius: 50%; animation: spin 0.7s linear infinite; margin: 0 auto;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+.btn-login.loading .btn-text { display: none; }
+.btn-login.loading .spinner { display: block; }
+.error-msg {
+  background: #fdf2f2; border: 1px solid #f5c6c6;
+  color: var(--red); font-size: 12px; padding: 10px 14px;
+  border-radius: 3px; margin-top: 14px; display: none;
+}
+.error-msg.show { display: block; }
+.footer { text-align: center; margin-top: 24px; font-size: 11px; color: rgba(255,255,255,0.25); }
+</style>
+</head>
+<body>
+<div class="login-wrapper">
+  <div class="brand">
+    <img src="logo_rv4.png" alt="RV4" onerror="this.style.display='none';document.getElementById('logoText').style.display='block'">
+    <div id="logoText" style="display:none;font-size:28px;font-weight:700;color:#fff;letter-spacing:0.05em">RV<span style="color:var(--dorado)">4</span></div>
+    <div class="brand-sub">Sistema de Gestión de Lotificaciones</div>
+  </div>
+  <div class="card">
+    <div class="card-title">Iniciar Sesión</div>
+    <div class="card-sub">Ingresa tus credenciales para continuar</div>
+    <form id="loginForm" onsubmit="handleLogin(event)">
+      <div class="field">
+        <label for="email">Correo Electrónico</label>
+        <input type="email" id="email" placeholder="usuario@rvcuatro.com" required autocomplete="email">
+      </div>
+      <div class="field">
+        <label for="password">Contraseña</label>
+        <input type="password" id="password" placeholder="••••••••" required autocomplete="current-password">
+      </div>
+      <button type="submit" class="btn-login" id="btnLogin">
+        <span class="btn-text">Ingresar al Sistema</span>
+        <span class="spinner"></span>
+      </button>
+      <div class="error-msg" id="errorMsg"></div>
+    </form>
+  </div>
+  <div class="footer">© 2026 RV Cuatro — Uso interno</div>
+</div>
+<script>
+const API = '';
+async function handleLogin(e) {
+  e.preventDefault();
+  const btn = document.getElementById('btnLogin');
+  const errEl = document.getElementById('errorMsg');
+  const email = document.getElementById('email').value;
+  const pass  = document.getElementById('password').value;
+  btn.classList.add('loading'); btn.disabled = true;
+  errEl.classList.remove('show');
+  try {
+    const fd = new URLSearchParams();
+    fd.append('username', email); fd.append('password', pass);
+    const res = await fetch(`${API}/api/auth/login`, {
+      method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: fd
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || 'Credenciales incorrectas');
+    localStorage.setItem('token', data.access_token);
+    localStorage.setItem('usuario', JSON.stringify(data.usuario));
+    window.location.href = '/dashboard.html';
+  } catch (err) {
+    errEl.textContent = err.message; errEl.classList.add('show');
+  } finally {
+    btn.classList.remove('loading'); btn.disabled = false;
+  }
+}
+if (localStorage.getItem('token')) window.location.href = '/dashboard.html';
+</script>
+</body>
+</html>

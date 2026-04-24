@@ -1,0 +1,13 @@
+# Entorno
+.env
+.env.dev
+.env.prod
+docker-compose.override.yml
+
+# Python
+__pycache__/
+*.pyc
+
+# Datos locales
+data/
+*.log
