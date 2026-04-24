@@ -1,0 +1,2 @@
+GET http://localhost:5004/api/v1/ping
+Header: X-API-Key: rv4-lotificaciones-2026-Xk9mP2qL

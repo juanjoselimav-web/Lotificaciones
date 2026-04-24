@@ -10,7 +10,7 @@ import os
 
 from app.database import check_db_connection
 from app.core.config import get_settings
-from app.routers import auth, inventario, sync, cartera, ventas
+from app.routers import auth, inventario, sync, cartera, ventas, api_publica
 from app.sync.sync_inventario import sync_inventario
 from app.sync.sync_cartera import sync_cartera
 from app.core.security import hash_password
@@ -133,6 +133,7 @@ app.include_router(inventario.router)
 app.include_router(sync.router)
 app.include_router(cartera.router)
 app.include_router(ventas.router)
+app.include_router(api_publica.router)
 
 
 @app.get("/api/health")
