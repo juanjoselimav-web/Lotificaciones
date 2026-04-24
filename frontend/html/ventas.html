@@ -197,7 +197,7 @@ td{padding:9px 13px;vertical-align:middle}
 <main class="main">
   <div class="topbar">
     <div class="page-title">Ventas y Comercial</div>
-    <div class="topbar-filters">
+    <div class="topbar-filters" id="topbarFilters">
       <select class="tb-select" id="proyectoSel" onchange="onFilterChange()">
         <option value="">Todos los proyectos</option>
       </select>
@@ -261,6 +261,10 @@ td{padding:9px 13px;vertical-align:middle}
         <div class="chart-box">
           <div class="chart-title">Mezcla Forma de Pago <span class="chart-sub">Período</span></div>
           <canvas id="chartMezcla" height="110"></canvas>
+          <div id="mezclaNota" style="display:none;margin-top:10px;padding:8px 10px;background:var(--gris);border-radius:4px;font-size:10.5px;color:var(--muted);border-left:3px solid var(--dorado)">
+            <strong style="color:var(--texto)">Nota:</strong> La mezcla incluye solo lotes con forma de pago definida.
+            <span id="mezclaDiff"></span>
+          </div>
         </div>
       </div>
 
@@ -532,7 +536,6 @@ function renderTendenciaChart(data) {
 }
 
 async function loadMezclaDonut() {
-  const f = getFilters();
   const data = await api('/api/ventas/kpis' + buildQ());
   if (!data) return;
   const ctx = document.getElementById('chartMezcla').getContext('2d');
@@ -555,6 +558,20 @@ async function loadMezclaDonut() {
       }
     }
   });
+
+  // Nota de conciliación
+  var conFP = (data.contado||0) + (data.sin_interes||0) + (data.con_interes||0);
+  var total = data.ventas_brutas||0;
+  var diff = total - conFP;
+  var notaEl = document.getElementById('mezclaNota');
+  var diffEl = document.getElementById('mezclaDiff');
+  if (diff > 0) {
+    notaEl.style.display = 'block';
+    diffEl.textContent = ' ' + conFP + ' de ' + total + ' lotes tienen forma de pago. Los ' + diff +
+      ' restantes son bloqueos, canjes o apartados internos sin forma de pago en SAP.';
+  } else {
+    notaEl.style.display = 'none';
+  }
 }
 
 async function loadVendedorTable() {
@@ -1122,11 +1139,15 @@ async function guardarTodos() {
 function showTab(name) {
   document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
   document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
-  // Find tab by onclick
   document.querySelectorAll('.tab').forEach(t => {
     if (t.getAttribute('onclick')?.includes(name)) t.classList.add('active');
   });
   document.getElementById('tab-' + name)?.classList.add('active');
+
+  // Ocultar filtros globales en Tendencias — tiene su propio selector de período
+  var topbarFilters = document.getElementById('topbarFilters');
+  if (topbarFilters) topbarFilters.style.display = name === 'tendencias' ? 'none' : 'flex';
+
   if (name === 'metas') loadMetas();
   if (name === 'tendencias') loadTendencias();
   if (name === 'revision') loadRevision();
