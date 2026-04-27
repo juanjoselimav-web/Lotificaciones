@@ -27,24 +27,25 @@ from app.core.config import get_settings
 logger = logging.getLogger(__name__)
 settings = get_settings()
 
-# ID 1 y 2 tienen inventario COMPLETO en su hoja SBO (disponibles + vendidos)
+# Proyectos con inventario COMPLETO en su hoja SBO (disponibles + vendidos)
+# FIX v2: Ampliado con SBO_FRUGALEX, SBO_GARBATELLA, SBO_OVEST
 PROYECTOS_SBO_COMPLETO = {
-    "SBO_EFICIENCIA_URBANA": "SBO_EFICIENCIA_URBANA",  # ID 1 - Hacienda Jumay
-    "SBO_SER_GEN_CCC":       "SBO_SER_GEN_CCC",        # ID 2 - La Ceiba
+    "SBO_EFICIENCIA_URBANA": "SBO_EFICIENCIA_URBANA",  # ID 1  - Hacienda Jumay
+    "SBO_SER_GEN_CCC":       "SBO_SER_GEN_CCC",        # ID 2  - La Ceiba
+    "SBO_FRUGALEX":          "SBO_FRUGALEX",            # ID 4  - Oasis Zacapa
+    "SBO_GARBATELLA":        "SBO_GARBATELLA",          # ID 9  - Club Residencial Progreso
+    "SBO_OVEST":             "SBO_OVEST",               # ID 11 - Hacienda Santa Lucia
 }
 
-# IDs 3-16 con hoja SBO existente en el archivo (solo marcan vendidos, base en CONSBA)
-# LEOFRENI (13), TALOCCI (15) y VILET (16) NO tienen hoja aún — se omiten del cruce
+# IDs con hoja SBO existente en el archivo (solo marcan vendidos, base en CONSBA)
+# LEOFRENI (13), TALOCCI (15) y VILET (16) NO tienen hoja aún — en migración SAP
 PROYECTOS_SBO_PARCIAL = {
     "SBO_ROSSIO":     "SBO_ROSSIO",     # ID 3  - Hacienda el Sol
-    "SBO_FRUGALEX":   "SBO_FRUGALEX",   # ID 4  - Oasis Zacapa
     "SBO_OTTAVIA":    "SBO_OTTAVIA",     # ID 5  - Cañadas de Jalapa
     "SBO_UTILICA":    "SBO_UTILICA",     # ID 6  - Condado Jutiapa
     "SBO_TEZZOLI":    "SBO_TEZZOLI",     # ID 7  - Club Campestre Jumay
     "SBO_URBIVA_2":   "SBO_URBIVA_2",    # ID 8  - Club del Bosque
-    "SBO_GARBATELLA": "SBO_GARBATELLA",  # ID 9  - Club Residencial Progreso
     "SBO_CAPIPOS":    "SBO_CAPIPOS",     # ID 10 - Arboleda Santa Elena
-    "SBO_OVEST":      "SBO_OVEST",       # ID 11 - Hacienda Santa Lucia (hoja vacía aún)
     "SBO_CORCOLLE":   "SBO_CORCOLLE",    # ID 12 - Hacienda El Cafetal Fase I
     "SBO_GIBRALEON":  "SBO_GIBRALEON",   # ID 14 - Hacienda El Cafetal Fase III
     # ID 13 SBO_LEOFRENI  — sin hoja en el archivo, en migración SAP
@@ -95,6 +96,19 @@ def clean_str(val):
     if val is None: return None
     s = str(val).strip()
     return s if s else None
+
+def normalizar_nombre_proyecto(nombre: str) -> str:
+    """
+    FIX v2: Normaliza nombres de proyecto para cruce CONSBA ↔ BD.
+    - 'Arboleada Santa Elena' → 'Arboleda Santa Elena'
+    - 'Hacienda El Cafetal  Fase X' (doble espacio) → un solo espacio
+    """
+    import re
+    if not nombre:
+        return nombre
+    nombre = re.sub(r' {2,}', ' ', nombre)          # doble espacio → uno
+    nombre = nombre.replace("Arboleada", "Arboleda") # typo en Excel
+    return nombre.strip()
 
 def normalizar_estatus(raw: str) -> str:
     if not raw: return "DISPONIBLE"
@@ -308,7 +322,7 @@ def sync_inventario():
             # Mapa nombre_proyecto → {id, empresa} — solo proyectos NO completos
             proyecto_map = {}
             for _, row in df_empresas.iterrows():
-                nombre = str(row.get("Nombre del proyecto", "")).strip()
+                nombre = normalizar_nombre_proyecto(str(row.get("Nombre del proyecto", "")).strip())
                 emp = str(row.get("Empresa SAP", "")).strip()
                 if emp not in PROYECTOS_SBO_COMPLETO:
                     pid = get_proyecto_id(db, emp)
@@ -352,7 +366,7 @@ def sync_inventario():
 
             batch_count = 0
             for _, row in df_consba.iterrows():
-                nombre_proyecto = clean_str(row.get("Nombre del proyecto"))
+                nombre_proyecto = normalizar_nombre_proyecto(clean_str(row.get("Nombre del proyecto")))
                 unidad_key = clean_str(row.get("Unidad_Key"))
                 if not unidad_key or not nombre_proyecto:
                     continue
@@ -416,7 +430,7 @@ def sync_inventario():
                         "cuotas_pagadas":             0,
                         "cuotas_pendientes":          0,
                         "saldo_cliente":              0,
-                        "total_intereses":            0,
+                        "total_intereses":            0,  # FIX v2: campo faltaba → causaba 1,786 errores de upsert
                         "fuente":                     "CONSBA",
                     }
 
