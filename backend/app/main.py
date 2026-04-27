@@ -10,9 +10,10 @@ import os
 
 from app.database import check_db_connection
 from app.core.config import get_settings
-from app.routers import auth, inventario, sync, cartera, ventas, api_publica
+from app.routers import auth, inventario, sync, cartera, ventas, api_publica, flujos
 from app.sync.sync_inventario import sync_inventario
 from app.sync.sync_cartera import sync_cartera
+from app.sync.sync_flujos import sincronizar_flujos
 from app.core.security import hash_password
 
 settings = get_settings()
@@ -38,6 +39,15 @@ def run_sync_cartera():
         logger.info(f"[SCHEDULER] Cartera: {result}")
     except Exception as e:
         logger.error(f"[SCHEDULER] Error cartera: {e}")
+
+
+def run_sync_flujos():
+    try:
+        logger.info("[SCHEDULER] Sincronizando flujos de efectivo...")
+        result = sincronizar_flujos()
+        logger.info(f"[SCHEDULER] Flujos: {result}")
+    except Exception as e:
+        logger.error(f"[SCHEDULER] Error flujos: {e}")
 
 
 def create_admin_if_not_exists():
@@ -96,11 +106,19 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.warning(f"[INIT] Sync cartera falló (puede ser normal si archivo no disponible): {e}")
 
+    try:
+        logger.info("[INIT] Sincronizando flujos de efectivo...")
+        sincronizar_flujos()
+    except Exception as e:
+        logger.warning(f"[INIT] Sync flujos falló (puede ser normal si archivo no disponible): {e}")
+
     # Jobs automáticos cada hora
     scheduler.add_job(run_sync_inventario, trigger=IntervalTrigger(minutes=settings.sync_interval_minutes),
                       id="sync_inventario", replace_existing=True, max_instances=1)
     scheduler.add_job(run_sync_cartera, trigger=IntervalTrigger(minutes=settings.sync_interval_minutes),
                       id="sync_cartera", replace_existing=True, max_instances=1)
+    scheduler.add_job(run_sync_flujos, trigger=IntervalTrigger(minutes=settings.sync_interval_minutes),
+                      id="sync_flujos", replace_existing=True, max_instances=1)
     scheduler.start()
     logger.info(f"[INIT] ⏰ Sync automático cada {settings.sync_interval_minutes} minutos")
 
@@ -134,6 +152,7 @@ app.include_router(sync.router)
 app.include_router(cartera.router)
 app.include_router(ventas.router)
 app.include_router(api_publica.router)
+app.include_router(flujos.router)
 
 
 @app.get("/api/health")

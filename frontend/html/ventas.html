@@ -164,11 +164,11 @@ td{padding:9px 13px;vertical-align:middle}
       </a>
     </div>
     <div class="nav-section">
-      <span class="nav-label">Próximamente</span>
-      <div class="nav-item" style="opacity:.4;cursor:not-allowed">
-        <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
-        Flujo de Caja<span class="nav-badge">FASE 3</span>
-      </div>
+      <span class="nav-label">Financiero</span>
+      <a class="nav-item " href="/flujos.html">
+        <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>
+        Flujos de Efectivo
+      </a>
     </div>
     <div class="nav-section" id="adminSection" style="display:none">
       <span class="nav-label">Administración</span>
@@ -511,16 +511,84 @@ td{padding:9px 13px;vertical-align:middle}
 </div>
 
 <script>
-const token = localStorage.getItem('token');
-const usuario = JSON.parse(localStorage.getItem('usuario') || 'null');
+
+// ── CONTROL DE ACCESO ────────────────────────────────────────
+(function() {
+  var token = localStorage.getItem('token');
+  var usuario = JSON.parse(localStorage.getItem('usuario') || 'null');
+  if (!token || !usuario) { window.location.href = '/index.html'; return; }
+  if (usuario.nivel < 1) { window.location.href = '/index.html'; return; }
+
+  // Setup usuario info in sidebar
+  var el = function(id) { return document.getElementById(id); };
+  if (el('userName')) el('userName').textContent = usuario.nombre || '—';
+  if (el('userRole')) el('userRole').textContent = usuario.rol ? usuario.rol.replace(/_/g,' ') : '—';
+  if (el('userAvatar')) el('userAvatar').textContent = (usuario.nombre || 'A')[0].toUpperCase();
+  if (el('envLabel')) el('envLabel').textContent = window.location.hostname === 'localhost' ? 'DESARROLLO' : 'PRODUCCIÓN';
+
+  // Show admin section only for nivel >= 4
+  if (el('adminSection')) el('adminSection').style.display = usuario.nivel >= 4 ? 'block' : 'none';
+
+  // Store globally for use in page scripts
+  window._usuario = usuario;
+  window._token = token;
+})();
+
+// ── AUTO-LOGOUT POR INACTIVIDAD (2 minutos) ──────────────────
+(function() {
+  var TIMEOUT_MS = 2 * 60 * 1000;
+  var WARNING_MS = 30 * 1000;
+  var timer, warningTimer, cdInterval;
+
+  function resetTimer() {
+    clearTimeout(timer); clearTimeout(warningTimer); clearInterval(cdInterval);
+    hideWarning();
+    warningTimer = setTimeout(showWarning, TIMEOUT_MS - WARNING_MS);
+    timer = setTimeout(function() {
+      hideWarning();
+      localStorage.clear();
+      window.location.href = '/index.html?timeout=1';
+    }, TIMEOUT_MS);
+  }
+
+  function showWarning() {
+    var w = document.getElementById('_inactiveWarning');
+    if (!w) {
+      w = document.createElement('div');
+      w.id = '_inactiveWarning';
+      w.style.cssText = 'position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:#1B3A6B;color:#fff;padding:12px 20px;border-radius:8px;font-family:Montserrat,sans-serif;font-size:12px;font-weight:600;z-index:9999;box-shadow:0 4px 20px rgba(0,0,0,.3);display:flex;align-items:center;gap:12px;border-left:4px solid #D4A800';
+      document.body.appendChild(w);
+    }
+    var secs = 30;
+    w.innerHTML = '⚠ Sesión cerrará en <strong id="_cd">' + secs + '</strong> seg &nbsp;<button onclick="window.resetTimer()" style="background:#D4A800;color:#1B3A6B;border:none;padding:4px 10px;border-radius:4px;font-family:Montserrat,sans-serif;font-size:11px;font-weight:700;cursor:pointer">Continuar</button>';
+    w.style.display = 'flex';
+    cdInterval = setInterval(function() {
+      secs--;
+      var el = document.getElementById('_cd');
+      if (el) el.textContent = secs;
+      if (secs <= 0) clearInterval(cdInterval);
+    }, 1000);
+  }
+
+  function hideWarning() {
+    var w = document.getElementById('_inactiveWarning');
+    if (w) w.style.display = 'none';
+  }
+
+  ['mousemove','mousedown','keydown','touchstart','scroll','click'].forEach(function(e) {
+    document.addEventListener(e, resetTimer, {passive:true});
+  });
+
+  resetTimer();
+  window.resetTimer = resetTimer;
+})();
+
+var token = window._token;
+var usuario = window._usuario;
+
 if (!token || !usuario) window.location.href = '/index.html';
 
-document.getElementById('userName').textContent = usuario?.nombre || '—';
-document.getElementById('userRole').textContent = usuario?.rol || '—';
-document.getElementById('userAvatar').textContent = (usuario?.nombre || 'A')[0].toUpperCase();
-document.getElementById('envLabel').textContent = window.location.hostname === 'localhost' ? 'DESARROLLO' : 'PRODUCCIÓN';
-if (usuario?.nivel >= 4) document.getElementById('adminSection').style.display = 'block';
-if (usuario?.nivel >= 3) document.getElementById('tabConfig').style.display = 'flex';
+if (usuario && usuario.nivel >= 3) document.getElementById('tabConfig').style.display = 'flex';
 
 let charts = {};
 var _lastTendencia = null;
@@ -1027,6 +1095,10 @@ async function loadTendencias() {
     });
   }
 }
+// Aliases para compatibilidad con el resto del script
+// token y usuario ya declarados arriba
+var usuario_info = window._usuario;
+
 // ── DRILL-DOWN ────────────────────────────────────────────────
 function closeDrill(e) {
   if (e.target === document.getElementById('drillOverlay'))

@@ -416,6 +416,7 @@ def sync_inventario():
                         "cuotas_pagadas":             0,
                         "cuotas_pendientes":          0,
                         "saldo_cliente":              0,
+                        "total_intereses":            0,
                         "fuente":                     "CONSBA",
                     }
 

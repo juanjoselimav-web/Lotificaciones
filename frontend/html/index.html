@@ -162,7 +162,11 @@ async function handleLogin(e) {
     if (!res.ok) throw new Error(data.detail || 'Credenciales incorrectas');
     localStorage.setItem('token', data.access_token);
     localStorage.setItem('usuario', JSON.stringify(data.usuario));
-    window.location.href = '/dashboard.html';
+    if (data.must_change_password) {
+      window.location.href = '/cambiar-password.html';
+    } else {
+      window.location.href = '/dashboard.html';
+    }
   } catch (err) {
     errEl.textContent = err.message; errEl.classList.add('show');
   } finally {
@@ -170,6 +174,12 @@ async function handleLogin(e) {
   }
 }
 if (localStorage.getItem('token')) window.location.href = '/dashboard.html';
+
+// Mostrar mensaje si sesión expiró por inactividad
+if (new URLSearchParams(window.location.search).get('timeout')) {
+  var msg = document.getElementById('errorMsg');
+  if (msg) { msg.textContent = '⏱ Sesión cerrada por inactividad. Ingresa nuevamente.'; msg.classList.add('show'); }
+}
 </script>
 </body>
 </html>
