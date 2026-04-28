@@ -79,6 +79,12 @@ def sync_cartera():
         if not path.exists():
             raise FileNotFoundError(f"Archivo no encontrado: {path}")
 
+        # FIX PERMANENTE: Truncar antes de re-sincronizar para garantizar datos frescos
+        db.execute(text("TRUNCATE TABLE ov_cartera RESTART IDENTITY CASCADE"))
+        db.execute(text("TRUNCATE TABLE desistimientos RESTART IDENTITY CASCADE"))
+        db.commit()
+        import logging; logging.getLogger(__name__).info("[SYNC CARTERA] Tablas limpiadas — sync fresco")
+
         logger.info(f"[SYNC CARTERA] Leyendo: {path.name}")
 
         # ── OV CARTERA ──────────────────────────────────────────────────
