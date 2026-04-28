@@ -338,6 +338,15 @@ def sincronizar_flujos() -> dict:
         resultado["errores"].append(f"Error abriendo Excel: {e}")
         return resultado
 
+    # FIX PERMANENTE: Truncar antes de sincronizar para evitar duplicados
+    try:
+        with engine.begin() as conn:
+            conn.execute(text("TRUNCATE TABLE flujos_efectivo RESTART IDENTITY CASCADE"))
+            conn.execute(text("TRUNCATE TABLE flujos_saldo_inicial RESTART IDENTITY CASCADE"))
+        logger.info("[SYNC FLUJOS] Tablas limpiadas — sync fresco")
+    except Exception as e:
+        logger.warning(f"[SYNC FLUJOS] No se pudo limpiar tablas: {e}")
+
     mapping = _cargar_rdi(xf)
     saldos, movs_ini, fecha_inicio = _cargar_partida_inicial(xf)
 
