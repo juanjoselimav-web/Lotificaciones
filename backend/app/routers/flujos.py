@@ -257,12 +257,63 @@ def get_resumen_flujos(
             "totales":    totales,
         })
 
-    # 6. Saldos finales = saldo_inicial + neto_total del período
+    # 6. Aplicar reclasificaciones (mueven montos entre secciones, no afectan flujo neto)
+    if granularidad == "mes":
+        reclas = db.execute(text("""
+            SELECT TO_CHAR(DATE_TRUNC('month', fecha_contable), 'YYYY-MM') AS periodo,
+                   seccion_origen, seccion_destino, SUM(monto) AS monto
+            FROM flujos_reclasificaciones
+            WHERE sociedad=:soc
+              AND TO_CHAR(DATE_TRUNC('month', fecha_contable), 'YYYY-MM') = ANY(:periodos)
+            GROUP BY 1,2,3
+        """), {"soc": sociedad, "periodos": periodos}).fetchall()
+    elif granularidad == "semana":
+        reclas = db.execute(text("""
+            SELECT CONCAT(anio, '-S', LPAD(EXTRACT(WEEK FROM fecha_contable)::text, 2, '0')) AS periodo,
+                   seccion_origen, seccion_destino, SUM(monto) AS monto
+            FROM flujos_reclasificaciones
+            WHERE sociedad=:soc
+              AND CONCAT(anio, '-S', LPAD(EXTRACT(WEEK FROM fecha_contable)::text, 2, '0')) = ANY(:periodos)
+            GROUP BY 1,2,3
+        """), {"soc": sociedad, "periodos": periodos}).fetchall()
+    else:
+        reclas = db.execute(text("""
+            SELECT anio::text AS periodo,
+                   seccion_origen, seccion_destino, SUM(monto) AS monto
+            FROM flujos_reclasificaciones
+            WHERE sociedad=:soc AND anio::text = ANY(:periodos)
+            GROUP BY 1,2,3
+        """), {"soc": sociedad, "periodos": periodos}).fetchall()
+
+    # Apply reclasificaciones: reduce origen section, increase destino section
+    # Build lookup by seccion name for quick access
+    sec_totales_map = {s["seccion"]: s["totales"] for s in secciones_out}
+
+    for r in reclas:
+        periodo, sec_ori, sec_dst, monto = r
+        monto = float(monto or 0)
+        if not monto or sec_ori == sec_dst:
+            continue
+        # Reduce egreso in origen section
+        if sec_ori in sec_totales_map and periodo in sec_totales_map[sec_ori]:
+            sec_totales_map[sec_ori][periodo]["egreso"]  -= monto
+            sec_totales_map[sec_ori][periodo]["neto"]    += monto
+        # Increase egreso in destino section (create if needed)
+        if sec_dst not in sec_totales_map:
+            sec_totales_map[sec_dst] = {}
+            secciones_out.append({"seccion": sec_dst, "categorias": [], "totales": sec_totales_map[sec_dst]})
+        if periodo not in sec_totales_map[sec_dst]:
+            sec_totales_map[sec_dst][periodo] = {"ingreso": 0.0, "egreso": 0.0, "neto": 0.0}
+        sec_totales_map[sec_dst][periodo]["egreso"] += monto
+        sec_totales_map[sec_dst][periodo]["neto"]   -= monto
+
+    # 7. Saldos finales = saldo_inicial + neto_total del período
     saldos_fin = {}
     for p in periodos:
         neto_p = sum(
             sec["totales"][p]["ingreso"] - sec["totales"][p]["egreso"]
             for sec in secciones_out
+            if p in sec["totales"]
         )
         saldos_fin[p] = saldos_ini.get(p, 0.0) + neto_p
 
@@ -348,7 +399,9 @@ def sync_flujos_manual(
         raise HTTPException(status_code=403, detail="Solo administradores pueden sincronizar flujos")
     try:
         from app.sync.sync_flujos import sincronizar_flujos
-        resultado = sincronizar_flujos()
-        return {"ok": True, "resultado": resultado}
+        from app.sync.sync_reclasificaciones import sincronizar_reclasificaciones
+        resultado_flujos = sincronizar_flujos()
+        resultado_reclas = sincronizar_reclasificaciones()
+        return {"ok": True, "resultado": resultado_flujos, "reclasificaciones": resultado_reclas}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

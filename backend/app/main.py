@@ -14,6 +14,7 @@ from app.routers import auth, inventario, sync, cartera, ventas, api_publica, fl
 from app.sync.sync_inventario import sync_inventario
 from app.sync.sync_cartera import sync_cartera
 from app.sync.sync_flujos import sincronizar_flujos
+from app.sync.sync_reclasificaciones import sincronizar_reclasificaciones
 from app.core.security import hash_password
 
 settings = get_settings()
@@ -46,6 +47,8 @@ def run_sync_flujos():
         logger.info("[SCHEDULER] Sincronizando flujos de efectivo...")
         result = sincronizar_flujos()
         logger.info(f"[SCHEDULER] Flujos: {result}")
+        result2 = sincronizar_reclasificaciones()
+        logger.info(f"[SCHEDULER] Reclasificaciones: {result2}")
     except Exception as e:
         logger.error(f"[SCHEDULER] Error flujos: {e}")
 
@@ -109,6 +112,7 @@ async def lifespan(app: FastAPI):
     try:
         logger.info("[INIT] Sincronizando flujos de efectivo...")
         sincronizar_flujos()
+        sincronizar_reclasificaciones()
     except Exception as e:
         logger.warning(f"[INIT] Sync flujos falló (puede ser normal si archivo no disponible): {e}")
 

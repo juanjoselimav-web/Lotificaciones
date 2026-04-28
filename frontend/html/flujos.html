@@ -6,224 +6,231 @@
 <title>Flujos de Efectivo — RV4</title>
 <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
-  :root {
-    --azul:      #1B3A6B;
-    --dorado:    #D4A800;
-    --green:     #16a34a;
-    --red:       #b91c1b;
-    --amber:     #d97706;
-    --muted:     #6b7280;
-    --borde:     #e5e7eb;
-    --sidebar-w: 220px;
-    --bg:        #f3f4f6;
-    --card:      #ffffff;
-  }
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { font-family: 'Montserrat', sans-serif; background: var(--bg); display: flex; min-height: 100vh; font-size: 13px; }
+:root {
+  --azul:      #1B3A6B;
+  --azul-mid:  #2d4f8a;
+  --dorado:    #D4A800;
+  --green:     #16a34a;
+  --red:       #b91c1b;
+  --muted:     #9ca3af;
+  --borde:     #e5e7eb;
+  --bg:        #f3f4f6;
+  --card:      #ffffff;
+  --sidebar-w: 220px;
+  --negro:     #111827;
+  /* Table hierarchy */
+  --row-grupo:    #1B3A6B;
+  --row-subsec:   #eef4ff;
+  --row-subtotal: #f5f9ff;
+  --row-cat:      #ffffff;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: 'Montserrat', sans-serif; background: var(--bg); display: flex; min-height: 100vh; font-size: 13px; color: var(--negro); }
 
-  /* ── Sidebar ── */
-.sidebar{width:var(--sidebar-w);background:var(--azul);min-height:100vh;display:flex;flex-direction:column;position:fixed;left:0;top:0;bottom:0;z-index:100}
-  .sidebar-brand{padding:18px 16px 14px;border-bottom:1px solid rgba(255,255,255,0.1)}
-  .brand-img{height:32px;display:block;background:#fff;border-radius:3px;padding:4px 6px}
-  .brand-fallback{display:none;font-size:20px;font-weight:700;color:#fff}
-  .brand-fallback span{color:var(--dorado)}
-  .brand-env{font-size:9px;letter-spacing:.2em;text-transform:uppercase;color:rgba(255,255,255,.35);margin-top:5px;font-weight:600}
-  .sidebar-nav{flex:1;padding:14px 0;overflow-y:auto}
-  .nav-section{padding:0 10px;margin-bottom:2px}
-  .nav-label{font-size:9px;letter-spacing:.2em;text-transform:uppercase;color:rgba(255,255,255,.3);padding:10px 8px 4px;display:block;font-weight:600}
-  .nav-item{display:flex;align-items:center;gap:9px;padding:8px 10px;border-radius:5px;color:rgba(255,255,255,.6);font-size:12px;font-weight:500;cursor:pointer;transition:background .15s,color .15s;text-decoration:none;margin-bottom:1px}
-  .nav-item:hover{background:rgba(255,255,255,.1);color:#fff}
-  .nav-item.active{background:var(--dorado);color:var(--negro);font-weight:700}
-  .nav-item svg{width:14px;height:14px;flex-shrink:0;opacity:.75}
-  .nav-item.active svg{opacity:1}
-  .sidebar-footer{padding:12px 10px;border-top:1px solid rgba(255,255,255,.1)}
-  .user-pill{display:flex;align-items:center;gap:8px;padding:7px 9px;border-radius:5px;background:rgba(255,255,255,.08)}
-  .user-avatar{width:27px;height:27px;border-radius:50%;background:var(--dorado);color:var(--negro);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex-shrink:0}
-  .user-name{font-size:11px;color:#fff;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-  .user-role{font-size:9px;color:rgba(255,255,255,.35);text-transform:uppercase;letter-spacing:.1em;font-weight:600}
+/* ── SIDEBAR ── */
+.sidebar { width: var(--sidebar-w); background: var(--azul); display: flex; flex-direction: column; position: fixed; top: 0; left: 0; height: 100vh; z-index: 100; }
+.sidebar-brand { padding: 18px 16px 14px; border-bottom: 1px solid rgba(255,255,255,.1); }
+.brand-img { height: 32px; display: block; }
+.brand-fallback { display: none; font-size: 20px; font-weight: 700; color: #fff; }
+.brand-fallback span { color: var(--dorado); }
+.brand-env { font-size: 9px; letter-spacing: .2em; text-transform: uppercase; color: rgba(255,255,255,.35); margin-top: 5px; font-weight: 600; }
+.sidebar-nav { flex: 1; padding: 14px 0; overflow-y: auto; }
+.nav-section { padding: 0 10px; margin-bottom: 2px; }
+.nav-label { font-size: 9px; letter-spacing: .2em; text-transform: uppercase; color: rgba(255,255,255,.3); padding: 10px 8px 4px; display: block; font-weight: 600; }
+.nav-item { display: flex; align-items: center; gap: 9px; padding: 8px 10px; border-radius: 5px; color: rgba(255,255,255,.6); font-size: 12px; font-weight: 500; cursor: pointer; transition: background .15s, color .15s; text-decoration: none; margin-bottom: 1px; }
+.nav-item:hover { background: rgba(255,255,255,.1); color: #fff; }
+.nav-item.active { background: var(--dorado); color: var(--negro); font-weight: 700; }
+.nav-item svg { width: 14px; height: 14px; flex-shrink: 0; opacity: .75; }
+.nav-item.active svg { opacity: 1; }
+.sidebar-footer { padding: 12px 10px; border-top: 1px solid rgba(255,255,255,.1); }
+.user-pill { display: flex; align-items: center; gap: 8px; padding: 7px 9px; border-radius: 5px; background: rgba(255,255,255,.08); }
+.user-avatar { width: 27px; height: 27px; border-radius: 50%; background: var(--dorado); color: var(--negro); display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; flex-shrink: 0; }
+.user-name { font-size: 11px; color: #fff; font-weight: 600; }
+.user-role { font-size: 9px; color: rgba(255,255,255,.35); text-transform: uppercase; letter-spacing: .1em; font-weight: 600; }
+#adminSection { display: none; }
 
-  /* ── Main ── */
-  .main { margin-left: var(--sidebar-w); flex: 1; display: flex; flex-direction: column; }
+/* ── MAIN ── */
+.main { margin-left: var(--sidebar-w); flex: 1; display: flex; flex-direction: column; min-width: 0; overflow-x: hidden; }
 
-  /* ── Topbar ── */
-  .topbar {
-    background: var(--card); border-bottom: 1px solid var(--borde);
-    padding: 0 24px; height: 56px; display: flex; align-items: center; gap: 12px;
-    position: sticky; top: 0; z-index: 50;
-  }
-  .topbar-title { font-size: 16px; font-weight: 700; color: var(--azul); flex: 1; }
-  .topbar select, .topbar input[type=month] {
-    border: 1px solid var(--borde); border-radius: 6px; padding: 6px 10px;
-    font-family: 'Montserrat', sans-serif; font-size: 12px; color: #374151;
-    background: #fff; cursor: pointer; height: 34px;
-  }
-  .topbar select:focus, .topbar input:focus { outline: 2px solid var(--azul); }
-  .topbar label { font-size: 11px; color: var(--muted); font-weight: 600; }
+/* ── TOPBAR ── */
+.topbar { background: var(--card); border-bottom: 1px solid var(--borde); padding: 0 20px; height: 54px; display: flex; align-items: center; gap: 10px; position: sticky; top: 0; z-index: 50; }
+.topbar-title { font-size: 15px; font-weight: 700; color: var(--azul); flex: 1; }
+.topbar label { font-size: 10px; color: var(--muted); font-weight: 700; text-transform: uppercase; letter-spacing: .5px; white-space: nowrap; }
+.topbar select { border: 1px solid var(--borde); border-radius: 6px; padding: 5px 9px; font-family: 'Montserrat', sans-serif; font-size: 12px; color: #374151; background: #fff; height: 32px; }
+.gran-toggle { display: flex; border: 1px solid var(--borde); border-radius: 6px; overflow: hidden; }
+.gran-btn { padding: 5px 13px; font-family: 'Montserrat', sans-serif; font-size: 11px; font-weight: 600; cursor: pointer; border: none; background: #fff; color: var(--muted); transition: all .15s; }
+.gran-btn.active { background: var(--azul); color: #fff; }
+.gran-btn:not(:last-child) { border-right: 1px solid var(--borde); }
+.topbar-avatar { width: 30px; height: 30px; border-radius: 50%; background: var(--azul); color: #fff; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 12px; }
 
-  /* Granularidad toggle */
-  .gran-toggle { display: flex; border: 1px solid var(--borde); border-radius: 6px; overflow: hidden; }
-  .gran-btn {
-    padding: 6px 14px; font-family: 'Montserrat', sans-serif; font-size: 11px;
-    font-weight: 600; cursor: pointer; border: none; background: #fff; color: var(--muted);
-    transition: all .15s;
-  }
-  .gran-btn.active { background: var(--azul); color: #fff; }
-  .gran-btn:not(:last-child) { border-right: 1px solid var(--borde); }
+/* ── CONTENT ── */
+.content { padding: 18px 20px; flex: 1; }
 
-  /* User info */
-  .topbar-user { display: flex; align-items: center; gap: 8px; }
-  .topbar-avatar { width: 30px; height: 30px; border-radius: 50%; background: var(--azul); color: #fff; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 12px; }
+/* ── KPI CARDS ── */
+.kpi-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 16px; }
+.kpi-card { background: var(--card); border-radius: 8px; padding: 14px 16px; border: 1px solid var(--borde); border-top: 3px solid var(--azul); }
+.kpi-card.verde { border-top-color: var(--green); }
+.kpi-card.rojo  { border-top-color: var(--red); }
+.kpi-card.dorado { border-top-color: var(--dorado); }
+.kpi-label { font-size: 9px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .7px; margin-bottom: 5px; }
+.kpi-value { font-size: 20px; font-weight: 700; color: var(--negro); }
+.kpi-value.positivo { color: var(--green); }
+.kpi-value.negativo { color: var(--red); }
+.kpi-sub { font-size: 10px; color: var(--muted); margin-top: 3px; }
 
-  /* ── Content ── */
-  .content { padding: 20px 24px; flex: 1; }
+/* ── TOOLBAR ── */
+.toolbar { display: flex; gap: 8px; align-items: center; margin-bottom: 14px; flex-wrap: wrap; }
+.toolbar label { font-size: 10px; color: var(--muted); font-weight: 700; text-transform: uppercase; letter-spacing: .5px; }
+.toolbar select { border: 1px solid var(--borde); border-radius: 6px; padding: 5px 8px; font-size: 12px; font-family: 'Montserrat', sans-serif; min-width: 120px; height: 32px; }
+.btn { padding: 5px 14px; border-radius: 6px; font-family: 'Montserrat', sans-serif; font-size: 11px; font-weight: 600; cursor: pointer; border: none; height: 32px; }
+.btn-primary { background: var(--azul); color: #fff; }
+.btn-primary:hover { background: #152e56; }
+.btn-ghost { background: #fff; color: #6b7280; border: 1px solid var(--borde); }
+.btn-ghost:hover { background: #f9fafb; }
+.btn-sync { background: var(--dorado); color: var(--negro); margin-left: auto; display: none; }
+.btn-sync:hover { background: #b89100; }
 
-  /* ── KPI Cards ── */
-  .kpi-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-bottom: 20px; }
-  .kpi-card {
-    background: var(--card); border-radius: 10px; padding: 16px 18px;
-    border: 1px solid var(--borde); position: relative; overflow: hidden;
-  }
-  .kpi-card::before {
-    content: ''; position: absolute; top: 0; left: 0; width: 4px; height: 100%;
-    background: var(--azul);
-  }
-  .kpi-card.verde::before { background: var(--green); }
-  .kpi-card.rojo::before  { background: var(--red); }
-  .kpi-card.dorado::before { background: var(--dorado); }
-  .kpi-label { font-size: 10px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .6px; margin-bottom: 6px; }
-  .kpi-value { font-size: 22px; font-weight: 700; color: #111; }
-  .kpi-value.positivo { color: var(--green); }
-  .kpi-value.negativo { color: var(--red); }
-  .kpi-sub { font-size: 10px; color: var(--muted); margin-top: 4px; }
+/* ── INFO BAR ── */
+.info-bar { background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 6px; padding: 7px 12px; font-size: 11px; color: #3b5fa0; margin-bottom: 14px; display: flex; align-items: center; gap: 6px; }
 
-  /* ── Filtros de rango ── */
-  .filtros-row { display: flex; gap: 12px; align-items: center; margin-bottom: 16px; flex-wrap: wrap; }
-  .filtro-group { display: flex; align-items: center; gap: 6px; }
-  .filtro-group label { font-size: 11px; color: var(--muted); font-weight: 600; white-space: nowrap; }
-  .filtro-group select { border: 1px solid var(--borde); border-radius: 6px; padding: 5px 8px; font-size: 12px; font-family: 'Montserrat', sans-serif; min-width: 130px; }
-  .btn-filtrar {
-    padding: 6px 14px; background: var(--azul); color: #fff; border: none; border-radius: 6px;
-    font-family: 'Montserrat', sans-serif; font-size: 12px; font-weight: 600; cursor: pointer;
-  }
-  .btn-filtrar:hover { background: #152e56; }
-  .btn-sync {
-    padding: 6px 14px; background: var(--dorado); color: #111; border: none; border-radius: 6px;
-    font-family: 'Montserrat', sans-serif; font-size: 12px; font-weight: 600; cursor: pointer;
-    margin-left: auto;
-  }
-  .btn-sync:hover { background: #b89100; }
+/* ── TABLA ── */
+.tabla-wrap { background: var(--card); border-radius: 10px; border: 1px solid var(--borde); overflow-x: auto; overflow-y: auto; max-height: calc(100vh - 310px); width: 100%; box-shadow: 0 1px 4px rgba(0,0,0,.06); }
+table.flujo { width: max-content; min-width: 100%; border-collapse: collapse; }
 
-  /* ── Tabla de Flujo ── */
-  .tabla-wrap {
-    background: var(--card); border-radius: 10px; border: 1px solid var(--borde);
-    overflow: auto; max-height: calc(100vh - 290px);
-  }
-  table.flujo { width: 100%; border-collapse: collapse; }
-  table.flujo th {
-    background: var(--azul); color: #fff; padding: 10px 12px;
-    font-size: 11px; font-weight: 600; text-align: right; white-space: nowrap;
-    position: sticky; top: 0; z-index: 5;
-  }
-  table.flujo th:first-child { text-align: left; min-width: 220px; position: sticky; left: 0; z-index: 10; background: var(--azul); }
-  table.flujo td { padding: 8px 12px; border-bottom: 1px solid var(--borde); text-align: right; white-space: nowrap; font-size: 12px; }
-  table.flujo td:first-child { text-align: left; position: sticky; left: 0; background: inherit; z-index: 2; }
+/* Header */
+table.flujo thead tr th {
+  background: var(--azul); color: #fff;
+  padding: 10px 14px; font-size: 11px; font-weight: 600;
+  text-align: right; white-space: nowrap;
+  position: sticky; top: 0; z-index: 5;
+  border-right: 1px solid rgba(255,255,255,.08);
+}
+table.flujo thead tr th:first-child { text-align: left; min-width: 240px; position: sticky; left: 0; z-index: 10; }
+th.col-total { background: #0f2042 !important; border-left: 2px solid rgba(255,255,255,.2) !important; }
 
-  /* Filas especiales */
-  .row-saldo-ini  { background: #eff6ff !important; }
-  .row-seccion    { background: #1B3A6B !important; }
-  .row-seccion td { color: #fff !important; font-weight: 700 !important; font-size: 11px !important; }
-  .row-total-sec  { background: #dbeafe !important; }
-  .row-total-sec td { font-weight: 700 !important; color: #1e3a8a !important; }
-  .row-saldo-fin  { background: #052e16 !important; }
-  .row-saldo-fin td { color: #fff !important; font-weight: 700 !important; font-size: 13px !important; }
-  .row-cat { cursor: pointer; }
-  .row-cat:hover { background: #f9fafb; }
-  .row-cat td:first-child { padding-left: 28px; color: #374151; }
+/* First column sticky */
+table.flujo td:first-child { position: sticky; left: 0; z-index: 2; }
 
-  .indent { padding-left: 28px !important; }
-  .num-pos { color: var(--green); font-weight: 600; }
-  .num-neg { color: var(--red); font-weight: 600; }
-  .num-muted { color: var(--muted); }
+/* ── ROW TYPES ── */
 
-  /* ── Modal Detalle ── */
-  .modal-overlay {
-    display: none; position: fixed; inset: 0; background: rgba(0,0,0,.45);
-    z-index: 200; align-items: flex-end; justify-content: center;
-  }
-  .modal-overlay.open { display: flex; }
-  .modal-box {
-    background: #fff; border-radius: 14px 14px 0 0; width: 100%; max-width: 900px;
-    max-height: 80vh; display: flex; flex-direction: column; padding: 0;
-    animation: slideUp .2s ease;
-  }
-  @keyframes slideUp { from { transform: translateY(60px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
-  .modal-header { padding: 16px 20px; border-bottom: 1px solid var(--borde); display: flex; align-items: center; justify-content: space-between; }
-  .modal-title { font-size: 14px; font-weight: 700; color: var(--azul); }
-  .modal-close { background: none; border: none; font-size: 20px; cursor: pointer; color: var(--muted); }
-  .modal-body { overflow-y: auto; flex: 1; }
-  .modal-table { width: 100%; border-collapse: collapse; }
-  .modal-table th { background: #f3f4f6; font-size: 10px; font-weight: 700; color: var(--muted); padding: 8px 12px; text-align: left; position: sticky; top: 0; }
-  .modal-table td { padding: 8px 12px; border-bottom: 1px solid var(--borde); font-size: 11.5px; color: #374151; }
-  .modal-table tr:hover td { background: #f9fafb; }
-  .modal-footer { padding: 10px 20px; border-top: 1px solid var(--borde); display: flex; align-items: center; justify-content: space-between; }
-  .pag-btn { padding: 5px 12px; border: 1px solid var(--borde); border-radius: 5px; background: #fff; cursor: pointer; font-size: 12px; font-family: 'Montserrat', sans-serif; }
-  .pag-btn:disabled { opacity: .4; cursor: default; }
-  .pag-info { font-size: 11px; color: var(--muted); }
+/* Saldo Inicial / Final */
+.row-saldo-ini { background: #f8faff; }
+.row-saldo-ini td { padding: 10px 14px; font-size: 12px; border-bottom: 1px solid var(--borde); text-align: right; }
+.row-saldo-ini td:first-child { text-align: left; background: #f8faff; font-weight: 600; color: #374151; }
 
-  /* ── Loading ── */
-  .spinner { display: inline-block; width: 18px; height: 18px; border: 3px solid rgba(255,255,255,.3); border-top-color: #fff; border-radius: 50%; animation: spin .7s linear infinite; }
-  @keyframes spin { to { transform: rotate(360deg); } }
-  .loading-overlay {
-    display: none; position: fixed; inset: 0; background: rgba(255,255,255,.7);
-    z-index: 300; align-items: center; justify-content: center; flex-direction: column; gap: 12px;
-  }
-  .loading-overlay.open { display: flex; }
-  .loading-msg { font-size: 14px; font-weight: 600; color: var(--azul); }
+/* Grupo principal (INGRESOS / EGRESOS) — azul oscuro, clickable */
+.row-grupo { background: var(--azul); cursor: pointer; user-select: none; }
+.row-grupo td { padding: 11px 14px; font-size: 11.5px; font-weight: 700; color: #fff; letter-spacing: .4px; text-transform: uppercase; }
+.row-grupo td:first-child { background: var(--azul); text-align: left; display: flex; align-items: center; justify-content: space-between; }
+.row-grupo:hover { background: #243f72; }
+.row-grupo:hover td:first-child { background: #243f72; }
 
-  /* ── Chip info ── */
-  .info-bar { background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 7px; padding: 8px 14px; font-size: 11.5px; color: #1e40af; margin-bottom: 14px; display: flex; align-items: center; gap: 8px; }
+/* Subsección (Urbanización, etc.) — celeste claro, clickable */
+.row-seccion { background: var(--row-subsec); cursor: pointer; user-select: none; }
+.row-seccion td { padding: 8px 14px 8px 28px; font-size: 11.5px; font-weight: 600; color: #3b5fa0; border-bottom: 1px solid #d4e6ff; }
+.row-seccion td:first-child { background: var(--row-subsec); text-align: left; display: flex; align-items: center; justify-content: space-between; }
+.row-seccion:hover { background: #dceeff; }
+.row-seccion:hover td:first-child { background: #dceeff; }
+.row-seccion.hidden { display: none; }
 
-  @media (max-width: 900px) {
-    .kpi-row { grid-template-columns: repeat(2, 1fr); }
-  }
+/* Subtotal subsección — celeste muy claro */
+.row-total-sec { background: var(--row-subtotal); }
+.row-total-sec td { padding: 7px 14px 7px 28px; font-size: 11px; font-weight: 700; color: #3b5fa0; border-bottom: 1px solid #e0eaff; text-align: right; }
+.row-total-sec td:first-child { text-align: left; background: var(--row-subtotal); }
+.row-total-sec.hidden { display: none; }
+
+/* Detalle (categoría) — blanco */
+.row-cat { background: var(--card); cursor: pointer; }
+.row-cat td { padding: 7px 14px 7px 40px; font-size: 12px; color: #374151; border-bottom: 1px solid #f3f4f6; text-align: right; }
+.row-cat td:first-child { text-align: left; background: var(--card); color: #4b5563; }
+.row-cat:hover { background: #fafbff; }
+.row-cat:hover td:first-child { background: #fafbff; }
+.row-cat.hidden { display: none; }
+
+/* Saldo Final */
+.row-saldo-fin { background: #374151; }
+.row-saldo-fin td { padding: 11px 14px; font-size: 12.5px; font-weight: 700; color: #fff; text-align: right; border-top: 2px solid #4b5563; }
+.row-saldo-fin td:first-child { text-align: left; background: #374151; }
+
+/* Número styles */
+td { text-align: right; white-space: nowrap; }
+.num-pos { color: var(--green); font-weight: 600; }
+.num-neg { color: var(--red); font-weight: 600; }
+.num-muted { color: #d1d5db; }
+
+/* Columna Total */
+.col-total { border-left: 2px solid #e5e7eb !important; background: #f8faff !important; font-weight: 700 !important; }
+.row-grupo .col-total { border-left-color: rgba(255,255,255,.2) !important; background: #0f2042 !important; }
+.row-seccion .col-total { background: #dceeff !important; border-left-color: #93c5fd !important; }
+.row-total-sec .col-total { background: #ecf3ff !important; border-left-color: #a8c8f0 !important; }
+.row-saldo-fin .col-total { background: #4b5563 !important; border-left-color: rgba(255,255,255,.15) !important; }
+.row-saldo-ini .col-total { background: #eef3ff !important; border-left-color: #c7d7f8 !important; }
+
+/* Chevron */
+.chevron { font-size: 9px; opacity: .7; transition: transform .2s; display: inline-block; margin-left: 6px; }
+.collapsed .chevron { transform: rotate(-90deg); }
+
+/* ── MODAL ── */
+.modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.4); z-index: 200; align-items: flex-end; justify-content: center; }
+.modal-overlay.open { display: flex; }
+.modal-box { background: #fff; border-radius: 14px 14px 0 0; width: 100%; max-width: 960px; max-height: 75vh; display: flex; flex-direction: column; animation: slideUp .2s ease; }
+@keyframes slideUp { from { transform: translateY(50px); opacity: 0; } to { transform: none; opacity: 1; } }
+.modal-header { padding: 14px 18px; border-bottom: 1px solid var(--borde); display: flex; align-items: center; justify-content: space-between; }
+.modal-title { font-size: 13px; font-weight: 700; color: var(--azul); }
+.modal-close { background: none; border: none; font-size: 18px; cursor: pointer; color: var(--muted); line-height: 1; }
+.modal-body { overflow-y: auto; flex: 1; }
+.modal-table { width: 100%; border-collapse: collapse; }
+.modal-table th { background: #f3f4f6; font-size: 10px; font-weight: 700; color: var(--muted); padding: 8px 12px; text-align: left; position: sticky; top: 0; white-space: nowrap; }
+.modal-table td { padding: 7px 12px; border-bottom: 1px solid var(--borde); font-size: 11.5px; }
+.modal-table tr:hover td { background: #f9fafb; }
+.modal-footer { padding: 10px 18px; border-top: 1px solid var(--borde); display: flex; align-items: center; justify-content: space-between; }
+.pag-btn { padding: 5px 12px; border: 1px solid var(--borde); border-radius: 5px; background: #fff; cursor: pointer; font-size: 11px; font-family: 'Montserrat', sans-serif; }
+.pag-btn:disabled { opacity: .4; cursor: default; }
+.pag-info { font-size: 11px; color: var(--muted); }
+
+/* ── LOADING ── */
+.spinner { display: inline-block; width: 16px; height: 16px; border: 2px solid rgba(255,255,255,.3); border-top-color: #fff; border-radius: 50%; animation: spin .7s linear infinite; vertical-align: middle; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.loading-overlay { display: none; position: fixed; inset: 0; background: rgba(255,255,255,.75); z-index: 300; align-items: center; justify-content: center; flex-direction: column; gap: 10px; }
+.loading-overlay.open { display: flex; }
+.loading-msg { font-size: 13px; font-weight: 600; color: var(--azul); }
 </style>
 </head>
 <body>
 
-<!-- ══════════════ SIDEBAR ══════════════ -->
+<!-- SIDEBAR -->
 <aside class="sidebar">
   <div class="sidebar-brand">
-    <img class="brand-img" src="logo_rv4.png" alt="RV4" onerror="this.style.display='none';document.getElementById('bf2').style.display='block'">
-    <div class="brand-fallback" id="bf2" style="display:none">RV<span>4</span></div>
+    <img class="brand-img" src="logo_rv4.png" alt="RV4" onerror="this.style.display='none';document.getElementById('bf').style.display='block'">
+    <div class="brand-fallback" id="bf">RV<span>4</span></div>
     <div class="brand-env" id="envLabel">...</div>
   </div>
   <nav class="sidebar-nav">
     <div class="nav-section">
       <span class="nav-label">Ejecutivo</span>
-      <a class="nav-item " href="/dashboard.html">
+      <a class="nav-item" href="/dashboard.html">
         <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>Dashboard
       </a>
     </div>
     <div class="nav-section">
       <span class="nav-label">Operativo</span>
-      <a class="nav-item " href="/inventario.html">
+      <a class="nav-item" href="/inventario.html">
         <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9,22 9,12 15,12 15,22"/></svg>Inventario
       </a>
-      <a class="nav-item " href="/cartera.html">
+      <a class="nav-item" href="/cartera.html">
         <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>Cartera
       </a>
-      <a class="nav-item " href="/ventas.html">
+      <a class="nav-item" href="/ventas.html">
         <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>Ventas
       </a>
     </div>
     <div class="nav-section">
       <span class="nav-label">Financiero</span>
       <a class="nav-item active" href="/flujos.html">
-        <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>
-        Flujos de Efectivo
+        <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>Flujos de Efectivo
       </a>
     </div>
-    <div class="nav-section" id="adminSection" style="display:none">
+    <div class="nav-section" id="adminSection">
       <span class="nav-label">Administración</span>
       <a class="nav-item" href="/usuarios.html">
         <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>Usuarios
@@ -236,7 +243,7 @@
   <div class="sidebar-footer">
     <div class="user-pill">
       <div class="user-avatar" id="userAvatar">A</div>
-      <div class="user-info">
+      <div>
         <div class="user-name" id="userName">—</div>
         <div class="user-role" id="userRole">—</div>
       </div>
@@ -244,47 +251,38 @@
   </div>
 </aside>
 
-<!-- ══════════════ MAIN ══════════════ -->
+<!-- MAIN -->
 <div class="main">
 
   <!-- Topbar -->
   <div class="topbar">
     <div class="topbar-title">Flujos de Efectivo</div>
-
     <label>Sociedad</label>
     <select id="selSociedad">
       <option value="EFICIENCIA URBANA">Eficiencia Urbana — Hacienda Jumay</option>
     </select>
-
     <label>Granularidad</label>
     <div class="gran-toggle">
       <button class="gran-btn" data-gran="semana">Semana</button>
       <button class="gran-btn active" data-gran="mes">Mes</button>
       <button class="gran-btn" data-gran="anio">Año</button>
     </div>
-
-    <div class="topbar-user">
-      <div class="topbar-avatar" id="topbarAvatar">U</div>
-      <div>
-        <div class="user-name" id="topbarName">—</div>
-        <div class="user-role" id="topbarRole">—</div>
-      </div>
-    </div>
+    <div class="topbar-avatar" id="topbarAvatar">A</div>
   </div>
 
   <!-- Content -->
   <div class="content">
 
     <!-- Info bar -->
-    <div class="info-bar" id="infoBar">
-      <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-      <span id="infoBarText">Cargando datos...</span>
+    <div class="info-bar">
+      <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+      <span id="infoBarText">Cargando...</span>
     </div>
 
     <!-- KPIs -->
     <div class="kpi-row">
       <div class="kpi-card">
-        <div class="kpi-label">Saldo Inicial (período)</div>
+        <div class="kpi-label">Saldo Inicial</div>
         <div class="kpi-value" id="kpiSaldoIni">—</div>
         <div class="kpi-sub" id="kpiSaldoIniPer">—</div>
       </div>
@@ -299,56 +297,47 @@
         <div class="kpi-sub" id="kpiEgrPer">período seleccionado</div>
       </div>
       <div class="kpi-card dorado">
-        <div class="kpi-label">Saldo Final (período)</div>
+        <div class="kpi-label">Saldo Final</div>
         <div class="kpi-value" id="kpiSaldoFin">—</div>
         <div class="kpi-sub" id="kpiSaldoFinPer">—</div>
       </div>
     </div>
 
-    <!-- Filtros rango -->
-    <div class="filtros-row">
-      <div class="filtro-group">
-        <label>Desde</label>
-        <select id="selDesde"><option value="">— Todos —</option></select>
-      </div>
-      <div class="filtro-group">
-        <label>Hasta</label>
-        <select id="selHasta"><option value="">— Todos —</option></select>
-      </div>
-      <button class="btn-filtrar" onclick="aplicarFiltro()">Aplicar</button>
-      <button class="btn-filtrar" style="background:#6b7280" onclick="limpiarFiltro()">Limpiar</button>
-      <button class="btn-sync" id="btnSync" onclick="syncManual()" style="display:none">
-        ↻ Sincronizar
-      </button>
+    <!-- Toolbar -->
+    <div class="toolbar">
+      <label>Desde</label>
+      <select id="selDesde"><option value="">— Inicio —</option></select>
+      <label>Hasta</label>
+      <select id="selHasta"><option value="">— Fin —</option></select>
+      <button class="btn btn-primary" onclick="aplicarFiltro()">Aplicar</button>
+      <button class="btn btn-ghost" onclick="limpiarFiltro()">Limpiar</button>
+      <button class="btn btn-sync" id="btnSync" onclick="syncManual()">↻ Sincronizar</button>
     </div>
 
     <!-- Tabla -->
-    <div class="tabla-wrap" id="tablaWrap">
-      <table class="flujo" id="tablaFlujo">
+    <div class="tabla-wrap">
+      <table class="flujo">
         <thead id="tablaHead"></thead>
         <tbody id="tablaBody"></tbody>
       </table>
     </div>
 
-  </div><!-- /content -->
-</div><!-- /main -->
+  </div>
+</div>
 
-<!-- ══════════════ MODAL DETALLE ══════════════ -->
+<!-- MODAL DETALLE -->
 <div class="modal-overlay" id="modalOverlay">
   <div class="modal-box">
     <div class="modal-header">
-      <div class="modal-title" id="modalTitle">Detalle de transacciones</div>
+      <div class="modal-title" id="modalTitle">Detalle</div>
       <button class="modal-close" onclick="cerrarModal()">✕</button>
     </div>
     <div class="modal-body">
       <table class="modal-table">
         <thead>
           <tr>
-            <th>Fecha</th>
-            <th>Categoría</th>
-            <th>Tipo</th>
-            <th>Contrapartida / Proveedor</th>
-            <th>Comentario</th>
+            <th>Fecha</th><th>Categoría</th><th>Tipo</th>
+            <th>Contrapartida</th><th>Comentario</th>
             <th style="text-align:right">Ingreso</th>
             <th style="text-align:right">Egreso</th>
           </tr>
@@ -364,38 +353,33 @@
   </div>
 </div>
 
-<!-- ══════════════ LOADING ══════════════ -->
+<!-- LOADING -->
 <div class="loading-overlay" id="loadingOverlay">
   <div class="spinner"></div>
   <div class="loading-msg" id="loadingMsg">Cargando flujos...</div>
 </div>
 
 <script>
-// ── Control de acceso ────────────────────────────────────────────────────────
+// ── Acceso ────────────────────────────────────────────────────────────────────
 (function() {
   var t = localStorage.getItem("token");
   var u = JSON.parse(localStorage.getItem("usuario") || "null");
   if (!t || !u || u.nivel < 3) { window.location.href = "/index.html"; return; }
   window._token = t; window._usuario = u;
-  // Sidebar user info
-  document.getElementById("userName").textContent  = u.nombre || u.email;
-  document.getElementById("userRole").textContent  = u.rol;
+  document.getElementById("userName").textContent   = u.nombre || u.email;
+  document.getElementById("userRole").textContent   = u.rol;
   document.getElementById("userAvatar").textContent = (u.nombre || u.email || "U")[0].toUpperCase();
-  // Topbar user info
-  var _av = document.getElementById("topbarAvatar");
-  var _un = document.getElementById("topbarName");
-  var _ur = document.getElementById("topbarRole");
-  if (_av) _av.textContent = (u.nombre || u.email || "U")[0].toUpperCase();
-  if (_un) _un.textContent = u.nombre || u.email;
-  if (_ur) _ur.textContent = u.rol;
-  document.getElementById("envLabel").textContent  = window.location.hostname === "localhost" ? "DEV" : "PROD";
+  document.getElementById("topbarAvatar").textContent = (u.nombre || u.email || "U")[0].toUpperCase();
+  document.getElementById("envLabel").textContent   = window.location.hostname === "localhost" ? "DEV" : "PROD";
   if (u.nivel >= 4) {
     document.getElementById("adminSection").style.display = "block";
-    document.getElementById("btnSync").style.display      = "inline-block";
+    document.getElementById("btnSync").style.display = "inline-flex";
+    document.getElementById("btnSync").style.alignItems = "center";
+    document.getElementById("btnSync").style.gap = "6px";
   }
 })();
 
-// Auto-logout 2 min inactividad
+// Auto-logout 2 min
 var _timer;
 function resetTimer() {
   clearTimeout(_timer);
@@ -409,40 +393,35 @@ function resetTimer() {
 });
 resetTimer();
 
-var token   = window._token;
-var usuario = window._usuario;
+var token = window._token;
 
-// ── Estado global ─────────────────────────────────────────────────────────────
+// ── Estado ────────────────────────────────────────────────────────────────────
 var estado = {
-  sociedad:      "EFICIENCIA URBANA",
-  granularidad:  "mes",
-  periodos:      [],
-  desde:         "",
-  hasta:         "",
-  resumen:       null,
-  modalPeriodo:  null,
-  modalSeccion:  null,
-  modalCat:      null,
-  modalPage:     1,
-  modalTotal:    0,
+  sociedad: "EFICIENCIA URBANA", granularidad: "mes",
+  periodos: [], desde: "", hasta: "", resumen: null,
+  modalPeriodo: null, modalSeccion: null, modalCat: null,
+  modalPage: 1, modalTotal: 0
 };
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 var fmt = new Intl.NumberFormat("es-GT", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 function q(v) { return "Q " + fmt.format(v); }
 function fmtQ(v) {
-  if (v === 0) return '<span class="num-muted">—</span>';
+  if (v === 0 || v === null || v === undefined) return '<span class="num-muted">—</span>';
   var cls = v > 0 ? "num-pos" : "num-neg";
   return '<span class="' + cls + '">' + q(Math.abs(v)) + '</span>';
 }
+function fmtQraw(v, pos, neg) {
+  var col = v >= 0 ? (pos || "#86efac") : (neg || "#fca5a5");
+  return '<span style="color:' + col + ';font-weight:700">' + q(Math.abs(v)) + '</span>';
+}
+function escapeAttr(s) { return (s||"").replace(/'/g,"\\'").replace(/"/g,"&quot;"); }
 
 function showLoading(msg) {
   document.getElementById("loadingMsg").textContent = msg || "Cargando...";
   document.getElementById("loadingOverlay").classList.add("open");
 }
-function hideLoading() {
-  document.getElementById("loadingOverlay").classList.remove("open");
-}
+function hideLoading() { document.getElementById("loadingOverlay").classList.remove("open"); }
 
 async function api(path) {
   var r = await fetch("/api" + path, { headers: { "Authorization": "Bearer " + token } });
@@ -450,7 +429,42 @@ async function api(path) {
   return r.json();
 }
 
-// ── Granularidad toggle ───────────────────────────────────────────────────────
+// ── Colapsar grupos ───────────────────────────────────────────────────────────
+function toggleGrupo(headerRow) {
+  var grupoId = headerRow.dataset.grupo;
+  var isCollapsed = headerRow.classList.contains("collapsed");
+  var secRows   = document.querySelectorAll("tr.row-seccion[data-grupo='" + grupoId + "']");
+  var secTotals = document.querySelectorAll("tr.row-total-sec[data-grupo='" + grupoId + "']");
+  var catRows   = document.querySelectorAll("tr.row-cat[data-sec^='" + grupoId + "_']");
+  if (isCollapsed) {
+    headerRow.classList.remove("collapsed");
+    secRows.forEach(function(r) { r.classList.remove("hidden"); r.classList.add("collapsed"); });
+    secTotals.forEach(function(r) { r.classList.remove("hidden"); });
+  } else {
+    headerRow.classList.add("collapsed");
+    secRows.forEach(function(r)   { r.classList.add("hidden"); });
+    secTotals.forEach(function(r) { r.classList.add("hidden"); });
+    catRows.forEach(function(r)   { r.classList.add("hidden"); });
+  }
+}
+
+function toggleSeccion(headerRow) {
+  var secId = headerRow.dataset.sec;
+  var isCollapsed = headerRow.classList.contains("collapsed");
+  var catRows = document.querySelectorAll("tr.row-cat[data-sec='" + secId + "']");
+  var totRow  = document.querySelector("tr[data-sec-total='" + secId + "']");
+  if (isCollapsed) {
+    headerRow.classList.remove("collapsed");
+    catRows.forEach(function(r) { r.classList.remove("hidden"); });
+    if (totRow) totRow.classList.remove("hidden");
+  } else {
+    headerRow.classList.add("collapsed");
+    catRows.forEach(function(r) { r.classList.add("hidden"); });
+    if (totRow) totRow.classList.add("hidden");
+  }
+}
+
+// ── Granularidad ──────────────────────────────────────────────────────────────
 document.querySelectorAll(".gran-btn").forEach(function(btn) {
   btn.addEventListener("click", function() {
     document.querySelectorAll(".gran-btn").forEach(function(b) { b.classList.remove("active"); });
@@ -470,7 +484,6 @@ document.getElementById("selSociedad").addEventListener("change", function() {
 async function cargarPeriodos() {
   var data = await api("/flujos/periodos?sociedad=" + encodeURIComponent(estado.sociedad) + "&granularidad=" + estado.granularidad);
   estado.periodos = data.periodos || [];
-
   var selD = document.getElementById("selDesde");
   var selH = document.getElementById("selHasta");
   selD.innerHTML = '<option value="">— Inicio —</option>';
@@ -487,126 +500,149 @@ async function cargarPeriodos() {
 async function cargarResumen() {
   showLoading("Cargando flujos de efectivo...");
   try {
-    var url = "/flujos/resumen?sociedad=" + encodeURIComponent(estado.sociedad)
-            + "&granularidad=" + estado.granularidad;
+    var url = "/flujos/resumen?sociedad=" + encodeURIComponent(estado.sociedad) + "&granularidad=" + estado.granularidad;
     if (estado.desde) url += "&desde=" + encodeURIComponent(estado.desde);
     if (estado.hasta) url += "&hasta=" + encodeURIComponent(estado.hasta);
-
     var data = await api(url);
     estado.resumen = data;
     renderTabla(data);
     actualizarKPIs(data);
-    actualizarInfoBar(data);
+    document.getElementById("infoBarText").innerHTML =
+      "Sociedad: <strong>" + data.sociedad + "</strong> · Granularidad: <strong>" + data.granularidad +
+      "</strong> · Períodos: <strong>" + (data.periodos||[]).length + "</strong>";
   } catch(e) {
     console.error(e);
-    document.getElementById("infoBarText").textContent = "Error cargando datos. Intenta de nuevo.";
-  } finally {
-    hideLoading();
-  }
-}
-
-function actualizarInfoBar(data) {
-  var txt = "Sociedad: <strong>" + data.sociedad + "</strong> · ";
-  txt += "Granularidad: <strong>" + data.granularidad + "</strong> · ";
-  txt += "Períodos mostrados: <strong>" + (data.periodos || []).length + "</strong>";
-  document.getElementById("infoBarText").innerHTML = txt;
+    document.getElementById("infoBarText").textContent = "Error cargando datos.";
+  } finally { hideLoading(); }
 }
 
 function actualizarKPIs(data) {
   var periodos = data.periodos || [];
   if (!periodos.length) return;
-
-  var pri = periodos[0];
-  var ult = periodos[periodos.length - 1];
-
+  var pri = periodos[0], ult = periodos[periodos.length-1];
   var saldoIni = data.saldos_iniciales[pri] || 0;
   var saldoFin = data.saldos_finales[ult]   || 0;
-
-  // Sumar ingresos y egresos del rango completo
   var totalIng = 0, totalEgr = 0;
-  (data.secciones || []).forEach(function(sec) {
+  (data.secciones||[]).forEach(function(sec) {
     periodos.forEach(function(p) {
       var t = sec.totales[p] || {};
       totalIng += t.ingreso || 0;
       totalEgr += t.egreso  || 0;
     });
   });
-
   document.getElementById("kpiSaldoIni").textContent    = q(saldoIni);
   document.getElementById("kpiSaldoIniPer").textContent = "Al inicio de " + pri;
   document.getElementById("kpiIngresos").textContent    = q(totalIng);
   document.getElementById("kpiEgresos").textContent     = q(totalEgr);
   document.getElementById("kpiSaldoFin").textContent    = q(saldoFin);
   document.getElementById("kpiSaldoFinPer").textContent = "Al cierre de " + ult;
-
-  var kpiSaldoFin = document.getElementById("kpiSaldoFin");
-  kpiSaldoFin.className = "kpi-value " + (saldoFin >= 0 ? "positivo" : "negativo");
+  var el = document.getElementById("kpiSaldoFin");
+  el.className = "kpi-value " + (saldoFin >= 0 ? "positivo" : "negativo");
 }
 
-// ── Renderizar tabla ──────────────────────────────────────────────────────────
+// ── Render tabla ──────────────────────────────────────────────────────────────
 function renderTabla(data) {
   var periodos  = data.periodos  || [];
   var secciones = data.secciones || [];
   var thead = document.getElementById("tablaHead");
   var tbody = document.getElementById("tablaBody");
+  var n = periodos.length;
 
-  // Head
+  // Header
   var hRow = '<tr><th>Concepto</th>';
   periodos.forEach(function(p) { hRow += '<th>' + p + '</th>'; });
-  hRow += '</tr>';
+  hRow += '<th class="col-total">Total</th></tr>';
   thead.innerHTML = hRow;
 
   var html = "";
 
-  // Fila saldo inicial
+  // Saldo Inicial
   html += '<tr class="row-saldo-ini"><td><strong>Saldo Inicial</strong></td>';
-  periodos.forEach(function(p) {
-    var s = data.saldos_iniciales[p] || 0;
-    html += '<td>' + fmtQ(s) + '</td>';
-  });
-  html += '</tr>';
+  periodos.forEach(function(p) { html += '<td>' + fmtQ(data.saldos_iniciales[p]||0) + '</td>'; });
+  html += '<td class="col-total num-muted" style="text-align:right">—</td></tr>';
 
-  // Secciones
-  secciones.forEach(function(sec) {
-    // Cabecera de sección
-    html += '<tr class="row-seccion"><td colspan="' + (periodos.length + 1) + '">' + sec.seccion + '</td></tr>';
+  // Grupos
+  var grupoIngresos = secciones.filter(function(s){ return s.seccion === "INGRESOS"; });
+  var grupoEgresos  = secciones.filter(function(s){ return s.seccion !== "INGRESOS" && s.seccion !== "SIN CLASIFICAR"; });
+  var grupos = [
+    { id: "INGRESOS", label: "Ingresos", secs: grupoIngresos },
+    { id: "EGRESOS",  label: "Egresos",  secs: grupoEgresos  }
+  ];
 
-    // Categorías
-    sec.categorias.forEach(function(cat) {
-      html += '<tr class="row-cat" onclick="abrirDetalle(\'' +
-        escapeAttr(sec.seccion) + '\',\'' + escapeAttr(cat.categoria) + '\')">';
-      html += '<td class="indent">' + cat.categoria + '</td>';
-      periodos.forEach(function(p) {
-        var m = cat.montos[p] || {};
-        var v = (m.ingreso || 0) - (m.egreso || 0);
-        html += '<td>' + fmtQ(v) + '</td>';
-      });
-      html += '</tr>';
-    });
+  grupos.forEach(function(grupo) {
+    if (!grupo.secs.length) return;
 
-    // Total sección
-    html += '<tr class="row-total-sec"><td><strong>Total ' + sec.seccion + '</strong></td>';
+    // Calcular totales del grupo
+    var gTotales = {}, gTotal = 0;
     periodos.forEach(function(p) {
-      var t = sec.totales[p] || {};
-      var v = (t.ingreso || 0) - (t.egreso || 0);
-      html += '<td>' + fmtQ(v) + '</td>';
+      var s = 0;
+      grupo.secs.forEach(function(sec) {
+        var t = sec.totales[p] || {};
+        s += (t.ingreso||0) - (t.egreso||0);
+      });
+      gTotales[p] = s;
+      gTotal += s;
     });
+
+    // Cabecera grupo — azul oscuro con totales
+    html += '<tr class="row-grupo collapsed" data-grupo="' + grupo.id + '" onclick="toggleGrupo(this)">';
+    html += '<td>' + grupo.label.toUpperCase() + '<span class="chevron">▼</span></td>';
+    periodos.forEach(function(p) {
+      var v = gTotales[p] || 0;
+      html += '<td>' + fmtQraw(v) + '</td>';
+    });
+    html += '<td class="col-total">' + fmtQraw(gTotal) + '</td>';
     html += '</tr>';
+
+    // Subsecciones
+    grupo.secs.forEach(function(sec) {
+      var secId    = grupo.id + "_" + sec.seccion.replace(/[^a-z0-9]/gi,"_");
+      var secLabel = sec.seccion.replace("EGRESOS / ","").replace("INGRESOS","Ingresos");
+
+      // Calcular totales subsección
+      var sTotales = {}, sTotal = 0;
+      periodos.forEach(function(p) {
+        var t = sec.totales[p] || {};
+        var v = (t.ingreso||0) - (t.egreso||0);
+        sTotales[p] = v;
+        sTotal += v;
+      });
+
+      // Cabecera subsección — celeste, con totales
+      html += '<tr class="row-seccion collapsed hidden" data-sec="' + secId + '" data-grupo="' + grupo.id + '" onclick="toggleSeccion(this)">';
+      html += '<td>' + secLabel + '<span class="chevron">▼</span></td>';
+      periodos.forEach(function(p) {
+        html += '<td>' + fmtQ(sTotales[p]||0) + '</td>';
+      });
+      html += '<td class="col-total">' + fmtQ(sTotal) + '</td>';
+      html += '</tr>';
+
+      // Categorías — blanco, ocultas por defecto
+      sec.categorias.forEach(function(cat) {
+        var catTotal = 0;
+        html += '<tr class="row-cat hidden" data-sec="' + secId + '" onclick="abrirDetalle(\'' +
+          escapeAttr(sec.seccion) + '\',\'' + escapeAttr(cat.categoria) + '\')">';
+        html += '<td>' + cat.categoria + '</td>';
+        periodos.forEach(function(p) {
+          var mc = cat.montos[p] || {};
+          var v = (mc.ingreso||0) - (mc.egreso||0);
+          catTotal += v;
+          html += '<td>' + fmtQ(v) + '</td>';
+        });
+        html += '<td class="col-total">' + fmtQ(catTotal) + '</td>';
+        html += '</tr>';
+      });
+    });
   });
 
-  // Fila saldo final
+  // Saldo Final
+  var lastFin = data.saldos_finales[periodos[periodos.length-1]] || 0;
   html += '<tr class="row-saldo-fin"><td><strong>Saldo Final</strong></td>';
-  periodos.forEach(function(p) {
-    var s = data.saldos_finales[p] || 0;
-    html += '<td>' + fmtQ(s) + '</td>';
-  });
+  periodos.forEach(function(p) { html += '<td>' + fmtQraw(data.saldos_finales[p]||0) + '</td>'; });
+  html += '<td class="col-total">' + fmtQraw(lastFin) + '</td>';
   html += '</tr>';
 
   tbody.innerHTML = html;
-}
-
-function escapeAttr(s) {
-  return (s || "").replace(/'/g, "\\'").replace(/"/g, "&quot;");
 }
 
 // ── Filtros ───────────────────────────────────────────────────────────────────
@@ -615,7 +651,6 @@ function aplicarFiltro() {
   estado.hasta = document.getElementById("selHasta").value;
   cargarResumen();
 }
-
 function limpiarFiltro() {
   estado.desde = ""; estado.hasta = "";
   document.getElementById("selDesde").value = "";
@@ -625,30 +660,23 @@ function limpiarFiltro() {
 
 // ── Modal detalle ─────────────────────────────────────────────────────────────
 function abrirDetalle(seccion, categoria) {
-  // Determinar período: si hay un único período mostrado usar ese, si no usar el último
-  var periodos = (estado.resumen || {}).periodos || [];
-  var periodo  = periodos.length === 1 ? periodos[0] : periodos[periodos.length - 1];
+  var periodos = (estado.resumen||{}).periodos || [];
+  var periodo = periodos.length === 1 ? periodos[0] : periodos[periodos.length-1];
   if (!periodo) return;
   estado.modalPeriodo = periodo;
   estado.modalSeccion = seccion;
-  estado.modalCat     = categoria;
-  estado.modalPage    = 1;
-  document.getElementById("modalTitle").textContent =
-    categoria + " · " + seccion + " · " + periodo;
+  estado.modalCat = categoria;
+  estado.modalPage = 1;
+  document.getElementById("modalTitle").textContent = categoria + " · " + seccion + " · " + periodo;
   cargarDetalle();
   document.getElementById("modalOverlay").classList.add("open");
 }
-
-function cerrarModal() {
-  document.getElementById("modalOverlay").classList.remove("open");
-}
-
+function cerrarModal() { document.getElementById("modalOverlay").classList.remove("open"); }
 function modalPagina(delta) {
   var pages = Math.ceil(estado.modalTotal / 50);
   estado.modalPage = Math.max(1, Math.min(pages, estado.modalPage + delta));
   cargarDetalle();
 }
-
 async function cargarDetalle() {
   var url = "/flujos/detalle?sociedad=" + encodeURIComponent(estado.sociedad)
     + "&granularidad=" + estado.granularidad
@@ -656,67 +684,51 @@ async function cargarDetalle() {
     + "&seccion=" + encodeURIComponent(estado.modalSeccion)
     + "&categoria=" + encodeURIComponent(estado.modalCat)
     + "&page=" + estado.modalPage;
-
   var data = await api(url);
   estado.modalTotal = data.total || 0;
   var pages = data.pages || 1;
-  var reg   = data.registros || [];
-
-  document.getElementById("pagInfo").textContent =
-    "Página " + estado.modalPage + " de " + pages + " (" + estado.modalTotal + " registros)";
+  document.getElementById("pagInfo").textContent = "Página " + estado.modalPage + " de " + pages + " (" + estado.modalTotal + " registros)";
   document.getElementById("btnPrev").disabled = estado.modalPage <= 1;
   document.getElementById("btnNext").disabled = estado.modalPage >= pages;
-
   var html = "";
-  reg.forEach(function(r) {
-    var fechaStr = r.fecha_contable ? r.fecha_contable.substring(0, 10) : "—";
-    var contra   = r.sn_nombre || r.cliente_nombre || "—";
-    var coment   = r.pago_comentario || r.cobro_comentario || "—";
-    var ingStr   = r.monto_ingreso > 0 ? '<span class="num-pos">' + q(r.monto_ingreso) + '</span>' : "—";
-    var egrStr   = r.monto_egreso  > 0 ? '<span class="num-neg">' + q(r.monto_egreso)  + '</span>' : "—";
-    html += '<tr>';
-    html += '<td>' + fechaStr + '</td>';
-    html += '<td>' + (r.nombre_categoria || "—") + '</td>';
-    html += '<td><span style="font-size:10px;background:#f3f4f6;padding:2px 6px;border-radius:4px;">' + (r.tipo_transaccion || "—") + '</span></td>';
-    html += '<td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;" title="' + contra + '">' + contra + '</td>';
-    html += '<td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;" title="' + coment + '">' + coment + '</td>';
-    html += '<td style="text-align:right">' + ingStr + '</td>';
-    html += '<td style="text-align:right">' + egrStr + '</td>';
-    html += '</tr>';
+  (data.registros||[]).forEach(function(r) {
+    var fecha = r.fecha_contable ? r.fecha_contable.substring(0,10) : "—";
+    var contra = r.sn_nombre || r.cliente_nombre || "—";
+    var coment = r.pago_comentario || r.cobro_comentario || "—";
+    var ing = r.monto_ingreso > 0 ? '<span class="num-pos">' + q(r.monto_ingreso) + '</span>' : "—";
+    var egr = r.monto_egreso  > 0 ? '<span class="num-neg">' + q(r.monto_egreso)  + '</span>' : "—";
+    html += '<tr><td>' + fecha + '</td><td>' + (r.nombre_categoria||"—") + '</td>';
+    html += '<td><span style="font-size:10px;background:#f3f4f6;padding:2px 6px;border-radius:4px">' + (r.tipo_transaccion||"—") + '</span></td>';
+    html += '<td style="max-width:180px;overflow:hidden;text-overflow:ellipsis" title="' + contra + '">' + contra + '</td>';
+    html += '<td style="max-width:180px;overflow:hidden;text-overflow:ellipsis" title="' + coment + '">' + coment + '</td>';
+    html += '<td style="text-align:right">' + ing + '</td><td style="text-align:right">' + egr + '</td></tr>';
   });
-  document.getElementById("modalBody").innerHTML = html || '<tr><td colspan="7" style="text-align:center;padding:20px;color:var(--muted)">Sin registros</td></tr>';
+  document.getElementById("modalBody").innerHTML = html ||
+    '<tr><td colspan="7" style="text-align:center;padding:20px;color:#9ca3af">Sin registros</td></tr>';
 }
-
-// Cerrar modal al hacer click fuera
 document.getElementById("modalOverlay").addEventListener("click", function(e) {
   if (e.target === this) cerrarModal();
 });
 
-// ── Sync manual ───────────────────────────────────────────────────────────────
+// ── Sync ──────────────────────────────────────────────────────────────────────
 async function syncManual() {
-  if (!confirm("¿Sincronizar flujos desde Excel? Esto puede tardar unos segundos.")) return;
+  if (!confirm("¿Sincronizar flujos desde Excel?")) return;
   var btn = document.getElementById("btnSync");
   btn.disabled = true;
-  btn.innerHTML = '<span class="spinner" style="width:14px;height:14px;border-color:rgba(0,0,0,.3);border-top-color:#111;"></span> Sincronizando...';
+  btn.innerHTML = '<span class="spinner" style="width:12px;height:12px;border-color:rgba(0,0,0,.3);border-top-color:#111"></span> Sincronizando...';
   try {
     var r = await fetch("/api/flujos/sync", { method: "POST", headers: { "Authorization": "Bearer " + token } });
     var data = await r.json();
     if (data.ok) {
       var res = data.resultado;
-      alert("Sync completado. Insertados: " + res.insertados + " | Omitidos: " + res.omitidos);
+      alert("Sync completado.\nInsertados: " + res.insertados + "\nOmitidos: " + res.omitidos);
       cargarResumen();
-    } else {
-      alert("Error en sync: " + JSON.stringify(data));
-    }
-  } catch(e) {
-    alert("Error de red: " + e.message);
-  } finally {
-    btn.disabled = false;
-    btn.textContent = "↻ Sincronizar";
-  }
+    } else { alert("Error: " + JSON.stringify(data)); }
+  } catch(e) { alert("Error: " + e.message); }
+  finally { btn.disabled = false; btn.textContent = "↻ Sincronizar"; }
 }
 
-// ── Inicialización ────────────────────────────────────────────────────────────
+// ── Init ──────────────────────────────────────────────────────────────────────
 cargarPeriodos().then(cargarResumen);
 </script>
 </body>

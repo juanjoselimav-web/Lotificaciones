@@ -1,13 +1,24 @@
 """
-sync_flujos.py
-Sincroniza el archivo FLUJOS DE EFECTIVO.xlsx hacia la tabla flujos_efectivo.
-Trabaja hoja por hoja (por sociedad). Actualmente activa: EFICIENCIA URBANA.
-Ampliar SOCIEDADES_ACTIVAS para habilitar otras sociedades.
+sync_flujos.py — v3
+Sincroniza FLUJOS DE EFECTIVO.xlsx → tabla flujos_efectivo.
+
+Lógica de neteo (Opción B):
+  1. Excluir filas anteriores al mes siguiente de PARTIDA INICIAL (vienen de esa tabla)
+  2. Excluir MOVIMIENTO_MANUAL
+  3. Eliminar 'Traslado Entre Cuentas' en ambos módulos
+  4. Eliminar TRANSFERENCIAS cruzadas (mismo belnr+gjahr en INGRESOS y EGRESOS → neto=0)
+  5. Netear 'Ingresos Transitoria' vs 'Ingresos por aplicar Terreno' → Otros Ingresos
+  6. Para INGRESOS: solo COBRO_DIRECTO y COBRO_FACTURA (excepto cuentas de neteo)
+  7. El signo final de cada fila = RDI.seccion + MODULO:
+     - Si MODULO=EGRESOS pero RDI→INGRESOS → reduce ingresos (devolución)
+     - Si MODULO=INGRESOS pero RDI→EGRESOS → reduce egresos (recupero)
+     La columna monto_ingreso/monto_egreso refleja el neto real según RDI
 """
 import os
 import re
+import datetime
 import logging
-from datetime import datetime, date
+import math
 from typing import Optional
 
 import pandas as pd
@@ -16,311 +27,301 @@ from app.database import engine
 
 logger = logging.getLogger(__name__)
 
-# ── Configuración ────────────────────────────────────────────────────────────
-
+# ── Rutas ─────────────────────────────────────────────────────────────────────
 FLUJOS_PATH = os.environ.get(
     "PATH_FLUJOS",
     r"C:\Users\jlima\OneDrive - rvcuatro.com\Finanzas - Desarrollos - Planificación financiera\19. Lotes\Inventario\2. Tablero Lotificaciones Preliminar (5010)\FLUJOS DE EFECTIVO.xlsx"
 )
 
-# Hoja Excel → nombre sociedad en BD
 SOCIEDADES_ACTIVAS = {
     "EFICIENCIA URBANA": "EFICIENCIA URBANA",
-    # Descomentar para activar más sociedades:
     # "SERVICIOS GENERALES": "SERVICIOS GENERALES",
-    # "ROSSIO":              "ROSSIO",
-    # "FRUGALEX":            "FRUGALEX",
-    # "NOALLA":              "NOALLA",
-    # "VILET":               "VILET",
 }
 
-# ── Helpers ──────────────────────────────────────────────────────────────────
+# ── Constantes de neteo ───────────────────────────────────────────────────────
+CTAS_ELIMINAR          = {"Traslado Entre Cuentas"}
+TIPOS_INGRESO_VALIDOS  = {"COBRO_DIRECTO", "COBRO_FACTURA"}
+SECCIONES_INGRESO      = {"INGRESOS"}
+SECCIONES_EGRESO       = {
+    "EGRESOS / URBANIZACION", "EGRESOS / ADMINISTRACION",
+    "FINANCIAMIENTO", "TERRENO", "IMPUESTOS"
+}
 
+# ── Helpers ───────────────────────────────────────────────────────────────────
 def _safe_float(val) -> Optional[float]:
-    """Convierte valor de celda a float, resuelve fórmulas simples tipo =A+B.
-    Retorna None para NaN, None, vacío o no-numérico."""
-    import math
-    if val is None:
-        return None
-    if isinstance(val, float) and math.isnan(val):
-        return None
-    if isinstance(val, (int, float)):
-        return float(val)
+    if val is None: return None
+    if isinstance(val, float) and math.isnan(val): return None
+    if isinstance(val, (int, float)): return float(val)
     s = str(val).strip()
-    if not s or s.lower() in ("nan", "none", "null", ""):
-        return None
+    if not s or s.lower() in ("nan", "none", "null"): return None
     if s.startswith("="):
         nums = re.findall(r"[\d.]+", s)
-        if nums:
-            return sum(float(n) for n in nums)
+        if nums: return sum(float(n) for n in nums)
     try:
-        result = float(s)
-        return None if math.isnan(result) else result
+        r = float(s)
+        return None if math.isnan(r) else r
     except (ValueError, TypeError):
         return None
 
-
-
-def _clean_str(val) -> Optional[str]:
-    """Limpia valores string que pandas puede leer como float (ej: 1110200102.0 → '1110200102')."""
-    if val is None:
-        return None
-    import math
-    if isinstance(val, float):
-        if math.isnan(val):
-            return None
-        # Si es un entero representado como float, quitar el .0
-        if val == int(val):
-            return str(int(val))
-        return str(val)
-    s = str(val).strip()
-    return None if s.lower() in ("nan", "none", "null", "") else s
-
-
 def _safe_int(val) -> Optional[int]:
-    """Convierte a int de forma segura, retorna None para NaN/None."""
-    import math
-    if val is None:
-        return None
-    if isinstance(val, float):
-        if math.isnan(val):
-            return None
-        return int(val)
-    if isinstance(val, int):
-        return val
+    if val is None: return None
+    if isinstance(val, float) and math.isnan(val): return None
+    if isinstance(val, int): return val
+    if isinstance(val, float): return int(val)
     try:
         f = float(str(val).strip())
         return None if math.isnan(f) else int(f)
     except (ValueError, TypeError):
         return None
 
-def _semana_label(semana_iso: int) -> str:
-    return f"S{semana_iso}"
+def _clean_str(val) -> Optional[str]:
+    if val is None: return None
+    if isinstance(val, float):
+        if math.isnan(val): return None
+        return str(int(val)) if val == int(val) else str(val)
+    s = str(val).strip()
+    return None if s.lower() in ("nan", "none", "null", "") else s
 
-
-def _to_date(val) -> Optional[date]:
-    if val is None:
-        return None
-    if pd.isna(val) if not isinstance(val, (list, dict)) else False:
-        return None
+def _to_date(val) -> Optional[datetime.date]:
+    if val is None: return None
+    try:
+        if pd.isna(val): return None
+    except (TypeError, ValueError): pass
     if isinstance(val, pd.Timestamp):
         return val.date() if not pd.isnull(val) else None
-    if isinstance(val, datetime):
-        return val.date()
-    if isinstance(val, date):
-        return val
+    if isinstance(val, datetime.datetime): return val.date()
+    if isinstance(val, datetime.date): return val
     return None
 
+def _semana_label(s: int) -> str: return f"S{s}"
 
-# ── Lectura de ESTRUCTURA RDI ────────────────────────────────────────────────
-
-def _cargar_estructura_rdi(xf: pd.ExcelFile) -> dict:
-    """
-    Devuelve dict con clave (sociedad, cuenta, ubicacion_codigo) → (seccion, nombre).
-    También clave (sociedad, cuenta, None) como fallback.
-    """
+# ── Cargar ESTRUCTURA RDI ─────────────────────────────────────────────────────
+def _cargar_rdi(xf: pd.ExcelFile) -> dict:
+    """Retorna {(sociedad, cuenta, ubicacion): (seccion, nombre)}"""
     df = xf.parse("ESTRUCTURA RDI", dtype=str)
     df.columns = [c.strip() for c in df.columns]
     mapping = {}
     for _, row in df.iterrows():
-        soc   = str(row.get("SOCIEDAD", "") or "").strip()
-        cta   = str(row.get("CUENTA_CONTRAPARTIDA", "") or "").strip()
-        ubic_raw = str(row.get("UBICACION_CODIGO", "") or "").strip()
-        ubic  = None if ubic_raw.lower() in ("nan", "none", "null", "") else ubic_raw
-        sec   = str(row.get("SECCION", "") or "").strip()
-        nom   = str(row.get("NOMBRE", "") or "").strip()
+        soc  = str(row.get("SOCIEDAD", "") or "").strip()
+        cta  = str(row.get("CUENTA_CONTRAPARTIDA", "") or "").strip()
+        ubr  = str(row.get("UBICACION_CODIGO", "") or "").strip()
+        ubic = None if ubr.lower() in ("nan", "none", "null", "") else ubr
+        sec  = str(row.get("SECCION", "") or "").strip()
+        nom  = str(row.get("NOMBRE", "") or "").strip()
         if soc and cta and sec:
             mapping[(soc, cta, ubic)] = (sec, nom)
     return mapping
 
+def _resolver(mapping, sociedad, cuenta, ubicacion):
+    cuenta    = str(cuenta or "").strip()
+    ubicacion = _clean_str(ubicacion)
+    return (mapping.get((sociedad, cuenta, ubicacion)) or
+            mapping.get((sociedad, cuenta, None)))
 
-def _resolver_categoria(mapping: dict, sociedad: str, cuenta: str, ubicacion: Optional[str]):
-    """Busca primero con ubicacion, luego sin ella como fallback."""
-    cuenta = str(cuenta or "").strip()
-    ubicacion = str(ubicacion or "").strip() or None
-    resultado = mapping.get((sociedad, cuenta, ubicacion))
-    if not resultado:
-        resultado = mapping.get((sociedad, cuenta, None))
-    return resultado  # (seccion, nombre) o None
-
-
-# ── Lectura de PARTIDA INICIAL ────────────────────────────────────────────────
-
-def _cargar_partida_inicial(xf: pd.ExcelFile) -> list[dict]:
-    """Lee la hoja PARTIDA INICIAL y devuelve lista de dicts para flujos_saldo_inicial."""
+# ── Cargar PARTIDA INICIAL ────────────────────────────────────────────────────
+def _cargar_partida_inicial(xf: pd.ExcelFile) -> tuple:
+    """
+    Retorna (saldos, movimientos, fecha_inicio_real):
+      saldos          → flujos_saldo_inicial
+      movimientos     → flujos_efectivo (ingresos/egresos del mes inicial)
+      fecha_inicio_real → primer día del mes SIGUIENTE al mes de PARTIDA INICIAL
+    """
     df = xf.parse("PARTIDA INICIAL")
     df.columns = [c.strip() for c in df.columns]
-    registros = []
-    meses_map = {
-        "ENERO": 1, "FEBRERO": 2, "MARZO": 3, "ABRIL": 4,
-        "MAYO": 5, "JUNIO": 6, "JULIO": 7, "AGOSTO": 8,
-        "SEPTIEMBRE": 9, "OCTUBRE": 10, "NOVIEMBRE": 11, "DICIEMBRE": 12,
-    }
-    for _, row in df.iterrows():
-        if str(row.get("SECCION", "")).strip() != "SALDO INICIAL":
+    MESES = {"ENERO":1,"FEBRERO":2,"MARZO":3,"ABRIL":4,"MAYO":5,"JUNIO":6,
+              "JULIO":7,"AGOSTO":8,"SEPTIEMBRE":9,"OCTUBRE":10,"NOVIEMBRE":11,"DICIEMBRE":12}
+
+    saldos = []
+    movimientos = []
+    max_anio, max_mes = 0, 0
+
+    for idx, row in df.iterrows():
+        soc   = str(row.get("SOCIEDAD","") or "").strip()
+        sec   = str(row.get("SECCION","")  or "").strip()
+        nom   = str(row.get("NOMBRE","")   or "").strip()
+        anio  = _safe_int(row.get("AÑO"))
+        mes_s = str(row.get("MES","") or "").strip().upper()
+        sem_s = str(row.get("SEMANA","") or "").strip()
+        monto = _safe_float(row.get("MONTO"))
+        mes   = MESES.get(mes_s)
+
+        sem_m = re.search(r"\d+", sem_s)
+        semana_iso = int(sem_m.group()) if sem_m else 1
+
+        if not (soc and anio and mes and monto is not None):
             continue
-        soc    = str(row.get("SOCIEDAD", "") or "").strip()
-        anio   = row.get("AÑO")
-        mes_s  = str(row.get("MES", "") or "").strip().upper()
-        sem_s  = str(row.get("SEMANA", "") or "").strip()
-        monto  = _safe_float(row.get("MONTO"))
-        mes    = meses_map.get(mes_s)
-        # Extraer número de semana: "S6" → 6
-        sem_match = re.search(r"\d+", sem_s)
-        semana_iso = int(sem_match.group()) if sem_match else None
-        if soc and anio and mes and monto is not None:
-            registros.append({
-                "sociedad":     soc,
-                "anio":         int(anio),
-                "mes":          mes,
-                "semana_iso":   semana_iso,
-                "semana_label": sem_s,
-                "monto":        monto,
+
+        # Track latest period
+        if (anio, mes) > (max_anio, max_mes):
+            max_anio, max_mes = anio, mes
+
+        if sec == "SALDO INICIAL":
+            saldos.append({
+                "sociedad": soc, "anio": anio, "mes": mes,
+                "semana_iso": semana_iso, "semana_label": sem_s, "monto": monto,
             })
-    return registros
+        else:
+            # Movement from initial period → insert into flujos_efectivo
+            es_ing = sec == "INGRESOS"
+            fecha  = datetime.date(anio, mes, 1)
+            movimientos.append({
+                "sociedad": soc, "vertical": None,
+                "belnr": -(idx + 1), "gjahr": anio, "linea": 0,
+                "banco_codigo": None, "banco_nombre": None,
+                "fecha_contable": fecha, "anio": anio, "mes": mes,
+                "semana_iso": semana_iso, "semana_label": sem_s,
+                "cuenta_contrapartida": None, "cuenta_contrapartida_nombre": nom,
+                "ubicacion_codigo": None, "ubicacion_nombre": None,
+                "seccion": sec, "nombre_categoria": nom,
+                "monto_ingreso": monto if es_ing else 0.0,
+                "monto_egreso":  0.0   if es_ing else monto,
+                "monto_aplicado": None,
+                "tipo_transaccion": "PARTIDA_INICIAL",
+                "modulo": "INGRESOS" if es_ing else "EGRESOS",
+                "cobro_num": None, "cobro_fecha": None,
+                "cliente_codigo": None, "cliente_nombre": None, "cobro_comentario": None,
+                "pago_num": None, "pago_fecha": None,
+                "sn_codigo": None, "sn_nombre": None, "pago_comentario": None,
+                "row_num": -(idx + 1),
+            })
 
-
-
-# ── Constantes de neteo/eliminación ──────────────────────────────────────────
-
-# Cuentas que se eliminan completamente de INGRESOS
-CTAS_ELIMINAR_INGRESOS = {
-    "Traslado Entre Cuentas",
-}
-
-# Par de cuentas que se netean entre sí → neto va a Otros Ingresos
-# (A - B) → si neto > 0 es ingreso, si neto < 0 es egreso
-CTA_NETO_A = "Ingresos Transitoria"         # se resta
-CTA_NETO_B = "Ingresos por aplicar Terreno" # se resta
-
-# Tipos de transacción válidos para INGRESOS operativos
-TIPOS_INGRESO_VALIDOS = {"COBRO_DIRECTO", "COBRO_FACTURA"}
-
-# Fecha de inicio real del Excel (antes de esta fecha, los datos vienen de PARTIDA INICIAL)
-# El mes de la partida inicial (Oct 2023) no se procesa del Excel
-FECHA_INICIO_REAL = None  # Se calcula dinámicamente desde PARTIDA INICIAL
-
-
-def _get_fecha_inicio_real(xf: pd.ExcelFile, sociedad: str) -> "datetime.date | None":
-    """
-    Retorna el primer día del mes SIGUIENTE al último mes de PARTIDA INICIAL para la sociedad.
-    Ej: si PARTIDA INICIAL tiene Oct 2023 → inicio real = 2023-11-01
-    """
-    try:
-        df = xf.parse("PARTIDA INICIAL")
-        df.columns = [c.strip() for c in df.columns]
-        meses_map = {
-            "ENERO": 1, "FEBRERO": 2, "MARZO": 3, "ABRIL": 4,
-            "MAYO": 5, "JUNIO": 6, "JULIO": 7, "AGOSTO": 8,
-            "SEPTIEMBRE": 9, "OCTUBRE": 10, "NOVIEMBRE": 11, "DICIEMBRE": 12,
-        }
-        max_anio, max_mes = 0, 0
-        for _, row in df.iterrows():
-            soc = str(row.get("SOCIEDAD", "") or "").strip()
-            if soc != sociedad:
-                continue
-            anio = row.get("AÑO")
-            mes_s = str(row.get("MES", "") or "").strip().upper()
-            mes = meses_map.get(mes_s, 0)
-            if anio and mes:
-                a = int(anio)
-                if (a, mes) > (max_anio, max_mes):
-                    max_anio, max_mes = a, mes
-        if max_anio == 0:
-            return None
-        # Next month
+    # Compute fecha_inicio_real = first day of month after the latest PI month
+    if max_anio > 0:
         if max_mes == 12:
-            return datetime.date(max_anio + 1, 1, 1)
-        return datetime.date(max_anio, max_mes + 1, 1)
-    except Exception as e:
-        logger.warning(f"No se pudo determinar fecha inicio real: {e}")
-        return None
+            fecha_inicio = datetime.date(max_anio + 1, 1, 1)
+        else:
+            fecha_inicio = datetime.date(max_anio, max_mes + 1, 1)
+    else:
+        fecha_inicio = None
 
+    return saldos, movimientos, fecha_inicio
 
-def _preprocesar_df(df: pd.DataFrame, sociedad: str, fecha_inicio: "date | None") -> pd.DataFrame:
+# ── Preprocesar DataFrame ─────────────────────────────────────────────────────
+def _preprocesar_df(df: pd.DataFrame, mapping: dict, sociedad: str,
+                    fecha_inicio: Optional[datetime.date]) -> list[dict]:
     """
-    Aplica reglas de neteo y eliminación:
-    1. Excluir filas anteriores a fecha_inicio (vienen de PARTIDA INICIAL)
-    2. Excluir MOVIMIENTO_MANUAL
-    3. Para INGRESOS: solo COBRO_DIRECTO y COBRO_FACTURA
-    4. Eliminar cuentas en CTAS_ELIMINAR_INGRESOS
-    5. Eliminar TRANSFERENCIAS cruzadas (mismo belnr+gjahr en ambos módulos)
-    6. Netear Ingresos Transitoria vs Ingresos por aplicar Terreno → Otros Ingresos
+    Aplica todas las reglas y devuelve lista de dicts listos para INSERT.
+    Cada dict ya tiene monto_ingreso y monto_egreso calculados según RDI + MODULO.
     """
     df = df.copy()
     df["FECHA_CONTABLE"] = pd.to_datetime(df["FECHA_CONTABLE"], errors="coerce")
     df["LINEA"] = df["LINEA"].fillna(0)
 
-    # 1. Excluir filas anteriores a fecha_inicio
+    # 1. Filtrar fechas válidas y rango
+    df = df[df["FECHA_CONTABLE"].notna()].copy()
+    df = df[df["FECHA_CONTABLE"].dt.year >= 2000].copy()
     if fecha_inicio:
-        df = df[df["FECHA_CONTABLE"].notna() & (df["FECHA_CONTABLE"].dt.date >= fecha_inicio)].copy()
+        df = df[df["FECHA_CONTABLE"].dt.date >= fecha_inicio].copy()
 
-    # 2. Excluir MOVIMIENTO_MANUAL globalmente
-    df = df[df["TIPO_TRANSACCION"] != "MOVIMIENTO_MANUAL"].copy()
+    # 2. Eliminar Traslado Entre Cuentas en ambos módulos
+    df = df[~df["CUENTA_CONTRAPARTIDA_NOMBRE"].isin(CTAS_ELIMINAR)].copy()
 
-    # 3. Para INGRESOS: solo tipos válidos (cuentas de neteo se procesan aparte)
-    mask_ing   = df["MODULO"] == "INGRESOS"
-    mask_neto  = df["CUENTA_CONTRAPARTIDA_NOMBRE"].isin({CTA_NETO_A, CTA_NETO_B})
-    mask_valid = df["TIPO_TRANSACCION"].isin(TIPOS_INGRESO_VALIDOS)
-    df = df[~mask_ing | mask_valid | mask_neto].copy()
+    # 3b. Eliminar TRANSFERENCIAS cruzadas (belnr+gjahr en ambos módulos → neto=0)
+    grupos = df.groupby(["BELNR","GJAHR"])["MODULO"].apply(lambda x: set(x.dropna()))
+    cross_set = set(map(tuple, grupos[grupos.apply(
+        lambda x: "INGRESOS" in x and "EGRESOS" in x)].index.tolist()))
+    if cross_set:
+        df = df[~df.apply(lambda r: (r["BELNR"], r["GJAHR"]) in cross_set, axis=1)].copy()
 
-    # 4. Eliminar cuentas bloqueadas en INGRESOS
-    mask_elim = (df["MODULO"] == "INGRESOS") & df["CUENTA_CONTRAPARTIDA_NOMBRE"].isin(CTAS_ELIMINAR_INGRESOS)
-    df = df[~mask_elim].copy()
+    # 7. Build output rows: apply RDI + MODULO sign to determine monto_ingreso/egreso
+    rows_out = []
+    for row_idx, row in df.iterrows():
+        belnr = row.get("BELNR")
+        gjahr = row.get("GJAHR")
+        linea = row.get("LINEA", 0)
+        fc    = _to_date(row.get("FECHA_CONTABLE"))
 
-    # 5. Eliminar TRANSFERENCIAS cruzadas (mismo belnr+gjahr en INGRESOS y EGRESOS)
-    grupos = df.groupby(["BELNR", "GJAHR"])["MODULO"].apply(lambda x: set(x.dropna()))
-    cross_idx = grupos[grupos.apply(lambda x: "INGRESOS" in x and "EGRESOS" in x)].index
-    cross_set = set(map(tuple, cross_idx.tolist()))
-    mask_cross = df.apply(lambda r: (r["BELNR"], r["GJAHR"]) in cross_set, axis=1)
-    df = df[~mask_cross].copy()
+        if not fc or pd.isna(belnr) or pd.isna(gjahr):
+            continue
 
-    # 6. Netear CTA_NETO_A vs CTA_NETO_B por belnr+gjahr
-    mask_a = (df["MODULO"] == "INGRESOS") & (df["CUENTA_CONTRAPARTIDA_NOMBRE"] == CTA_NETO_A)
-    mask_b = (df["MODULO"] == "INGRESOS") & (df["CUENTA_CONTRAPARTIDA_NOMBRE"] == CTA_NETO_B)
+        cuenta = _clean_str(row.get("CUENTA_CONTRAPARTIDA")) or ""
+        ubicod = _clean_str(row.get("UBICACION_CODIGO"))
+        cat    = _resolver(mapping, sociedad, cuenta, ubicod)
+        seccion = cat[0] if cat else "SIN CLASIFICAR"
+        nombre  = cat[1] if cat else (_clean_str(row.get("CUENTA_CONTRAPARTIDA_NOMBRE")) or "SIN CLASIFICAR")
 
-    if mask_a.any() or mask_b.any():
-        rows_a = df[mask_a].copy()
-        rows_b = df[mask_b].copy()
-        # Remove both from main df
-        df = df[~mask_a & ~mask_b].copy()
+        monto_prorr = _safe_float(row.get("MONTO_PRORRATEADO")) or 0.0
+        modulo_val  = _clean_str(row.get("MODULO")) or ""
 
-        # Aggregate per belnr+gjahr
-        sum_a = rows_a.groupby(["BELNR","GJAHR"])["MONTO_PRORRATEADO"].sum()
-        sum_b = rows_b.groupby(["BELNR","GJAHR"])["MONTO_PRORRATEADO"].sum()
-        all_keys = sum_a.index.union(sum_b.index)
+        # MODULO determines sign: INGRESOS → monto_ingreso, EGRESOS → monto_egreso
+        # RDI section determines WHERE it shows in the report (already set above)
+        # The router calculates neto = ingreso - egreso per section
+        if modulo_val == "INGRESOS":
+            monto_ing = monto_prorr
+            monto_egr = 0.0
+        else:
+            monto_ing = 0.0
+            monto_egr = monto_prorr
 
-        neto_rows = []
-        # Get a template row to copy metadata from
-        template_src = rows_a if len(rows_a) > 0 else rows_b
-        template_by_key = {(r["BELNR"], r["GJAHR"]): r for _, r in template_src.iterrows()}
+        semana_iso = fc.isocalendar()[1]
 
-        for key in all_keys:
-            a_val = float(sum_a.get(key, 0))
-            b_val = float(sum_b.get(key, 0))
-            neto  = a_val - b_val
-            if abs(neto) < 0.01:
-                continue  # neto cero → eliminar
+        rows_out.append({
+            "sociedad":                    sociedad,
+            "vertical":                    _clean_str(row.get("VERTICAL")),
+            "belnr":                       _safe_int(belnr),
+            "gjahr":                       _safe_int(gjahr),
+            "linea":                       _safe_int(linea) or 0,
+            "banco_codigo":                _clean_str(row.get("BANCO_CODIGO")),
+            "banco_nombre":                _clean_str(row.get("BANCO_NOMBRE")),
+            "fecha_contable":              fc,
+            "anio":                        fc.year,
+            "mes":                         fc.month,
+            "semana_iso":                  semana_iso,
+            "semana_label":                _semana_label(semana_iso),
+            "cuenta_contrapartida":        cuenta or None,
+            "cuenta_contrapartida_nombre": _clean_str(row.get("CUENTA_CONTRAPARTIDA_NOMBRE")),
+            "ubicacion_codigo":            ubicod,
+            "ubicacion_nombre":            _clean_str(row.get("UBICACION_NOMBRE")),
+            "seccion":                     seccion,
+            "nombre_categoria":            nombre,
+            "monto_ingreso":               monto_ing,
+            "monto_egreso":                monto_egr,
+            "monto_aplicado":              _safe_float(row.get("MONTO_APLICADO_FACTURA")),
+            "tipo_transaccion":            _clean_str(row.get("TIPO_TRANSACCION")),
+            "modulo":                      modulo_val or None,
+            "cobro_num":                   _safe_int(row.get("COBRO_NUM")),
+            "cobro_fecha":                 _to_date(row.get("COBRO_FECHA")),
+            "cliente_codigo":              _clean_str(row.get("CLIENTE_CODIGO")),
+            "cliente_nombre":              _clean_str(row.get("CLIENTE_NOMBRE")),
+            "cobro_comentario":            _clean_str(row.get("COBRO_COMENTARIO")),
+            "pago_num":                    _safe_int(row.get("PAGO_NUM")),
+            "pago_fecha":                  _to_date(row.get("PAGO_FECHA")),
+            "sn_codigo":                   _clean_str(row.get("SN_CODIGO")),
+            "sn_nombre":                   _clean_str(row.get("SN_NOMBRE")),
+            "pago_comentario":             _clean_str(row.get("PAGO_COMENTARIO")),
+            "row_num":                      int(row_idx) if not isinstance(row_idx, float) else 0,
+        })
 
-            # Build new row from template
-            tmpl = template_by_key.get(key)
-            if tmpl is None:
-                continue
-            new_row = tmpl.copy()
-            new_row["MONTO_PRORRATEADO"]          = abs(neto)
-            new_row["CUENTA_CONTRAPARTIDA_NOMBRE"] = "Otros Ingresos"
-            new_row["CUENTA_CONTRAPARTIDA"]        = float("nan")
-            new_row["MODULO"]                      = "INGRESOS" if neto > 0 else "EGRESOS"
-            new_row["LINEA"]                       = 9999
-            neto_rows.append(new_row)
-
-        if neto_rows:
-            df_neto = pd.DataFrame(neto_rows, columns=df.columns)
-            df = pd.concat([df, df_neto], ignore_index=True)
-
-    return df
+    return rows_out
 
 # ── Sync principal ────────────────────────────────────────────────────────────
+INSERT_SQL = text("""
+    INSERT INTO flujos_efectivo (
+        sociedad, vertical, belnr, gjahr, linea, row_num,
+        banco_codigo, banco_nombre,
+        fecha_contable, anio, mes, semana_iso, semana_label,
+        cuenta_contrapartida, cuenta_contrapartida_nombre,
+        ubicacion_codigo, ubicacion_nombre,
+        seccion, nombre_categoria,
+        monto_ingreso, monto_egreso, monto_aplicado,
+        tipo_transaccion, modulo,
+        cobro_num, cobro_fecha, cliente_codigo, cliente_nombre, cobro_comentario,
+        pago_num, pago_fecha, sn_codigo, sn_nombre, pago_comentario
+    ) VALUES (
+        :sociedad, :vertical, :belnr, :gjahr, :linea, :row_num,
+        :banco_codigo, :banco_nombre,
+        :fecha_contable, :anio, :mes, :semana_iso, :semana_label,
+        :cuenta_contrapartida, :cuenta_contrapartida_nombre,
+        :ubicacion_codigo, :ubicacion_nombre,
+        :seccion, :nombre_categoria,
+        :monto_ingreso, :monto_egreso, :monto_aplicado,
+        :tipo_transaccion, :modulo,
+        :cobro_num, :cobro_fecha, :cliente_codigo, :cliente_nombre, :cobro_comentario,
+        :pago_num, :pago_fecha, :sn_codigo, :sn_nombre, :pago_comentario
+    )
+    ON CONFLICT (sociedad, belnr, gjahr, linea, cuenta_contrapartida, ubicacion_codigo, row_num) DO NOTHING
+""")
+
 
 def sincronizar_flujos() -> dict:
     resultado = {"insertados": 0, "omitidos": 0, "errores": [], "sociedades": []}
@@ -337,24 +338,33 @@ def sincronizar_flujos() -> dict:
         resultado["errores"].append(f"Error abriendo Excel: {e}")
         return resultado
 
-    estructura = _cargar_estructura_rdi(xf)
+    mapping = _cargar_rdi(xf)
+    saldos, movs_ini, fecha_inicio = _cargar_partida_inicial(xf)
 
-    # Insertar saldos iniciales (ON CONFLICT DO NOTHING)
-    partidas = _cargar_partida_inicial(xf)
-    if partidas:
+    # Insertar saldo inicial
+    if saldos:
         with engine.begin() as conn:
-            for p in partidas:
+            for p in saldos:
                 conn.execute(text("""
                     INSERT INTO flujos_saldo_inicial
                         (sociedad, anio, mes, semana_iso, semana_label, monto)
-                    VALUES
-                        (:sociedad, :anio, :mes, :semana_iso, :semana_label, :monto)
+                    VALUES (:sociedad, :anio, :mes, :semana_iso, :semana_label, :monto)
                     ON CONFLICT (sociedad, anio, mes, semana_iso) DO NOTHING
                 """), p)
 
+    # Insertar movimientos del período inicial (Oct 2023, etc.)
+    if movs_ini:
+        with engine.begin() as conn:
+            for m in movs_ini:
+                try:
+                    conn.execute(INSERT_SQL, m)
+                except Exception as e:
+                    logger.warning(f"Movimiento PI omitido: {e}")
+
+    # Procesar cada sociedad
     for hoja, sociedad in SOCIEDADES_ACTIVAS.items():
         if hoja not in xf.sheet_names:
-            resultado["errores"].append(f"Hoja '{hoja}' no encontrada en Excel")
+            resultado["errores"].append(f"Hoja '{hoja}' no encontrada")
             continue
 
         try:
@@ -362,116 +372,28 @@ def sincronizar_flujos() -> dict:
             df_raw.columns = [c.strip() for c in df_raw.columns]
             df_raw = df_raw.dropna(how="all")
 
-            # Determinar fecha de inicio real (mes siguiente al de PARTIDA INICIAL)
-            fecha_inicio = _get_fecha_inicio_real(xf, sociedad)
-            logger.info(f"[{sociedad}] Fecha inicio real: {fecha_inicio}")
+            logger.info(f"[{sociedad}] Filas brutas: {len(df_raw)}, fecha_inicio: {fecha_inicio}")
 
-            # Aplicar reglas de neteo/eliminación
-            df = _preprocesar_df(df_raw, sociedad, fecha_inicio)
-            logger.info(f"[{sociedad}] Filas tras preprocesado: {len(df)} (original: {len(df_raw)})")
+            rows = _preprocesar_df(df_raw, mapping, sociedad, fecha_inicio)
+            logger.info(f"[{sociedad}] Filas a insertar tras preprocesado: {len(rows)}")
 
             ins = 0
             omi = 0
 
-            for _, row in df.iterrows():
-                    belnr  = row.get("BELNR")
-                    gjahr  = row.get("GJAHR")
-                    linea  = row.get("LINEA", 0)
-                    fc     = _to_date(row.get("FECHA_CONTABLE"))
+            for row_dict in rows:
+                try:
+                    with engine.begin() as conn:
+                        res = conn.execute(INSERT_SQL, row_dict)
+                        if res.rowcount > 0:
+                            ins += 1
+                        else:
+                            omi += 1
+                except Exception as row_err:
+                    omi += 1
+                    logger.warning(f"Fila omitida ({sociedad} belnr={row_dict.get('belnr')}): {row_err}")
 
-                    if not fc or pd.isna(belnr) or pd.isna(gjahr):
-                        omi += 1
-                        continue
-
-                    cuenta  = _clean_str(row.get("CUENTA_CONTRAPARTIDA")) or ""
-                    ubicod  = _clean_str(row.get("UBICACION_CODIGO"))
-                    cat     = _resolver_categoria(estructura, sociedad, cuenta, ubicod)
-                    seccion = cat[0] if cat else "SIN CLASIFICAR"
-                    nombre  = cat[1] if cat else (_clean_str(row.get("CUENTA_CONTRAPARTIDA_NOMBRE")) or "SIN CLASIFICAR")
-
-                    monto_prorrateado = _safe_float(row.get("MONTO_PRORRATEADO")) or 0.0
-                    modulo_val = _clean_str(row.get("MODULO")) or ""
-                    if modulo_val == "INGRESOS":
-                        monto_ing = monto_prorrateado
-                        monto_egr = 0.0
-                    else:
-                        monto_ing = 0.0
-                        monto_egr = monto_prorrateado
-                    monto_apl = _safe_float(row.get("MONTO_APLICADO_FACTURA"))  # puede ser None
-
-                    semana_iso = fc.isocalendar()[1]
-
-                    try:
-                        with engine.begin() as conn:
-                          res = conn.execute(text("""
-                            INSERT INTO flujos_efectivo (
-                                sociedad, vertical, belnr, gjahr, linea,
-                                banco_codigo, banco_nombre,
-                                fecha_contable, anio, mes, semana_iso, semana_label,
-                                cuenta_contrapartida, cuenta_contrapartida_nombre,
-                                ubicacion_codigo, ubicacion_nombre,
-                                seccion, nombre_categoria,
-                                monto_ingreso, monto_egreso, monto_aplicado,
-                                tipo_transaccion, modulo,
-                                cobro_num, cobro_fecha, cliente_codigo, cliente_nombre, cobro_comentario,
-                                pago_num, pago_fecha, sn_codigo, sn_nombre, pago_comentario
-                            ) VALUES (
-                                :sociedad, :vertical, :belnr, :gjahr, :linea,
-                                :banco_codigo, :banco_nombre,
-                                :fecha_contable, :anio, :mes, :semana_iso, :semana_label,
-                                :cuenta_contrapartida, :cuenta_contrapartida_nombre,
-                                :ubicacion_codigo, :ubicacion_nombre,
-                                :seccion, :nombre_categoria,
-                                :monto_ingreso, :monto_egreso, :monto_aplicado,
-                                :tipo_transaccion, :modulo,
-                                :cobro_num, :cobro_fecha, :cliente_codigo, :cliente_nombre, :cobro_comentario,
-                                :pago_num, :pago_fecha, :sn_codigo, :sn_nombre, :pago_comentario
-                            )
-                            ON CONFLICT (sociedad, belnr, gjahr, linea) DO NOTHING
-                        """), {
-                            "sociedad":                   sociedad,
-                            "vertical":                   _clean_str(row.get("VERTICAL")),
-                            "belnr":                      _safe_int(belnr),
-                            "gjahr":                      _safe_int(gjahr),
-                            "linea":                      _safe_int(linea) or 0,
-                            "banco_codigo":               _clean_str(row.get("BANCO_CODIGO")),  # limpia float→str
-                            "banco_nombre":               _clean_str(row.get("BANCO_NOMBRE")),
-                            "fecha_contable":             fc,
-                            "anio":                       fc.year,
-                            "mes":                        fc.month,
-                            "semana_iso":                 semana_iso,
-                            "semana_label":               _semana_label(semana_iso),
-                            "cuenta_contrapartida":       _clean_str(cuenta) or None,
-                            "cuenta_contrapartida_nombre":_clean_str(row.get("CUENTA_CONTRAPARTIDA_NOMBRE")),
-                            "ubicacion_codigo":           _clean_str(ubicod) or None,
-                            "ubicacion_nombre":           _clean_str(row.get("UBICACION_NOMBRE")),
-                            "seccion":                    seccion,
-                            "nombre_categoria":           nombre,
-                            "monto_ingreso":              monto_ing,
-                            "monto_egreso":               monto_egr,
-                            "monto_aplicado":             monto_apl,
-                            "tipo_transaccion":           _clean_str(row.get("TIPO_TRANSACCION")),
-                            "modulo":                     _clean_str(row.get("MODULO")),
-                            "cobro_num":                  _safe_int(row.get("COBRO_NUM")),
-                            "cobro_fecha":                _to_date(row.get("COBRO_FECHA")),
-                            "cliente_codigo":             _clean_str(row.get("CLIENTE_CODIGO")),
-                            "cliente_nombre":             _clean_str(row.get("CLIENTE_NOMBRE")),
-                            "cobro_comentario":           _clean_str(row.get("COBRO_COMENTARIO")),
-                            "pago_num":                   _safe_int(row.get("PAGO_NUM")),
-                            "pago_fecha":                 _to_date(row.get("PAGO_FECHA")),
-                            "sn_codigo":                  _clean_str(row.get("SN_CODIGO")),
-                            "sn_nombre":                  _clean_str(row.get("SN_NOMBRE")),
-                            "pago_comentario":            _clean_str(row.get("PAGO_COMENTARIO")),
-                        })
-                          ins += res.rowcount
-                          if res.rowcount == 0:
-                              omi += 1
-                    except Exception as row_err:
-                        omi += 1
-                        logger.warning(f"Fila omitida ({sociedad} belnr={belnr}): {row_err}")
-
-            resultado["insertados"] += ins
-            resultado["omitidos"]   += omi
+            resultado["insertados"]  += ins
+            resultado["omitidos"]    += omi
             resultado["sociedades"].append({"sociedad": sociedad, "insertados": ins, "omitidos": omi})
             logger.info(f"[{sociedad}] insertados={ins} omitidos={omi}")
 
