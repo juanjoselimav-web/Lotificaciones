@@ -173,6 +173,32 @@ async function handleLogin(e) {
     btn.classList.remove('loading'); btn.disabled = false;
   }
 }
+// ── SSO: Auto-login si viene token por URL ──────────────────────────────
+// El ATS de tu compañero abre el tablero con ?token=XXX&usuario=BASE64
+// El tablero guarda el token en localStorage y redirige al dashboard
+(function() {
+  const params = new URLSearchParams(window.location.search);
+  const ssoToken = params.get('token');
+  const ssoUsuario = params.get('usuario');
+  const msg = params.get('msg');
+  if (ssoToken) {
+    try {
+      localStorage.setItem('token', ssoToken);
+      if (ssoUsuario) {
+        // El objeto usuario viene en Base64: btoa(JSON.stringify(usuario))
+        localStorage.setItem('usuario', atob(ssoUsuario));
+      }
+      // Redirigir al dashboard limpiando la URL (sin exponer el token)
+      window.location.replace('/dashboard.html');
+    } catch(e) {
+      console.error('SSO error:', e);
+      // Si algo falla, mostrar el login normal
+    }
+    return; // No continuar ejecutando el resto del script
+  }
+})();
+// ── Fin SSO ─────────────────────────────────────────────────────────────
+
 if (localStorage.getItem('token')) window.location.href = '/dashboard.html';
 
 // Mostrar mensaje si sesión expiró por inactividad
