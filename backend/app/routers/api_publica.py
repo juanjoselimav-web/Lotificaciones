@@ -561,3 +561,118 @@ async def api_metricas(
             }
         ]
     }
+
+
+# ══════════════════════════════════════════════════════════════
+# MÉTRICAS — RV4 Hub Portal (formato estándar I360)
+# GET /api/external/metrics
+# ══════════════════════════════════════════════════════════════
+
+@router.get("/external/metrics",
+    summary="Métricas clave — formato estándar RV4 Hub",
+    description="Endpoint estándar de métricas para el portal RV4 Hub. Misma autenticación X-API-Key.")
+@router.get("/ext/metrics", include_in_schema=False)
+async def api_external_metrics(
+    api_key=Depends(verify_api_key),
+    db: Session = Depends(get_db)
+):
+    now = datetime.utcnow()
+    anio_actual = now.year
+    mes_actual  = now.month
+    mes_ant     = mes_actual - 1 if mes_actual > 1 else 12
+    anio_ant    = anio_actual if mes_actual > 1 else anio_actual - 1
+
+    # ── Inventario ────────────────────────────────────────────
+    inv = db.execute(text("""
+        SELECT
+            COUNT(*) FILTER (WHERE estatus = 'DISPONIBLE')             AS disponibles,
+            COUNT(*) FILTER (WHERE estatus IN ('VENTA','RESERVADO'))   AS vendidos,
+            COUNT(*)                                                    AS total,
+            COUNT(DISTINCT proyecto_id)                                 AS proyectos
+        FROM lotes
+    """)).fetchone()
+
+    disponibles = int(inv.disponibles or 0)
+    vendidos    = int(inv.vendidos    or 0)
+    total       = int(inv.total       or 0)
+    proyectos   = int(inv.proyectos   or 0)
+    absorcion   = round(vendidos / total * 100, 1) if total > 0 else 0
+
+    # ── Ventas mes actual vs mes anterior ────────────────────
+    ventas_mes = db.execute(text("""
+        SELECT COUNT(*) FROM lotes
+        WHERE estatus IN ('VENTA','RESERVADO')
+          AND EXTRACT(YEAR  FROM fecha_venta) = :a
+          AND EXTRACT(MONTH FROM fecha_venta) = :m
+          AND fecha_venta IS NOT NULL
+    """), {"a": anio_actual, "m": mes_actual}).scalar() or 0
+
+    ventas_ant = db.execute(text("""
+        SELECT COUNT(*) FROM lotes
+        WHERE estatus IN ('VENTA','RESERVADO')
+          AND EXTRACT(YEAR  FROM fecha_venta) = :a
+          AND EXTRACT(MONTH FROM fecha_venta) = :m
+          AND fecha_venta IS NOT NULL
+    """), {"a": anio_ant, "m": mes_ant}).scalar() or 0
+
+    diff_ventas = int(ventas_mes) - int(ventas_ant)
+
+    # ── Flujos del mes ────────────────────────────────────────
+    fl = db.execute(text("""
+        SELECT
+            COALESCE(SUM(monto_ingreso), 0) AS ingresos,
+            COALESCE(SUM(monto_egreso),  0) AS egresos
+        FROM flujos_efectivo
+        WHERE EXTRACT(YEAR  FROM fecha_contable) = :a
+          AND EXTRACT(MONTH FROM fecha_contable) = :m
+    """), {"a": anio_actual, "m": mes_actual}).fetchone()
+
+    fl_ant = db.execute(text("""
+        SELECT COALESCE(SUM(monto_ingreso), 0) AS ingresos
+        FROM flujos_efectivo
+        WHERE EXTRACT(YEAR  FROM fecha_contable) = :a
+          AND EXTRACT(MONTH FROM fecha_contable) = :m
+    """), {"a": anio_ant, "m": mes_ant}).fetchone()
+
+    ingresos     = float(fl.ingresos  or 0)
+    ingresos_ant = float(fl_ant.ingresos or 0)
+
+    def fmt_val(val: float) -> str:
+        if val >= 1_000_000:
+            return f"Q {val/1_000_000:.1f}M"
+        if val >= 1_000:
+            return f"Q {val/1_000:.0f}K"
+        return f"Q {val:,.0f}"
+
+    def trend_pct(actual: float, anterior: float):
+        if anterior == 0:
+            return None
+        pct = round((actual - anterior) / anterior * 100, 1)
+        return f"+{pct}%" if pct >= 0 else f"{pct}%"
+
+    return {
+        "sistema":    "Lotificaciones RV4",
+        "generadoEn": now.strftime("%Y-%m-%dT%H:%M:%S.000Z"),
+        "metricas": [
+            {
+                "label": "Lotes disponibles",
+                "value": f"{disponibles:,}",
+                "trend": f"{absorcion}% vendido"
+            },
+            {
+                "label": "Lotes vendidos",
+                "value": f"{vendidos:,}",
+                "trend": (f"+{diff_ventas}" if diff_ventas >= 0 else str(diff_ventas)) + " vs mes ant."
+            },
+            {
+                "label": "Proyectos activos",
+                "value": str(proyectos),
+                "trend": f"{total:,} lotes totales"
+            },
+            {
+                "label": "Ingresos del mes",
+                "value": fmt_val(ingresos),
+                "trend": trend_pct(ingresos, ingresos_ant)
+            }
+        ]
+    }
