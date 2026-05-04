@@ -452,3 +452,112 @@ async def api_desistimientos(
         "total": total, "page": page, "pages": -(-total // page_size),
         "desistimientos": [dict(r._mapping) for r in rows]
     }
+
+
+# ══════════════════════════════════════════════════════════════
+# MÉTRICAS — RV4 Hub Portal
+# ══════════════════════════════════════════════════════════════
+
+@router.get("/metricas",
+    summary="Métricas clave para RV4 Hub",
+    description="""Resumen ejecutivo del sistema Lotificaciones para el portal central RV4 Hub.
+Devuelve 4 métricas clave: lotes disponibles, vendidos, proyectos activos e ingresos del mes actual.
+Autenticación: header X-API-Key""")
+async def api_metricas(
+    api_key=Depends(verify_api_key),
+    db: Session = Depends(get_db)
+):
+    now = datetime.utcnow()
+    anio_actual = now.year
+    mes_actual  = now.month
+
+    # ── Inventario ────────────────────────────────────────────
+    inv = db.execute(text("""
+        SELECT
+            COUNT(*) FILTER (WHERE estatus = 'DISPONIBLE')              AS disponibles,
+            COUNT(*) FILTER (WHERE estatus IN ('VENTA', 'RESERVADO'))   AS vendidos,
+            COUNT(*) FILTER (WHERE estatus = 'BLOQUEADO')               AS bloqueados,
+            COUNT(*)                                                     AS total_lotes,
+            COUNT(DISTINCT proyecto_id)                                  AS proyectos_activos
+        FROM lotes
+    """)).fetchone()
+
+    total     = int(inv.total_lotes   or 0)
+    vendidos  = int(inv.vendidos      or 0)
+    disponibles = int(inv.disponibles or 0)
+    proyectos = int(inv.proyectos_activos or 0)
+    absorcion = round(vendidos / total * 100, 1) if total > 0 else 0
+
+    # ── Ventas del mes ────────────────────────────────────────
+    ventas_mes = db.execute(text("""
+        SELECT COUNT(*) AS cnt
+        FROM lotes
+        WHERE estatus IN ('VENTA', 'RESERVADO')
+          AND EXTRACT(YEAR  FROM fecha_venta) = :anio
+          AND EXTRACT(MONTH FROM fecha_venta) = :mes
+          AND fecha_venta IS NOT NULL
+    """), {"anio": anio_actual, "mes": mes_actual}).scalar() or 0
+
+    ventas_mes_ant = db.execute(text("""
+        SELECT COUNT(*) AS cnt
+        FROM lotes
+        WHERE estatus IN ('VENTA', 'RESERVADO')
+          AND EXTRACT(YEAR  FROM fecha_venta) = :anio
+          AND EXTRACT(MONTH FROM fecha_venta) = :mes
+          AND fecha_venta IS NOT NULL
+    """), {
+        "anio": anio_actual if mes_actual > 1 else anio_actual - 1,
+        "mes":  mes_actual  - 1 if mes_actual > 1 else 12
+    }).scalar() or 0
+
+    diff_ventas = int(ventas_mes) - int(ventas_mes_ant)
+    trend_ventas = (f"+{diff_ventas}" if diff_ventas >= 0 else str(diff_ventas))
+
+    # ── Flujos del mes actual ─────────────────────────────────
+    flujos = db.execute(text("""
+        SELECT
+            COALESCE(SUM(monto_ingreso), 0) AS ingresos,
+            COALESCE(SUM(monto_egreso),  0) AS egresos
+        FROM flujos_efectivo
+        WHERE EXTRACT(YEAR  FROM fecha_contable) = :anio
+          AND EXTRACT(MONTH FROM fecha_contable) = :mes
+    """), {"anio": anio_actual, "mes": mes_actual}).fetchone()
+
+    ingresos = float(flujos.ingresos or 0)
+    egresos  = float(flujos.egresos  or 0)
+
+    def fmt_q(val: float) -> str:
+        """Formatea en Q con sufijo M o K según magnitud."""
+        if val >= 1_000_000:
+            return f"Q {val/1_000_000:.1f}M"
+        if val >= 1_000:
+            return f"Q {val/1_000:.0f}K"
+        return f"Q {val:,.0f}"
+
+    return {
+        "sistema": "Lotificaciones RV4",
+        "timestamp": now.isoformat() + "Z",
+        "periodo": f"{anio_actual}-{mes_actual:02d}",
+        "metricas": [
+            {
+                "label": "Lotes disponibles",
+                "value": f"{disponibles:,}",
+                "trend": f"{absorcion}% absorbido"
+            },
+            {
+                "label": "Lotes vendidos",
+                "value": f"{vendidos:,}",
+                "trend": trend_ventas + " vs mes anterior"
+            },
+            {
+                "label": "Proyectos activos",
+                "value": str(proyectos),
+                "trend": f"{total:,} lotes totales"
+            },
+            {
+                "label": "Ingresos del mes",
+                "value": fmt_q(ingresos),
+                "trend": f"Egresos {fmt_q(egresos)}"
+            }
+        ]
+    }

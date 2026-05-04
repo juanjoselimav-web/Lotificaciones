@@ -34,8 +34,24 @@ FLUJOS_PATH = os.environ.get(
 )
 
 SOCIEDADES_ACTIVAS = {
-    "EFICIENCIA URBANA": "EFICIENCIA URBANA",
-    # "SERVICIOS GENERALES": "SERVICIOS GENERALES",
+    # ── Sociedades existentes ──────────────────────────────
+    "EFICIENCIA URBANA":   "EFICIENCIA URBANA",
+    "TEZZOLI":             "TEZZOLI",
+    "ROSSIO":              "ROSSIO",
+    "GARBATELLA":          "GARBATELLA",
+    "FRUGALEX":            "FRUGALEX",
+    "TALOCCI":             "TALOCCI",
+    "GIBRALEON":           "GIBRALEON",
+    "CAPIPOS":             "CAPIPOS",
+    "OVEST":               "OVEST",
+    "CORCOLLE":            "CORCOLLE",
+    "LEOFRENI":            "LEOFRENI",
+    # ── Nuevas sociedades ─────────────────────────────────
+    "SERVICIOS GENERALES": "SER GEN CCC",   # La Ceiba
+    "URBIVA":              "URBIVA",         # Club del Bosque
+    "UTILICA":             "UTILICA",        # Condado Jutiapa
+    "VILET":               "VILET",          # Celajes De Tecpan
+    "OTTAVIA":             "OTTAVIA",        # Cañadas de Jalapa
 }
 
 # ── Constantes de neteo ───────────────────────────────────────────────────────
@@ -134,6 +150,7 @@ def _cargar_partida_inicial(xf: pd.ExcelFile) -> tuple:
     saldos = []
     movimientos = []
     max_anio, max_mes = 0, 0
+    max_por_sociedad = {}   # {sociedad: (max_anio, max_mes)}
 
     for idx, row in df.iterrows():
         soc   = str(row.get("SOCIEDAD","") or "").strip()
@@ -151,9 +168,12 @@ def _cargar_partida_inicial(xf: pd.ExcelFile) -> tuple:
         if not (soc and anio and mes and monto is not None):
             continue
 
-        # Track latest period
+        # Track latest period global y por sociedad
         if (anio, mes) > (max_anio, max_mes):
             max_anio, max_mes = anio, mes
+        prev = max_por_sociedad.get(soc, (0, 0))
+        if (anio, mes) > prev:
+            max_por_sociedad[soc] = (anio, mes)
 
         if sec == "SALDO INICIAL":
             saldos.append({
@@ -185,16 +205,15 @@ def _cargar_partida_inicial(xf: pd.ExcelFile) -> tuple:
                 "row_num": -(idx + 1),
             })
 
-    # Compute fecha_inicio_real = first day of month after the latest PI month
-    if max_anio > 0:
-        if max_mes == 12:
-            fecha_inicio = datetime.date(max_anio + 1, 1, 1)
+    # Compute fecha_inicio POR SOCIEDAD (evita que el corte de una sociedad afecte a otra)
+    fechas_inicio = {}
+    for soc_pi, (a, m) in max_por_sociedad.items():
+        if m == 12:
+            fechas_inicio[soc_pi] = datetime.date(a + 1, 1, 1)
         else:
-            fecha_inicio = datetime.date(max_anio, max_mes + 1, 1)
-    else:
-        fecha_inicio = None
+            fechas_inicio[soc_pi] = datetime.date(a, m + 1, 1)
 
-    return saldos, movimientos, fecha_inicio
+    return saldos, movimientos, fechas_inicio
 
 # ── Preprocesar DataFrame ─────────────────────────────────────────────────────
 def _preprocesar_df(df: pd.DataFrame, mapping: dict, sociedad: str,
@@ -348,7 +367,7 @@ def sincronizar_flujos() -> dict:
         logger.warning(f"[SYNC FLUJOS] No se pudo limpiar tablas: {e}")
 
     mapping = _cargar_rdi(xf)
-    saldos, movs_ini, fecha_inicio = _cargar_partida_inicial(xf)
+    saldos, movs_ini, fechas_inicio = _cargar_partida_inicial(xf)
 
     # Insertar saldo inicial
     if saldos:
@@ -381,9 +400,10 @@ def sincronizar_flujos() -> dict:
             df_raw.columns = [c.strip() for c in df_raw.columns]
             df_raw = df_raw.dropna(how="all")
 
-            logger.info(f"[{sociedad}] Filas brutas: {len(df_raw)}, fecha_inicio: {fecha_inicio}")
+            fecha_inicio_soc = fechas_inicio.get(sociedad)
+            logger.info(f"[{sociedad}] Filas brutas: {len(df_raw)}, fecha_inicio: {fecha_inicio_soc}")
 
-            rows = _preprocesar_df(df_raw, mapping, sociedad, fecha_inicio)
+            rows = _preprocesar_df(df_raw, mapping, sociedad, fecha_inicio_soc)
             logger.info(f"[{sociedad}] Filas a insertar tras preprocesado: {len(rows)}")
 
             ins = 0

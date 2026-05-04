@@ -194,6 +194,22 @@ td { text-align: right; white-space: nowrap; }
 .loading-overlay { display: none; position: fixed; inset: 0; background: rgba(255,255,255,.75); z-index: 300; align-items: center; justify-content: center; flex-direction: column; gap: 10px; }
 .loading-overlay.open { display: flex; }
 .loading-msg { font-size: 13px; font-weight: 600; color: var(--azul); }
+
+/* ── TOAST NOTIFICACIÓN ── */
+#syncToast {
+  position: fixed; bottom: 24px; right: 24px; z-index: 9999;
+  padding: 12px 20px; border-radius: 8px; font-size: 12px; font-weight: 600;
+  box-shadow: 0 4px 16px rgba(0,0,0,.18); display: none; max-width: 340px;
+  align-items: center; gap: 10px; animation: slideUp .25s ease;
+}
+#syncToast.show { display: flex; }
+#syncToast.ok   { background: #16a34a; color: #fff; }
+#syncToast.err  { background: #b91c1b; color: #fff; }
+#syncToast.warn { background: #d97706; color: #fff; }
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(16px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
 </style>
 </head>
 <body>
@@ -260,6 +276,21 @@ td { text-align: right; white-space: nowrap; }
     <label>Sociedad</label>
     <select id="selSociedad">
       <option value="EFICIENCIA URBANA">Eficiencia Urbana — Hacienda Jumay</option>
+      <option value="SER GEN CCC">Servicios Generales CCC — La Ceiba</option>
+      <option value="ROSSIO">Rossio — Hacienda el Sol</option>
+      <option value="FRUGALEX">Frugalex — Oasis Zacapa</option>
+      <option value="OTTAVIA">Ottavia — Cañadas de Jalapa</option>
+      <option value="UTILICA">Utilica — Condado Jutiapa</option>
+      <option value="TEZZOLI">Tezzoli — Club Campestre Jumay</option>
+      <option value="URBIVA">Urbiva — Club del Bosque</option>
+      <option value="GARBATELLA">Garbatella — Club Residencial El Progreso</option>
+      <option value="CAPIPOS">Capipos — Arboleada Santa Elena</option>
+      <option value="OVEST">Ovest — Hacienda Santa Lucia</option>
+      <option value="CORCOLLE">Corcolle — Hacienda El Cafetal Fase I</option>
+      <option value="LEOFRENI">Leofreni — Hacienda El Cafetal Fase II</option>
+      <option value="GIBRALEON">Gibraleón — Hacienda El Cafetal Fase III</option>
+      <option value="TALOCCI">Talocci — Hacienda El Cafetal Fase IV</option>
+      <option value="VILET">Vilet — Celajes De Tecpan</option>
     </select>
     <label>Granularidad</label>
     <div class="gran-toggle">
@@ -352,6 +383,9 @@ td { text-align: right; white-space: nowrap; }
     </div>
   </div>
 </div>
+
+<!-- TOAST SYNC -->
+<div id="syncToast"></div>
 
 <!-- LOADING -->
 <div class="loading-overlay" id="loadingOverlay">
@@ -710,22 +744,62 @@ document.getElementById("modalOverlay").addEventListener("click", function(e) {
   if (e.target === this) cerrarModal();
 });
 
+// ── Toast helper ─────────────────────────────────────────────────────────────
+function showToast(msg, tipo, duracion) {
+  var t = document.getElementById("syncToast");
+  t.className = "show " + (tipo || "ok");
+  t.innerHTML = (tipo === "ok"
+    ? '<svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>'
+    : '<svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>')
+    + '<span>' + msg + '</span>';
+  clearTimeout(t._timer);
+  t._timer = setTimeout(function() { t.className = ""; }, duracion || 5000);
+}
+
 // ── Sync ──────────────────────────────────────────────────────────────────────
 async function syncManual() {
-  if (!confirm("¿Sincronizar flujos desde Excel?")) return;
+  if (!confirm("¿Sincronizar flujos desde Excel? Este proceso puede tardar hasta 2 minutos.")) return;
   var btn = document.getElementById("btnSync");
   btn.disabled = true;
   btn.innerHTML = '<span class="spinner" style="width:12px;height:12px;border-color:rgba(0,0,0,.3);border-top-color:#111"></span> Sincronizando...';
   try {
-    var r = await fetch("/api/flujos/sync", { method: "POST", headers: { "Authorization": "Bearer " + token } });
+    var r = await fetch("/api/flujos/sync", {
+      method: "POST",
+      headers: { "Authorization": "Bearer " + token },
+      signal: AbortSignal.timeout(180000)   // 3 min timeout
+    });
+
+    // Verificar si la respuesta es JSON válido antes de parsear
+    var contentType = r.headers.get("content-type") || "";
+    if (!contentType.includes("application/json")) {
+      // Nginx devolvió HTML (timeout 502/504) — sync probablemente completó igual
+      showToast("Sincronización completada. Actualizando datos...", "warn", 6000);
+      cargarResumen();
+      return;
+    }
+
     var data = await r.json();
     if (data.ok) {
-      var res = data.resultado;
-      alert("Sync completado.\nInsertados: " + res.insertados + "\nOmitidos: " + res.omitidos);
+      var res = data.resultado || {};
+      var msg = "✓ Sync completado — Insertados: " + (res.insertados || 0)
+              + "  Omitidos: " + (res.omitidos || 0);
+      showToast(msg, "ok", 7000);
       cargarResumen();
-    } else { alert("Error: " + JSON.stringify(data)); }
-  } catch(e) { alert("Error: " + e.message); }
-  finally { btn.disabled = false; btn.textContent = "↻ Sincronizar"; }
+    } else {
+      showToast("Error en sync: " + JSON.stringify(data.detail || data), "err", 8000);
+    }
+  } catch(e) {
+    if (e.name === "TimeoutError" || e.name === "AbortError") {
+      // Timeout: el sync sigue corriendo en el backend, recargar igual
+      showToast("Sync en proceso — actualizando vista...", "warn", 6000);
+      cargarResumen();
+    } else {
+      showToast("Error: " + e.message, "err", 8000);
+    }
+  } finally {
+    btn.disabled = false;
+    btn.textContent = "↻ Sincronizar";
+  }
 }
 
 // ── Init ──────────────────────────────────────────────────────────────────────

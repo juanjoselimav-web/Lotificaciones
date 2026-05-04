@@ -55,6 +55,19 @@ def _get_saldo_inicial(db: Session, sociedad: str, granularidad: str, periodos: 
             WHERE sociedad = :soc AND anio = :anio AND mes = :mes
             ORDER BY id LIMIT 1
         """), {"soc": sociedad, "anio": anio0, "mes": mes0}).fetchone()
+
+        # Fix: si no hay match exacto para ese mes, usar el saldo_inicial
+        # más reciente anterior al primer período.
+        # Cubre casos como FRUGALEX (PI en mes=11, primer dato en mes=12).
+        if not row:
+            row = db.execute(text("""
+                SELECT monto FROM flujos_saldo_inicial
+                WHERE sociedad = :soc
+                  AND (anio < :anio OR (anio = :anio AND mes <= :mes))
+                ORDER BY anio DESC, mes DESC
+                LIMIT 1
+            """), {"soc": sociedad, "anio": anio0, "mes": mes0}).fetchone()
+
         saldos[p0] = float(row[0]) if row else 0.0
 
         # Períodos siguientes: acumular
