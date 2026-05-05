@@ -195,6 +195,39 @@ td { text-align: right; white-space: nowrap; }
 .loading-overlay.open { display: flex; }
 .loading-msg { font-size: 13px; font-weight: 600; color: var(--azul); }
 
+/* ── MODAL PRESENTACIÓN ── */
+#modalPresentacion {
+  display: none; position: fixed; inset: 0; z-index: 1000;
+  background: rgba(0,0,0,.55); align-items: center; justify-content: center;
+}
+#modalPresentacion.show { display: flex; }
+.modal-box {
+  background: #fff; border-radius: 12px; padding: 28px 32px;
+  width: 420px; box-shadow: 0 8px 32px rgba(0,0,0,.25);
+}
+.modal-box h3 { margin: 0 0 18px; font-size: 16px; color: #053D57; font-weight: 700; }
+.modal-box label { display: block; font-size: 12px; color: #555; margin-bottom: 4px; margin-top: 12px; font-weight: 600; }
+.modal-box select, .modal-box input {
+  width: 100%; padding: 8px 10px; border: 1px solid #ccd; border-radius: 6px;
+  font-size: 13px; box-sizing: border-box;
+}
+.modal-footer { display: flex; gap: 10px; margin-top: 20px; justify-content: flex-end; }
+.btn-pptx-project { background: #053D57; color: #fff; border: none; padding: 9px 16px;
+  border-radius: 7px; font-size: 12px; font-weight: 600; cursor: pointer; }
+.btn-pptx-project:hover { background: #07527a; }
+.btn-pptx-consol { background: #FFCA08; color: #053D57; border: none; padding: 9px 16px;
+  border-radius: 7px; font-size: 12px; font-weight: 600; cursor: pointer; }
+.btn-pptx-consol:hover { background: #e6b800; }
+.btn-modal-cancel { background: #eee; color: #333; border: none; padding: 9px 14px;
+  border-radius: 7px; font-size: 12px; cursor: pointer; }
+.openai-badge { font-size: 10px; padding: 3px 8px; border-radius: 10px; margin-left: 8px;
+  font-weight: 600; display: inline-block; }
+.openai-badge.on  { background: #d4edda; color: #155724; }
+.openai-badge.off { background: #fff3cd; color: #856404; }
+.btn-presentacion { background: #F8931D; color: #fff; border: none; padding: 7px 14px;
+  border-radius: 7px; font-size: 12px; font-weight: 600; cursor: pointer; margin-right: 8px; }
+.btn-presentacion:hover { background: #e07c10; }
+
 /* ── TOAST NOTIFICACIÓN ── */
 #syncToast {
   position: fixed; bottom: 24px; right: 24px; z-index: 9999;
@@ -342,6 +375,7 @@ td { text-align: right; white-space: nowrap; }
       <select id="selHasta"><option value="">— Fin —</option></select>
       <button class="btn btn-primary" onclick="aplicarFiltro()">Aplicar</button>
       <button class="btn btn-ghost" onclick="limpiarFiltro()">Limpiar</button>
+      <button class="btn-presentacion" onclick="abrirModalPPTX()">📊 Presentación</button>
       <button class="btn btn-sync" id="btnSync" onclick="syncManual()">↻ Sincronizar</button>
     </div>
 
@@ -380,6 +414,58 @@ td { text-align: right; white-space: nowrap; }
       <button class="pag-btn" id="btnPrev" onclick="modalPagina(-1)">← Anterior</button>
       <span class="pag-info" id="pagInfo">—</span>
       <button class="pag-btn" id="btnNext" onclick="modalPagina(1)">Siguiente →</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL PRESENTACIÓN -->
+<div id="modalPresentacion">
+  <div class="modal-box">
+    <h3>📊 Generar Presentación Ejecutiva
+      <span id="oaiBadge" class="openai-badge off">Sin AI</span>
+    </h3>
+
+    <label>Mes de cierre</label>
+    <select id="pptxMes">
+      <option value="1">Enero</option><option value="2">Febrero</option>
+      <option value="3">Marzo</option><option value="4">Abril</option>
+      <option value="5">Mayo</option><option value="6">Junio</option>
+      <option value="7">Julio</option><option value="8">Agosto</option>
+      <option value="9">Septiembre</option><option value="10">Octubre</option>
+      <option value="11">Noviembre</option><option value="12">Diciembre</option>
+    </select>
+
+    <label>Año</label>
+    <input type="number" id="pptxAnio" value="2026" min="2023" max="2030">
+
+    <label>Proyecto (solo para presentación individual)</label>
+    <select id="pptxProyecto">
+      <option value="SBO_EFICIENCIA_URBANA">Hacienda Jumay</option>
+      <option value="SBO_SER_GEN_CCC">La Ceiba</option>
+      <option value="SBO_ROSSIO">Hacienda el Sol</option>
+      <option value="SBO_FRUGALEX">Oasis Zacapa</option>
+      <option value="SBO_OTTAVIA">Cañadas de Jalapa</option>
+      <option value="SBO_UTILICA">Condado Jutiapa</option>
+      <option value="SBO_TEZZOLI">Club Campestre Jumay</option>
+      <option value="SBO_URBIVA_2">Club del Bosque</option>
+      <option value="SBO_GARBATELLA">Club Residencial El Progreso</option>
+      <option value="SBO_CAPIPOS">Arboleada Santa Elena</option>
+      <option value="SBO_OVEST">Hacienda Santa Lucia</option>
+      <option value="SBO_CORCOLLE">Hacienda El Cafetal Fase I</option>
+      <option value="SBO_LEOFRENI">Hacienda El Cafetal Fase II</option>
+      <option value="SBO_GIBRALEON">Hacienda El Cafetal Fase III</option>
+      <option value="SBO_TALOCCI">Hacienda El Cafetal Fase IV</option>
+      <option value="SBO_VILET">Celajes De Tecpan</option>
+    </select>
+
+    <div class="modal-footer">
+      <button class="btn-modal-cancel" onclick="cerrarModalPPTX()">Cancelar</button>
+      <button class="btn-pptx-project" onclick="descargarPPTX('proyecto')">
+        ⬇ Por Proyecto
+      </button>
+      <button class="btn-pptx-consol" onclick="descargarPPTX('consolidado')">
+        ⬇ Consolidado
+      </button>
     </div>
   </div>
 </div>
@@ -755,6 +841,113 @@ function showToast(msg, tipo, duracion) {
   clearTimeout(t._timer);
   t._timer = setTimeout(function() { t.className = ""; }, duracion || 5000);
 }
+
+// ── Presentación PPTX ────────────────────────────────────────────────────────
+async function abrirModalPPTX() {
+  // Seleccionar mes actual por defecto
+  var now = new Date();
+  document.getElementById("pptxMes").value  = now.getMonth() + 1;
+  document.getElementById("pptxAnio").value = now.getFullYear();
+
+  // Sincronizar proyecto con el selector del tablero
+  var socActual = document.getElementById("selSociedad").value;
+  if (socActual) {
+    // Mapeo sociedad → empresa_sap
+    var mapa = {
+      "EFICIENCIA URBANA": "SBO_EFICIENCIA_URBANA",
+      "SER GEN CCC":       "SBO_SER_GEN_CCC",
+      "ROSSIO":            "SBO_ROSSIO",
+      "FRUGALEX":          "SBO_FRUGALEX",
+      "OTTAVIA":           "SBO_OTTAVIA",
+      "UTILICA":           "SBO_UTILICA",
+      "TEZZOLI":           "SBO_TEZZOLI",
+      "URBIVA":            "SBO_URBIVA_2",
+      "GARBATELLA":        "SBO_GARBATELLA",
+      "CAPIPOS":           "SBO_CAPIPOS",
+      "OVEST":             "SBO_OVEST",
+      "CORCOLLE":          "SBO_CORCOLLE",
+      "LEOFRENI":          "SBO_LEOFRENI",
+      "GIBRALEON":         "SBO_GIBRALEON",
+      "TALOCCI":           "SBO_TALOCCI",
+      "VILET":             "SBO_VILET",
+    };
+    var esp = mapa[socActual];
+    if (esp) document.getElementById("pptxProyecto").value = esp;
+  }
+
+  // Verificar estado OpenAI
+  try {
+    var r = await fetch("/api/reportes/estado-openai",
+                        { headers: { "Authorization": "Bearer " + token } });
+    var d = await r.json();
+    var badge = document.getElementById("oaiBadge");
+    if (d.openai_configurado) {
+      badge.textContent = "✅ Análisis AI activo";
+      badge.className = "openai-badge on";
+    } else {
+      badge.textContent = "⚠️ Sin análisis AI";
+      badge.className = "openai-badge off";
+    }
+  } catch(e) {}
+
+  document.getElementById("modalPresentacion").classList.add("show");
+}
+
+function cerrarModalPPTX() {
+  document.getElementById("modalPresentacion").classList.remove("show");
+}
+
+async function descargarPPTX(tipo) {
+  var mes  = document.getElementById("pptxMes").value;
+  var anio = document.getElementById("pptxAnio").value;
+  var esp  = document.getElementById("pptxProyecto").value;
+
+  if (!mes || !anio) { showToast("Selecciona mes y año", "err"); return; }
+
+  cerrarModalPPTX();
+  showToast("⏳ Generando presentación... puede tardar 30-60 seg.", "warn", 60000);
+
+  try {
+    var url = tipo === "consolidado"
+      ? "/api/reportes/presentacion-consolidada?mes=" + mes + "&anio=" + anio
+      : "/api/reportes/presentacion-proyecto?empresa_sap=" + esp + "&mes=" + mes + "&anio=" + anio;
+
+    var r = await fetch(url, {
+      headers: { "Authorization": "Bearer " + token },
+      signal: AbortSignal.timeout(120000)
+    });
+
+    if (!r.ok) {
+      var err = await r.json().catch(() => ({ detail: "Error desconocido" }));
+      showToast("Error: " + (err.detail || r.status), "err", 8000);
+      return;
+    }
+
+    // Descargar el archivo
+    var blob  = await r.blob();
+    var burl  = URL.createObjectURL(blob);
+    var a     = document.createElement("a");
+    var cd    = r.headers.get("Content-Disposition") || "";
+    var fname = cd.match(/filename="([^"]+)"/)?.[1] || "Presentacion.pptx";
+    a.href = burl; a.download = fname;
+    document.body.appendChild(a); a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(burl);
+    showToast("✅ Presentación descargada: " + fname, "ok", 6000);
+  } catch(e) {
+    if (e.name === "TimeoutError" || e.name === "AbortError") {
+      showToast("Timeout — la presentación sigue generándose, intenta de nuevo en 1 min.", "warn", 8000);
+    } else {
+      showToast("Error: " + e.message, "err", 8000);
+    }
+  }
+}
+
+// Cerrar modal al click fuera
+document.addEventListener("click", function(e) {
+  var modal = document.getElementById("modalPresentacion");
+  if (e.target === modal) cerrarModalPPTX();
+});
 
 // ── Sync ──────────────────────────────────────────────────────────────────────
 async function syncManual() {
