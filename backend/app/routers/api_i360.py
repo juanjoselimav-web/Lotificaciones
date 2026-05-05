@@ -10,9 +10,51 @@ from fastapi import APIRouter, Depends, Query, HTTPException
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 from app.database import get_db
-from app.routers.api_publica import verify_api_key, verify_admin_key
+from fastapi.security import APIKeyHeader
 from datetime import datetime
 from typing import Optional
+import hashlib
+
+# ── Autenticación propia — no depende de security.py ─────────────────────────
+_api_key_header = APIKeyHeader(name="X-API-Key", auto_error=True)
+
+async def verify_api_key(
+    api_key: str = Depends(_api_key_header),
+    db: Session = Depends(get_db)
+):
+    key_hash = hashlib.sha256(api_key.encode()).hexdigest()
+    row = db.execute(
+        text("SELECT id, permisos FROM api_keys WHERE key_hash = :h AND activo = true"),
+        {"h": key_hash}
+    ).fetchone()
+    if not row:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=403, detail="API Key inválida o inactiva")
+    db.execute(
+        text("UPDATE api_keys SET usos = usos+1, ultimo_uso = NOW() WHERE key_hash = :h"),
+        {"h": key_hash}
+    )
+    db.commit()
+    return {"permisos": row.permisos}
+
+async def verify_admin_key(
+    api_key: str = Depends(_api_key_header),
+    db: Session = Depends(get_db)
+):
+    key_hash = hashlib.sha256(api_key.encode()).hexdigest()
+    row = db.execute(
+        text("SELECT id, permisos FROM api_keys WHERE key_hash = :h AND activo = true AND permisos = 'admin'"),
+        {"h": key_hash}
+    ).fetchone()
+    if not row:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=403, detail="Se requiere API Key con permisos admin")
+    db.execute(
+        text("UPDATE api_keys SET usos = usos+1, ultimo_uso = NOW() WHERE key_hash = :h"),
+        {"h": key_hash}
+    )
+    db.commit()
+    return {"permisos": "admin"}
 
 router = APIRouter(prefix="/api/ext/v1", tags=["I360 Integration"])
 
