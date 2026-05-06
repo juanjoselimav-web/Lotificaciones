@@ -20,60 +20,192 @@ def get_empresas_permitidas(current_user, db: Session) -> list[str]:
 @router.get("/kpis")
 async def get_kpis(
     empresa: Optional[str] = Query(None),
+    año: Optional[int] = Query(None),
+    mes: Optional[int] = Query(None),
     db: Session = Depends(get_db),
     current_user=Depends(get_current_user)
 ):
-    """KPIs globales de cartera."""
-    where = "tipo_linea IN ('BB','S')"
+    """
+    KPIs de cartera con soporte de período (año/mes).
+    - Cartera = líneas BB + S con line_status='O', saldo_pendiente > 0,
+                filtrando por fecha_venta_lote <= último día del mes filtrado
+    - Mora = cuotas con fecha_programada_cobro <= último día del mes ANTERIOR
+    - Cobro 30d = cuotas cuyo fecha_programada_cobro cae en el mes SIGUIENTE al filtrado
+    - Cobro 60d = mes siguiente + 1
+    - Cobro 90d = mes siguiente + 2
+    Sin período = usa todos los datos con CURRENT_DATE como referencia.
+    """
     params = {}
+    empresa_filter = ""
     if empresa:
-        where += " AND empresa = :empresa"
+        empresa_filter = "AND empresa = :empresa"
         params["empresa"] = empresa
+
+    # Calcular fechas de corte
+    if año and mes:
+        # Último día del mes filtrado
+        import calendar
+        last_day = calendar.monthrange(año, mes)[1]
+        cutoff_date = f"{año}-{mes:02d}-{last_day}"          # último día del mes
+        # Último día del mes anterior (para mora 31+ días)
+        if mes == 1:
+            mora_cutoff = f"{año-1}-12-31"
+            next_mes_start = f"{año}-02-01"
+            next_mes_end_month = 2
+            next_mes_end_year = año
+        else:
+            prev_last = calendar.monthrange(año, mes - 1)[1]
+            mora_cutoff = f"{año}-{mes-1:02d}-{prev_last}"
+            if mes == 12:
+                next_mes_start = f"{año+1}-01-01"
+                next_mes_end_month = 1
+                next_mes_end_year = año + 1
+            else:
+                next_mes_start = f"{año}-{mes+1:02d}-01"
+                next_mes_end_month = mes + 1
+                next_mes_end_year = año
+        next_mes_last = calendar.monthrange(next_mes_end_year, next_mes_end_month)[1]
+        next_mes_end = f"{next_mes_end_year}-{next_mes_end_month:02d}-{next_mes_last}"
+        # 60d = mes+2, 90d = mes+3
+        if mes + 2 > 12:
+            m2y = año + (mes + 2 - 1) // 12
+            m2m = (mes + 2 - 1) % 12 + 1
+        else:
+            m2y, m2m = año, mes + 2
+        m2_last = calendar.monthrange(m2y, m2m)[1]
+        cobro60_start = next_mes_end  # start of mes+2
+        cobro60_end = f"{m2y}-{m2m:02d}-{m2_last}"
+        if mes + 3 > 12:
+            m3y = año + (mes + 3 - 1) // 12
+            m3m = (mes + 3 - 1) % 12 + 1
+        else:
+            m3y, m3m = año, mes + 3
+        m3_last = calendar.monthrange(m3y, m3m)[1]
+        cobro90_start = cobro60_end
+        cobro90_end = f"{m3y}-{m3m:02d}-{m3_last}"
+
+        params.update({
+            "cutoff_date": cutoff_date,
+            "mora_cutoff": mora_cutoff,
+            "next_mes_start": next_mes_start,
+            "next_mes_end": next_mes_end,
+            "cobro60_start": cobro60_start,
+            "cobro60_end": cobro60_end,
+            "cobro90_start": cobro90_start,
+            "cobro90_end": cobro90_end,
+        })
+
+        date_filter = "AND doc_date <= :cutoff_date::date"
+        mora_filter = "AND fecha_programada_cobro <= :mora_cutoff::date"
+        cobro30_filter = "AND fecha_programada_cobro BETWEEN :next_mes_start::date AND :next_mes_end::date"
+        cobro60_filter = "AND fecha_programada_cobro BETWEEN :next_mes_start::date AND :cobro60_end::date"
+        cobro90_filter = "AND fecha_programada_cobro BETWEEN :next_mes_start::date AND :cobro90_end::date"
+        desist_filter = f"AND EXTRACT(YEAR FROM fecha_desistimiento)=:año AND EXTRACT(MONTH FROM fecha_desistimiento)=:mes"
+        params["año"] = año
+        params["mes"] = mes
+    elif año:
+        import calendar
+        cutoff_date = f"{año}-12-31"
+        params["cutoff_date"] = cutoff_date
+        params["año"] = año
+        date_filter = "AND doc_date <= :cutoff_date::date"
+        mora_filter = "AND fecha_programada_cobro < CURRENT_DATE"
+        cobro30_filter = "AND fecha_programada_cobro BETWEEN CURRENT_DATE AND CURRENT_DATE+30"
+        cobro60_filter = "AND fecha_programada_cobro BETWEEN CURRENT_DATE AND CURRENT_DATE+60"
+        cobro90_filter = "AND fecha_programada_cobro BETWEEN CURRENT_DATE AND CURRENT_DATE+90"
+        desist_filter = "AND EXTRACT(YEAR FROM fecha_desistimiento)=:año"
+    else:
+        date_filter = ""
+        mora_filter = "AND fecha_programada_cobro < CURRENT_DATE"
+        cobro30_filter = "AND fecha_programada_cobro BETWEEN CURRENT_DATE AND CURRENT_DATE+30"
+        cobro60_filter = "AND fecha_programada_cobro BETWEEN CURRENT_DATE AND CURRENT_DATE+60"
+        cobro90_filter = "AND fecha_programada_cobro BETWEEN CURRENT_DATE AND CURRENT_DATE+90"
+        desist_filter = ""
 
     kpis = db.execute(text(f"""
         SELECT
-            SUM(CASE WHEN tipo_linea='BB' AND line_status='O' THEN saldo_pendiente ELSE 0 END) AS capital_total,
-            SUM(CASE WHEN tipo_linea='S'  AND line_status='O' THEN saldo_pendiente ELSE 0 END) AS intereses_total,
-            SUM(CASE WHEN line_status='O' THEN saldo_pendiente ELSE 0 END)                     AS cartera_total,
-            SUM(CASE WHEN line_status='O' AND fecha_programada_cobro < CURRENT_DATE
-                     THEN saldo_pendiente ELSE 0 END)                                          AS mora_total,
-            COUNT(DISTINCT CASE WHEN line_status='O' THEN card_code END)                       AS clientes_activos,
-            COUNT(DISTINCT CASE WHEN line_status='O' AND fecha_programada_cobro < CURRENT_DATE
-                                THEN card_code END)                                            AS clientes_vencidos,
-            SUM(CASE WHEN line_status='O'
-                     AND fecha_programada_cobro BETWEEN CURRENT_DATE AND CURRENT_DATE+30
-                     THEN saldo_pendiente ELSE 0 END)                                          AS cobro_30d,
-            SUM(CASE WHEN line_status='O'
-                     AND fecha_programada_cobro BETWEEN CURRENT_DATE AND CURRENT_DATE+60
-                     THEN saldo_pendiente ELSE 0 END)                                          AS cobro_60d,
-            SUM(CASE WHEN line_status='O'
-                     AND fecha_programada_cobro BETWEEN CURRENT_DATE AND CURRENT_DATE+90
-                     THEN saldo_pendiente ELSE 0 END)                                          AS cobro_90d,
-            SUM(CASE WHEN line_status='O'
-                     AND fecha_programada_cobro BETWEEN CURRENT_DATE AND CURRENT_DATE+365
-                     THEN saldo_pendiente ELSE 0 END)                                          AS cobro_365d
+            SUM(CASE WHEN tipo_linea='BB' AND line_status='O' AND saldo_pendiente > 0
+                     THEN saldo_pendiente ELSE 0 END) AS capital_total,
+            SUM(CASE WHEN tipo_linea='S'  AND line_status='O' AND saldo_pendiente > 0
+                     THEN saldo_pendiente ELSE 0 END) AS intereses_total,
+            SUM(CASE WHEN line_status='O' AND saldo_pendiente > 0
+                     THEN saldo_pendiente ELSE 0 END) AS cartera_total,
+            -- Mora: vencidas al último día del mes anterior (31+ días vencidas al cierre del mes)
+            SUM(CASE WHEN line_status='O' AND saldo_pendiente > 0
+                     {mora_filter}
+                     THEN saldo_pendiente ELSE 0 END) AS mora_total,
+            -- Aging rangos (vs. último día del mes anterior)
+            SUM(CASE WHEN line_status='O' AND saldo_pendiente > 0 {mora_filter}
+                     AND fecha_programada_cobro > :mora_cutoff::date - INTERVAL '30 days'
+                     THEN saldo_pendiente ELSE 0 END) AS mora_31_60,
+            SUM(CASE WHEN line_status='O' AND saldo_pendiente > 0 {mora_filter}
+                     AND fecha_programada_cobro <= :mora_cutoff::date - INTERVAL '30 days'
+                     AND fecha_programada_cobro > :mora_cutoff::date - INTERVAL '60 days'
+                     THEN saldo_pendiente ELSE 0 END) AS mora_61_90,
+            SUM(CASE WHEN line_status='O' AND saldo_pendiente > 0 {mora_filter}
+                     AND fecha_programada_cobro <= :mora_cutoff::date - INTERVAL '60 days'
+                     AND fecha_programada_cobro > :mora_cutoff::date - INTERVAL '150 days'
+                     THEN saldo_pendiente ELSE 0 END) AS mora_91_180,
+            SUM(CASE WHEN line_status='O' AND saldo_pendiente > 0 {mora_filter}
+                     AND fecha_programada_cobro <= :mora_cutoff::date - INTERVAL '150 days'
+                     THEN saldo_pendiente ELSE 0 END) AS mora_180_mas,
+            COUNT(DISTINCT CASE WHEN line_status='O' AND saldo_pendiente > 0
+                                THEN card_code END) AS clientes_activos,
+            COUNT(DISTINCT CASE WHEN line_status='O' AND saldo_pendiente > 0
+                                {mora_filter}
+                                THEN card_code END) AS clientes_vencidos,
+            -- Cobros: próximo mes calendario desde el mes filtrado
+            SUM(CASE WHEN line_status='O' AND saldo_pendiente > 0
+                     {cobro30_filter}
+                     THEN saldo_pendiente ELSE 0 END) AS cobro_30d,
+            SUM(CASE WHEN line_status='O' AND saldo_pendiente > 0
+                     {cobro60_filter}
+                     THEN saldo_pendiente ELSE 0 END) AS cobro_60d,
+            SUM(CASE WHEN line_status='O' AND saldo_pendiente > 0
+                     {cobro90_filter}
+                     THEN saldo_pendiente ELSE 0 END) AS cobro_90d,
+            SUM(CASE WHEN line_status='O' AND saldo_pendiente > 0
+                     THEN saldo_pendiente ELSE 0 END) AS cobro_365d
         FROM ov_cartera
-        WHERE {where}
+        WHERE tipo_linea IN ('BB', 'S')
+          {date_filter}
+          {empresa_filter}
     """), params).fetchone()
 
-    # Desistimientos stats
+    # Desistimientos del período (mensual si hay mes, anual si solo año, todo si nada)
+    des_where = "1=1"
+    des_params = {}
+    if empresa:
+        des_where += " AND empresa = :empresa"
+        des_params["empresa"] = empresa
+    if año and mes:
+        des_where += " AND EXTRACT(YEAR FROM fecha_desistimiento)=:año AND EXTRACT(MONTH FROM fecha_desistimiento)=:mes"
+        des_params.update({"año": año, "mes": mes})
+    elif año:
+        des_where += " AND EXTRACT(YEAR FROM fecha_desistimiento)=:año"
+        des_params["año"] = año
+
     desist = db.execute(text(f"""
         SELECT COUNT(*) as total,
                COALESCE(SUM(pagado_capital),0) as total_pagado,
                COALESCE(SUM(reintegrado_cliente),0) as total_reintegrado
-        FROM desistimientos
-        {'WHERE empresa = :empresa' if empresa else ''}
-    """), params).fetchone()
+        FROM desistimientos WHERE {des_where}
+    """), des_params).fetchone()
 
     kpis_dict = dict(kpis._mapping)
-    kpis_dict["desistimientos_total"]     = desist.total
-    kpis_dict["desistimientos_pagado"]    = float(desist.total_pagado)
+    kpis_dict["desistimientos_total"]       = desist.total
+    kpis_dict["desistimientos_pagado"]      = float(desist.total_pagado)
     kpis_dict["desistimientos_reintegrado"] = float(desist.total_reintegrado)
 
-    # Tasa de mora
+    # Tasa de mora = mora (31+ días vencida) / cartera_total
     cartera = float(kpis_dict.get("cartera_total") or 0)
     mora    = float(kpis_dict.get("mora_total") or 0)
     kpis_dict["tasa_mora"] = round(mora / cartera * 100, 2) if cartera > 0 else 0
+
+    # Ensure mora aging fields have defaults when no period given
+    for field in ["mora_31_60", "mora_61_90", "mora_91_180", "mora_180_mas"]:
+        if kpis_dict.get(field) is None:
+            kpis_dict[field] = 0.0
 
     return {k: float(v) if v is not None and isinstance(v, (int, float)) else v
             for k, v in kpis_dict.items()}
@@ -230,14 +362,38 @@ async def get_estado_cuenta(
 async def get_proyeccion_mensual(
     empresa: Optional[str] = Query(None),
     meses: int = Query(12, ge=1, le=24),
+    año: Optional[int] = Query(None),
+    mes: Optional[int] = Query(None),
     db: Session = Depends(get_db),
     current_user=Depends(get_current_user)
 ):
-    """Proyección mensual de cobros próximos N meses."""
+    """
+    Proyección mensual de cobros de los próximos N meses.
+    Con período: proyecta desde el primer día del mes SIGUIENTE al filtrado.
+    Sin período: proyecta desde CURRENT_DATE.
+    """
+    import calendar
     params = {"meses": meses}
     empresa_filter = "AND empresa = :empresa" if empresa else ""
     if empresa:
         params["empresa"] = empresa
+
+    if año and mes:
+        # Inicio = primer día del mes siguiente al filtrado
+        if mes == 12:
+            start_year, start_mes = año + 1, 1
+        else:
+            start_year, start_mes = año, mes + 1
+        start_date = f"{start_year}-{start_mes:02d}-01"
+        params["start_date"] = start_date
+        # Cartera filtrada: solo ventas realizadas hasta el corte
+        last_day = calendar.monthrange(año, mes)[1]
+        params["cutoff"] = f"{año}-{mes:02d}-{last_day}"
+        date_range_filter = "AND fecha_programada_cobro >= :start_date::date AND fecha_programada_cobro <= :start_date::date + (:meses || ' months')::INTERVAL"
+        sale_filter = "AND doc_date <= :cutoff::date"
+    else:
+        date_range_filter = "AND fecha_programada_cobro BETWEEN CURRENT_DATE AND CURRENT_DATE + (:meses || ' months')::INTERVAL"
+        sale_filter = ""
 
     rows = db.execute(text(f"""
         SELECT
@@ -249,8 +405,9 @@ async def get_proyeccion_mensual(
         FROM ov_cartera
         WHERE line_status='O'
           AND tipo_linea IN ('BB','S')
-          AND fecha_programada_cobro BETWEEN CURRENT_DATE
-              AND CURRENT_DATE + (:meses || ' months')::INTERVAL
+          AND saldo_pendiente > 0
+          {date_range_filter}
+          {sale_filter}
           {empresa_filter}
         GROUP BY DATE_TRUNC('month', fecha_programada_cobro)
         ORDER BY mes
@@ -262,22 +419,45 @@ async def get_proyeccion_mensual(
 @router.get("/aging")
 async def get_aging(
     empresa: Optional[str] = Query(None),
+    año: Optional[int] = Query(None),
+    mes: Optional[int] = Query(None),
     db: Session = Depends(get_db),
     current_user=Depends(get_current_user)
 ):
-    """Antigüedad de cartera vencida."""
+    """
+    Antigüedad de cartera vencida.
+    Con período: referencia = último día del mes filtrado.
+    Sin período: referencia = CURRENT_DATE.
+    """
+    import calendar
     params = {}
     empresa_filter = "AND empresa = :empresa" if empresa else ""
     if empresa:
         params["empresa"] = empresa
 
+    if año and mes:
+        last_day = calendar.monthrange(año, mes)[1]
+        ref_date = f"{año}-{mes:02d}-{last_day}"
+        params["ref_date"] = ref_date
+        # doc_date filter: only sales up to the period
+        date_filter = "AND doc_date <= :ref_date::date"
+        venc_filter = "AND fecha_programada_cobro < :ref_date::date"
+        days_expr = f":ref_date::date - fecha_programada_cobro"
+    else:
+        date_filter = ""
+        venc_filter = "AND fecha_programada_cobro < CURRENT_DATE"
+        days_expr = "CURRENT_DATE - fecha_programada_cobro"
+        if año:
+            params["ref_date"] = f"{año}-12-31"
+            date_filter = "AND doc_date <= :ref_date::date"
+
     rows = db.execute(text(f"""
         SELECT
             CASE
-                WHEN CURRENT_DATE - fecha_programada_cobro BETWEEN 1  AND 30  THEN '1-30 días'
-                WHEN CURRENT_DATE - fecha_programada_cobro BETWEEN 31 AND 60  THEN '31-60 días'
-                WHEN CURRENT_DATE - fecha_programada_cobro BETWEEN 61 AND 90  THEN '61-90 días'
-                WHEN CURRENT_DATE - fecha_programada_cobro BETWEEN 91 AND 180 THEN '91-180 días'
+                WHEN {days_expr} BETWEEN 1  AND 30  THEN '1-30 días'
+                WHEN {days_expr} BETWEEN 31 AND 60  THEN '31-60 días'
+                WHEN {days_expr} BETWEEN 61 AND 90  THEN '61-90 días'
+                WHEN {days_expr} BETWEEN 91 AND 180 THEN '91-180 días'
                 ELSE '+180 días'
             END AS rango,
             COUNT(DISTINCT card_code) AS clientes,
@@ -285,10 +465,12 @@ async def get_aging(
             SUM(saldo_pendiente) AS monto
         FROM ov_cartera
         WHERE line_status='O' AND tipo_linea IN ('BB','S')
-          AND fecha_programada_cobro < CURRENT_DATE
+          {venc_filter}
           AND saldo_pendiente > 0
+          {date_filter}
           {empresa_filter}
-        GROUP BY 1 ORDER BY MIN(CURRENT_DATE - fecha_programada_cobro)
+        GROUP BY 1
+        ORDER BY MIN({days_expr})
     """), params).fetchall()
 
     return [dict(r._mapping) for r in rows]

@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import text
 from typing import Optional
 from app.database import get_db
+from app.core.config import get_settings
 from app.core.security import get_current_user
 
 router = APIRouter(prefix="/api/ventas", tags=["ventas"])
@@ -77,27 +78,57 @@ async def get_kpis(
     pf = "AND p.nombre_proyecto = :proyecto" if proyecto else ""
     if proyecto: params["proyecto"] = proyecto
 
-    # Ventas brutas = TODOS los lotes vendidos/reservados (con o sin vendedor)
+    # Ventas brutas = lotes vendidos/reservados EXCLUYE bloqueados/canjes/especiales
     ventas = db.execute(text(f"""
         SELECT
-            COUNT(*) FILTER (WHERE l.estatus IN ('VENTA','RESERVADO'))
-            AS ventas_brutas,
-            COALESCE(SUM(l.precio_final) FILTER (WHERE l.estatus IN ('VENTA','RESERVADO')), 0)
-            AS valor_bruto,
-            COALESCE(SUM(l.total_intereses) FILTER (WHERE l.estatus IN ('VENTA','RESERVADO')), 0)
-            AS intereses_pactados,
-            COALESCE(AVG(l.precio_final) FILTER (WHERE l.estatus IN ('VENTA','RESERVADO')), 0)
-            AS ticket_promedio,
-            COUNT(*) FILTER (WHERE l.forma_pago = 'CONTADO' AND l.estatus IN ('VENTA','RESERVADO')) AS contado,
-            COUNT(*) FILTER (WHERE l.forma_pago = 'CREDITOSININTERES' AND l.estatus IN ('VENTA','RESERVADO')) AS sin_interes,
-            COUNT(*) FILTER (WHERE l.forma_pago = 'CREDITOCONINTERES' AND l.estatus IN ('VENTA','RESERVADO')) AS con_interes,
-            COALESCE(AVG(l.plazo) FILTER (WHERE l.plazo > 0 AND l.estatus IN ('VENTA','RESERVADO')), 0) AS plazo_promedio,
-            -- Desglose para seguimiento
             COUNT(*) FILTER (WHERE l.estatus IN ('VENTA','RESERVADO')
-                AND (l.vendedor IS NULL OR l.vendedor IN (
+                AND (l.vendedor IS NULL OR l.vendedor NOT IN (
                     '-Ningún empleado del departamento de ventas-',
                     'Canje A','Bloqueado','Bloqueo Municipal','Apartado Proyecto Aptos'
-                ))) AS sin_vendedor
+                )))
+            AS ventas_brutas,
+            COALESCE(SUM(l.precio_final) FILTER (WHERE l.estatus IN ('VENTA','RESERVADO')
+                AND (l.vendedor IS NULL OR l.vendedor NOT IN (
+                    '-Ningún empleado del departamento de ventas-',
+                    'Canje A','Bloqueado','Bloqueo Municipal','Apartado Proyecto Aptos'
+                ))), 0)
+            AS valor_bruto,
+            COALESCE(SUM(l.total_intereses) FILTER (WHERE l.estatus IN ('VENTA','RESERVADO')
+                AND (l.vendedor IS NULL OR l.vendedor NOT IN (
+                    '-Ningún empleado del departamento de ventas-',
+                    'Canje A','Bloqueado','Bloqueo Municipal','Apartado Proyecto Aptos'
+                ))), 0) AS intereses_pactados,
+            COALESCE(AVG(l.precio_final) FILTER (WHERE l.estatus IN ('VENTA','RESERVADO')
+                AND (l.vendedor IS NULL OR l.vendedor NOT IN (
+                    '-Ningún empleado del departamento de ventas-',
+                    'Canje A','Bloqueado','Bloqueo Municipal','Apartado Proyecto Aptos'
+                ))), 0) AS ticket_promedio,
+            COUNT(*) FILTER (WHERE l.forma_pago = 'CONTADO' AND l.estatus IN ('VENTA','RESERVADO')
+                AND (l.vendedor IS NULL OR l.vendedor NOT IN (
+                    '-Ningún empleado del departamento de ventas-',
+                    'Canje A','Bloqueado','Bloqueo Municipal','Apartado Proyecto Aptos'
+                ))) AS contado,
+            COUNT(*) FILTER (WHERE l.forma_pago = 'CREDITOSININTERES' AND l.estatus IN ('VENTA','RESERVADO')
+                AND (l.vendedor IS NULL OR l.vendedor NOT IN (
+                    '-Ningún empleado del departamento de ventas-',
+                    'Canje A','Bloqueado','Bloqueo Municipal','Apartado Proyecto Aptos'
+                ))) AS sin_interes,
+            COUNT(*) FILTER (WHERE l.forma_pago = 'CREDITOCONINTERES' AND l.estatus IN ('VENTA','RESERVADO')
+                AND (l.vendedor IS NULL OR l.vendedor NOT IN (
+                    '-Ningún empleado del departamento de ventas-',
+                    'Canje A','Bloqueado','Bloqueo Municipal','Apartado Proyecto Aptos'
+                ))) AS con_interes,
+            COALESCE(AVG(l.plazo) FILTER (WHERE l.plazo > 0 AND l.estatus IN ('VENTA','RESERVADO')
+                AND (l.vendedor IS NULL OR l.vendedor NOT IN (
+                    '-Ningún empleado del departamento de ventas-',
+                    'Canje A','Bloqueado','Bloqueo Municipal','Apartado Proyecto Aptos'
+                ))), 0) AS plazo_promedio,
+            -- Desglose especiales (bloqueados, canjes)
+            COUNT(*) FILTER (WHERE l.estatus IN ('VENTA','RESERVADO')
+                AND l.vendedor IN (
+                    '-Ningún empleado del departamento de ventas-',
+                    'Canje A','Bloqueado','Bloqueo Municipal','Apartado Proyecto Aptos'
+                )) AS sin_vendedor
         FROM lotes l
         JOIN proyectos p ON p.id = l.proyecto_id
         WHERE {date_filter} AND l.fecha_venta IS NOT NULL {pf}
@@ -135,12 +166,17 @@ async def get_kpis(
 @router.get("/tendencia-mensual")
 async def get_tendencia(
     año: int = Query(2026),
+    mes: Optional[int] = Query(None),
     meses_atras: int = Query(12),
     todo_el_tiempo: bool = Query(False),
     proyecto: Optional[str] = Query(None),
     db: Session = Depends(get_db),
     current_user=Depends(get_current_user)
 ):
+    """
+    Últimos N meses de tendencia. Con año+mes, muestra los 12 meses terminando
+    en ese mes. Sin mes, termina en el mes actual.
+    """
     # Mapping proyecto → empresa en desistimientos
     PROYECTO_EMPRESA = {
         'Hacienda Jumay': 'Eficiencia Urbana',
@@ -159,12 +195,23 @@ async def get_tendencia(
     }
 
     pf = "AND p.nombre_proyecto = :proyecto" if proyecto else ""
+    import calendar
     if todo_el_tiempo:
         date_filter = "l.fecha_venta IS NOT NULL"
         params = {}
+        desist_date = "1=1"
+    elif mes and año:
+        # Últimos N meses terminando en año/mes
+        last_day = calendar.monthrange(año, mes)[1]
+        end_date = f"{año}-{mes:02d}-{last_day}"
+        # Start = N months before end_date
+        params = {"end_date": end_date, "meses": meses_atras}
+        date_filter = "l.fecha_venta >= :end_date::date - (:meses || ' months')::INTERVAL AND l.fecha_venta <= :end_date::date AND l.fecha_venta IS NOT NULL"
+        desist_date = "fecha_desistimiento >= :end_date::date - (:meses || ' months')::INTERVAL AND fecha_desistimiento <= :end_date::date"
     else:
         date_filter = "l.fecha_venta >= CURRENT_DATE - (:meses || ' months')::INTERVAL AND l.fecha_venta IS NOT NULL"
         params = {"meses": meses_atras}
+        desist_date = "fecha_desistimiento >= CURRENT_DATE - (:meses || ' months')::INTERVAL"
     if proyecto: params["proyecto"] = proyecto
 
     ventas = db.execute(text(f"""
@@ -192,10 +239,7 @@ async def get_tendencia(
     # Filter desistimientos by empresa if proyecto given
     empresa_filter = PROYECTO_EMPRESA.get(proyecto, '') if proyecto else ''
     desist_params = dict(params)
-    if todo_el_tiempo:
-        desist_date = "1=1"
-    else:
-        desist_date = "fecha_desistimiento >= CURRENT_DATE - (:meses || ' months')::INTERVAL"
+    # desist_date already set above
 
     if empresa_filter:
         desist_params["empresa"] = empresa_filter

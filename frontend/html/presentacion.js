@@ -9,7 +9,7 @@ const MESES = ['','Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agos
 /* ── Estado global ──────────────────────────────── */
 const state = {
   slide: 0,
-  total: 25,
+  total: 26,
   mes: 0,        // 0 = todo el año
   anio: 2026,
   sociedad: 'EFICIENCIA URBANA',
@@ -85,6 +85,65 @@ function toggleTheme() {
   applyTheme(cur === 'dark' ? 'light' : 'dark');
 }
 
+/* ── Download (PPTX / PDF via backend) ─────────── */
+function toggleDownloadMenu(e) {
+  e.stopPropagation();
+  const m = document.getElementById('downloadMenu');
+  m.classList.toggle('open');
+}
+document.addEventListener('click', () => {
+  document.getElementById('downloadMenu')?.classList.remove('open');
+});
+
+function showDlToast(msg, err) {
+  const t = document.getElementById('dlToast');
+  if (!t) return;
+  t.className = 'dl-toast show' + (err ? ' err' : '');
+  t.innerHTML = (err ? '⚠️ ' : '⏳ ') + msg;
+  clearTimeout(t._t);
+  t._t = setTimeout(() => t.className = 'dl-toast', err ? 8000 : 60000);
+}
+function hideDlToast() {
+  const t = document.getElementById('dlToast');
+  if (t) t.className = 'dl-toast';
+}
+
+async function descargarPresentacion(formato) {
+  document.getElementById('downloadMenu')?.classList.remove('open');
+  const token = getToken();
+  if (!token) { showDlToast('Sin sesión activa', true); return; }
+  showDlToast('Generando presentación… puede tardar 30-60 seg.');
+
+  try {
+    const url = `/api/reportes/presentacion-consolidada?mes=${state.mes || new Date().getMonth()+1}&anio=${state.anio}&formato=${formato}`;
+    const r = await fetch(url, {
+      headers: { 'Authorization': `Bearer ${token}` },
+      signal: AbortSignal.timeout(120000)
+    });
+    if (!r.ok) {
+      const err = await r.json().catch(() => ({ detail: 'Error desconocido' }));
+      showDlToast('Error: ' + (err.detail || r.status), true);
+      return;
+    }
+    const blob = await r.blob();
+    const burl = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    const cd = r.headers.get('Content-Disposition') || '';
+    const fname = cd.match(/filename="([^"]+)"/)?.[1] || `Presentacion_JD_${state.anio}_${state.mes}.${formato}`;
+    a.href = burl; a.download = fname;
+    document.body.appendChild(a); a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(burl);
+    hideDlToast();
+  } catch(e) {
+    if (e.name === 'TimeoutError' || e.name === 'AbortError') {
+      showDlToast('Timeout — la presentación sigue generándose, intenta en 1 min.', true);
+    } else {
+      showDlToast('Error: ' + e.message, true);
+    }
+  }
+}
+
 /* ── Navegación ─────────────────────────────────── */
 function showSlide(idx) {
   const slides = document.querySelectorAll('.slide');
@@ -129,9 +188,20 @@ function periodParams() {
   return p.toString();
 }
 
+// Build period params for cartera (uses año + mes directly)
+function carteraPeriodParams() {
+  const p = new URLSearchParams();
+  if (state.mes > 0) {
+    p.set('año', state.anio);
+    p.set('mes', state.mes);
+  }
+  return p.toString();
+}
+
 /* ── Inventario ─────────────────────────────────── */
 async function loadInventario() {
-  const r = await apiFetch('/api/inventario/resumen');
+  const qs = periodParams();
+  const r = await apiFetch(`/api/inventario/resumen?${qs}`);
   if (!r) return;
   state.data.inventario = r;
   const t = r.totales || {};
@@ -162,14 +232,22 @@ async function loadInventario() {
 
   // Value bars
   const valHTML = `
-    <div style="display:flex;flex-direction:column;gap:18px;margin-top:8px">
+    <div style="display:flex;flex-direction:column;gap:14px;margin-top:8px">
       <div>
         <div style="display:flex;justify-content:space-between;font-size:13px;font-weight:600;margin-bottom:6px"><span>Vendido / comprometido</span><span style="color:var(--blue)">${fmtQ(t.valor_vendido)}</span></div>
-        <div style="height:18px;background:var(--border-soft);border-radius:4px;overflow:hidden"><div style="height:100%;background:var(--blue);width:${pctOf(t.valor_vendido, t.valor_total)}%"></div></div>
+        <div style="height:16px;background:var(--border-soft);border-radius:4px;overflow:hidden"><div style="height:100%;background:var(--blue);width:${pctOf(t.valor_vendido, t.valor_total)}%"></div></div>
       </div>
       <div>
         <div style="display:flex;justify-content:space-between;font-size:13px;font-weight:600;margin-bottom:6px"><span>Disponible</span><span style="color:var(--green)">${fmtQ(t.valor_disponible)}</span></div>
-        <div style="height:18px;background:var(--border-soft);border-radius:4px;overflow:hidden"><div style="height:100%;background:var(--green);width:${pctOf(t.valor_disponible, t.valor_total)}%"></div></div>
+        <div style="height:16px;background:var(--border-soft);border-radius:4px;overflow:hidden"><div style="height:100%;background:var(--green);width:${pctOf(t.valor_disponible, t.valor_total)}%"></div></div>
+      </div>
+      <div>
+        <div style="display:flex;justify-content:space-between;font-size:13px;font-weight:600;margin-bottom:6px"><span>Canjes</span><span style="color:var(--purple)">${fmtQ(t.valor_canjes || 0)}</span></div>
+        <div style="height:16px;background:var(--border-soft);border-radius:4px;overflow:hidden"><div style="height:100%;background:var(--purple);width:${pctOf(t.valor_canjes || 0, t.valor_total)}%"></div></div>
+      </div>
+      <div>
+        <div style="display:flex;justify-content:space-between;font-size:13px;font-weight:600;margin-bottom:6px"><span>Bloqueados</span><span style="color:var(--red)">${fmtQ(t.valor_bloqueado || 0)}</span></div>
+        <div style="height:16px;background:var(--border-soft);border-radius:4px;overflow:hidden"><div style="height:100%;background:var(--red);width:${pctOf(t.valor_bloqueado || 0, t.valor_total)}%"></div></div>
       </div>
       <div style="display:flex;justify-content:space-between;padding-top:12px;border-top:1px solid var(--border);font-size:14px;font-weight:700"><span>Valor total inventario</span><span>${fmtQ(t.valor_total)}</span></div>
     </div>`;
@@ -179,28 +257,36 @@ async function loadInventario() {
   const lectura = `Tenemos ${fmtNum(t.disponibles)} lotes disponibles por ${fmtQM(t.valor_disponible)} en ${proyectos.length} proyectos. La absorción global está en ${fmtPct(t.pct_absorcion)}.`;
   setText('invLectura', lectura);
 
-  // Slide 6 — Absorción por proyecto
-  const sorted = [...proyectos].sort((a,b) => Number(b.porcentaje_absorcion||0) - Number(a.porcentaje_absorcion||0));
+  // Slide 6 — Absorción por proyecto (solo proyectos con movimiento)
+  const conMovimiento = proyectos.filter(p => Number(p.vendidos_reservados || p.vendidos || 0) > 0);
+  const sorted = [...conMovimiento].sort((a,b) => Number(b.porcentaje_absorcion||0) - Number(a.porcentaje_absorcion||0));
+  const itemH = sorted.length > 8 ? 52 : 64;
   setHTML('absorcionRows', sorted.map(p => {
     const pct = Number(p.porcentaje_absorcion || 0);
-    return `<div class="bar-row">
-      <div class="bar-name">${p.nombre_proyecto}<div style="font-size:11px;color:var(--muted);font-weight:500;margin-top:2px">${p.nombre_sociedad}</div></div>
+    const vendidos = Number(p.vendidos_reservados || p.vendidos || 0);
+    const total = Number(p.total_lotes || 0);
+    return `<div class="bar-row" style="padding:${sorted.length > 8 ? '10px 0' : '14px 0'}">
+      <div class="bar-name" style="font-size:${sorted.length > 8 ? '12px' : '14px'}">${p.nombre_proyecto}<div style="font-size:10px;color:var(--muted);font-weight:500;margin-top:1px">${p.nombre_sociedad}</div></div>
       <div class="bar-track"><div class="bar-fill" style="width:${Math.min(pct,100)}%"></div></div>
-      <div class="bar-pct">${fmtPct(pct)}</div>
+      <div class="bar-pct" style="font-size:13px">${fmtPct(pct)}<div style="font-size:10px;color:var(--muted);font-weight:500;margin-top:1px;text-align:right">${vendidos}/${total}</div></div>
     </div>`;
   }).join(''));
 
-  // Slide 7 — Valor por proyecto
+  // Slide 7 — Valor por proyecto (con ticket promedio)
   const byValor = [...proyectos].sort((a,b) => Number(b.valor_disponible||0) - Number(a.valor_disponible||0));
   setHTML('valorTbody', byValor.map((p, i) => {
     const pct = Number(p.porcentaje_absorcion || 0);
     const cls = pct >= 60 ? 'green' : pct >= 30 ? 'amber' : 'red';
+    const disp = Number(p.disponibles || 0);
+    const valDisp = Number(p.valor_disponible || 0);
+    const ticket = disp > 0 ? valDisp / disp : 0;
     return `<tr>
       <td class="bold">${i+1}</td>
       <td class="bold">${p.nombre_proyecto}</td>
       <td>${p.nombre_sociedad}</td>
-      <td class="right">${fmtNum(p.disponibles)}</td>
-      <td class="right bold">${fmtQ(p.valor_disponible)}</td>
+      <td class="right">${fmtNum(disp)}</td>
+      <td class="right bold">${fmtQ(valDisp)}</td>
+      <td class="right" style="color:var(--dorado);font-weight:700">${fmtQ(ticket)}</td>
       <td class="right"><span class="pill ${cls}">${fmtPct(pct)}</span></td>
     </tr>`;
   }).join(''));
@@ -215,7 +301,7 @@ async function loadVentas() {
     apiFetch(`/api/ventas/analisis-financiero?${qs}`),
     apiFetch(`/api/ventas/por-vendedor?${qs}`),
     apiFetch(`/api/ventas/metas?año=${state.anio}`),
-    apiFetch(`/api/ventas/tendencia-mensual?meses_atras=12`)
+    apiFetch(`/api/ventas/tendencia-mensual?meses_atras=12&año=${state.anio}&mes=${state.mes > 0 ? state.mes : ''}`)
   ]);
   state.data.ventas = { k, mezcla, fin, vend, metas, tend };
 
@@ -254,21 +340,24 @@ async function loadVentas() {
   if (fin) {
     const cap_total = (fin.capital_contado||0) + (fin.capital_sin_int||0) + (fin.capital_con_int||0);
     const html = `
-      <div style="display:flex;flex-direction:column;gap:14px">
-        <div><div style="display:flex;justify-content:space-between;font-size:13px;font-weight:600;margin-bottom:6px"><span>Capital total</span><span>${fmtQ(cap_total)}</span></div></div>
-        <div><div style="display:flex;justify-content:space-between;font-size:13px;font-weight:600;color:var(--green);margin-bottom:6px"><span>Intereses cobrados</span><span>${fmtQ(fin.intereses_cobrados)}</span></div>
-          <div style="height:14px;background:var(--border-soft);border-radius:4px;overflow:hidden"><div style="height:100%;background:var(--green);width:${pctOf(fin.intereses_cobrados, fin.intereses_cobrados+fin.intereses_no_cobrados)}%"></div></div>
+      <div style="display:flex;flex-direction:column;gap:12px">
+        <div style="display:flex;justify-content:space-between;font-size:13px;font-weight:700;padding-bottom:8px;border-bottom:1px solid var(--border-soft)"><span>Capital total por cobrar</span><span>${fmtQ(cap_total)}</span></div>
+        <div><div style="display:flex;justify-content:space-between;font-size:12px;font-weight:600;color:var(--azul);margin-bottom:4px"><span>Capital contado</span><span>${fmtQ(fin.capital_contado||0)}</span></div>
+          <div style="height:10px;background:var(--border-soft);border-radius:4px;overflow:hidden"><div style="height:100%;background:var(--azul);width:${pctOf(fin.capital_contado||0, cap_total)}%"></div></div>
         </div>
-        <div><div style="display:flex;justify-content:space-between;font-size:13px;font-weight:600;color:var(--red);margin-bottom:6px"><span>Intereses no cobrados</span><span>${fmtQ(fin.intereses_no_cobrados)}</span></div>
-          <div style="height:14px;background:var(--border-soft);border-radius:4px;overflow:hidden"><div style="height:100%;background:var(--red);width:${pctOf(fin.intereses_no_cobrados, fin.intereses_cobrados+fin.intereses_no_cobrados)}%"></div></div>
+        <div><div style="display:flex;justify-content:space-between;font-size:12px;font-weight:600;color:var(--green);margin-bottom:4px"><span>Intereses x cobrar</span><span>${fmtQ(fin.intereses_cobrados)}</span></div>
+          <div style="height:10px;background:var(--border-soft);border-radius:4px;overflow:hidden"><div style="height:100%;background:var(--green);width:${pctOf(fin.intereses_cobrados, fin.intereses_cobrados+fin.intereses_no_cobrados)}%"></div></div>
         </div>
-        <div style="padding-top:10px;border-top:1px solid var(--border);font-size:13px;color:var(--muted);font-weight:500">Tasa anual implícita: <strong style="color:var(--dorado)">${fmtPct(fin.tasa_anual_implicita)}</strong> · Captura: <strong>${fmtPct(fin.ratio_cobrado_vs_oportunidad)}</strong></div>
+        <div><div style="display:flex;justify-content:space-between;font-size:12px;font-weight:600;color:var(--red);margin-bottom:4px"><span>Intereses sin cobrar (oportunidad)</span><span>${fmtQ(fin.intereses_no_cobrados)}</span></div>
+          <div style="height:10px;background:var(--border-soft);border-radius:4px;overflow:hidden"><div style="height:100%;background:var(--red);width:${pctOf(fin.intereses_no_cobrados, fin.intereses_cobrados+fin.intereses_no_cobrados)}%"></div></div>
+        </div>
+        <div style="padding-top:8px;border-top:1px solid var(--border);font-size:12px;color:var(--muted);font-weight:500">Tasa anual implícita: <strong style="color:var(--dorado)">${fmtPct(fin.tasa_anual_implicita)}</strong> · Captura: <strong>${fmtPct(fin.ratio_cobrado_vs_oportunidad)}</strong></div>
       </div>`;
     setHTML('vtFinanciero', html);
 
     // Slide 11
     setText('finTasa', fmtPct(fin.tasa_anual_implicita));
-    setText('finCobrados', fmtQ(fin.intereses_cobrados));
+    setText('finCobrados', fmtQ(fin.intereses_cobrados));  // label updated in HTML to 'Intereses x Cobrar'
     setText('finCobLotes', `${fmtNum(fin.lotes_con_int)} contratos con interés`);
     setText('finNoCobrados', fmtQ(fin.intereses_no_cobrados));
     setText('finNoCobLotes', `${fmtNum(fin.lotes_sin_int)} contratos sin interés`);
@@ -283,7 +372,7 @@ async function loadVentas() {
     `);
   }
 
-  // Slide 12 — Top vendedores
+  // Slide 12 — Top vendedores (mensual) + team totals
   if (vend && vend.length) {
     const top = vend.slice(0, 10);
     setHTML('vendedoresTbody', top.map((v, i) => `
@@ -297,6 +386,31 @@ async function loadVentas() {
         <td class="right bold" style="color:var(--green)">${fmtNum(v.ventas_netas)}</td>
         <td class="right">${fmtQ(v.ticket_promedio)}</td>
       </tr>`).join(''));
+    // Team totals footer
+    const equipos = {};
+    vend.forEach(v => {
+      const eq = v.equipo || 'Sin equipo';
+      if (!equipos[eq]) equipos[eq] = { brutas:0, desist:0, netas:0, totalVal:0, count:0 };
+      equipos[eq].brutas += v.ventas_brutas || 0;
+      equipos[eq].desist += v.desistimientos || 0;
+      equipos[eq].netas  += v.ventas_netas   || 0;
+      equipos[eq].totalVal += (v.ventas_netas||0) * (v.ticket_promedio||0);
+      equipos[eq].count  += v.ventas_netas   || 0;
+    });
+    const totalGeneral = Object.values(equipos).reduce((s,e)=>s+e.netas,0);
+    setHTML('vendedoresTfoot', Object.entries(equipos).map(([eq, e]) => {
+      const pct = totalGeneral ? (e.netas/totalGeneral*100).toFixed(1) : '0.0';
+      const cls = eq === 'CONSERSA' ? 'blue' : eq === 'RV4' ? 'amber' : '';
+      const tick = e.count > 0 ? e.totalVal/e.count : 0;
+      return `<tr style="border-top:2px solid var(--border)">
+        <td colspan="2" class="bold" style="font-size:14px"><span class="pill ${cls}">${eq}</span></td>
+        <td colspan="2" style="font-size:13px;color:var(--muted)">Participación: <strong style="color:var(--text)">${pct}%</strong></td>
+        <td class="right bold">${fmtNum(e.brutas)}</td>
+        <td class="right" style="color:var(--red)">${fmtNum(e.desist)}</td>
+        <td class="right bold" style="color:var(--green)">${fmtNum(e.netas)}</td>
+        <td class="right">${fmtQ(tick)}</td>
+      </tr>`;
+    }).join('') || '');
   } else {
     setHTML('vendedoresTbody', `<tr><td colspan="8" style="text-align:center;color:var(--muted);padding:40px">Sin datos de vendedores en el período</td></tr>`);
   }
@@ -305,14 +419,32 @@ async function loadVentas() {
   if (metas && metas.length) {
     setHTML('metasRows', metas.map(m => {
       const pct = Number(m.cumplimiento_pct || 0);
+      const pctC = Number(m.cumplimiento_consersa_pct || 0);
+      const pctR = Number(m.cumplimiento_rv4_pct || 0);
       const color = pct >= 80 ? 'var(--green)' : pct >= 50 ? 'var(--dorado)' : 'var(--red)';
-      return `<div style="background:var(--bg-card);border:1px solid var(--border);border-radius:8px;padding:18px 24px;margin-bottom:12px;display:grid;grid-template-columns:280px 200px 1fr 120px;gap:18px;align-items:center">
-        <div><div style="font-size:15px;font-weight:700">${m.responsable}</div><div style="font-size:12px;color:var(--muted);font-weight:500">${m.proyecto}</div></div>
-        <div style="font-size:13px"><div><strong>${fmtNum(m.ventas_total)}</strong> / ${fmtNum(m.meta_total)}</div><div style="font-size:11px;color:var(--muted);margin-top:2px">CONS: ${fmtNum(m.ventas_consersa||0)} · RV4: ${fmtNum(m.ventas_rv4||0)}</div></div>
-        <div style="height:14px;background:var(--border-soft);border-radius:4px;overflow:hidden"><div style="height:100%;background:${color};width:${Math.min(pct,100)}%;transition:width .8s ease"></div></div>
-        <div style="text-align:right;font-size:18px;font-weight:700;color:${color}">${fmtPct(pct)}</div>
+      const colC = pctC >= 80 ? 'var(--green)' : pctC >= 50 ? 'var(--dorado)' : 'var(--red)';
+      const colR = pctR >= 80 ? 'var(--green)' : pctR >= 50 ? 'var(--dorado)' : 'var(--red)';
+      if (m.meta_total === 0) return ''; // skip projects with no meta
+      return `<div style="background:var(--bg-card);border:1px solid var(--border);border-radius:8px;padding:14px 20px;margin-bottom:10px;display:grid;grid-template-columns:200px 1fr 160px;gap:16px;align-items:center">
+        <div style="font-size:15px;font-weight:700;color:var(--text)">${m.proyecto}</div>
+        <div>
+          <div style="display:grid;grid-template-columns:80px 1fr 60px;gap:8px;align-items:center;margin-bottom:4px">
+            <span style="font-size:11px;font-weight:600;color:var(--muted)">CONSERSA</span>
+            <div style="height:10px;background:var(--border-soft);border-radius:4px;overflow:hidden"><div style="height:100%;background:${colC};width:${Math.min(pctC,100)}%"></div></div>
+            <span style="font-size:12px;font-weight:700;color:${colC};text-align:right">${fmtNum(m.ventas_consersa||0)}/${fmtNum(m.meta_consersa)}</span>
+          </div>
+          <div style="display:grid;grid-template-columns:80px 1fr 60px;gap:8px;align-items:center">
+            <span style="font-size:11px;font-weight:600;color:var(--muted)">RV4</span>
+            <div style="height:10px;background:var(--border-soft);border-radius:4px;overflow:hidden"><div style="height:100%;background:${colR};width:${Math.min(pctR,100)}%"></div></div>
+            <span style="font-size:12px;font-weight:700;color:${colR};text-align:right">${fmtNum(m.ventas_rv4||0)}/${fmtNum(m.meta_rv4)}</span>
+          </div>
+        </div>
+        <div style="text-align:right">
+          <div style="font-size:22px;font-weight:700;color:${color}">${fmtPct(pct)}</div>
+          <div style="font-size:11px;color:var(--muted)">${fmtNum(m.ventas_total)} / ${fmtNum(m.meta_total)} total</div>
+        </div>
       </div>`;
-    }).join(''));
+    }).filter(Boolean).join(''));
   } else {
     setHTML('metasRows', `<div style="text-align:center;color:var(--muted);padding:60px">Sin metas configuradas para ${state.anio}</div>`);
   }
@@ -323,10 +455,11 @@ async function loadVentas() {
 
 /* ── Cartera ────────────────────────────────────── */
 async function loadCartera() {
+  const cqs = carteraPeriodParams();
   const [k, aging, proy, alertas, desist] = await Promise.all([
-    apiFetch('/api/cartera/kpis'),
-    apiFetch('/api/cartera/aging'),
-    apiFetch('/api/cartera/proyeccion-mensual?meses=12'),
+    apiFetch(`/api/cartera/kpis?${cqs}`),
+    apiFetch(`/api/cartera/aging?${cqs}`),
+    apiFetch(`/api/cartera/proyeccion-mensual?meses=12&${cqs}`),
     apiFetch('/api/cartera/alertas'),
     apiFetch('/api/cartera/desistimientos?page=1&page_size=50')
   ]);
@@ -346,6 +479,22 @@ async function loadCartera() {
     setText('carVencidos', fmtNum(k.clientes_vencidos));
     const pctVenc = k.clientes_activos ? (k.clientes_vencidos / k.clientes_activos * 100) : 0;
     setText('carPctVenc', `${pctVenc.toFixed(1)}% del total`);
+    // Tasa mora = cartera vencida 31+ días / cartera total
+    const moraReal = (k.mora_31_60||0) + (k.mora_61_90||0) + (k.mora_91_180||0) + (k.mora_180_mas||0);
+    const tasaMora = k.cartera_total ? (moraReal / k.cartera_total * 100) : k.tasa_mora;
+    setText('carMoraTasa', `Tasa ${fmtPct(k.tasa_mora)} · vencida 31+ días`);
+    // Aging breakout mini cards
+    const agingRanges = [
+      { label:'31–60 días',  val: k.mora_31_60  || 0, color:'var(--amber)' },
+      { label:'61–90 días',  val: k.mora_61_90  || 0, color:'#f59e0b' },
+      { label:'91–180 días', val: k.mora_91_180 || 0, color:'#dc2626' },
+      { label:'+180 días',   val: k.mora_180_mas|| 0, color:'#7f1d1d' },
+    ];
+    setHTML('carMoraAging', agingRanges.map(r => `
+      <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:8px;padding:14px 18px;border-left:4px solid ${r.color}">
+        <div style="font-size:10px;font-weight:700;letter-spacing:.15em;text-transform:uppercase;color:var(--muted);margin-bottom:8px">${r.label}</div>
+        <div style="font-size:22px;font-weight:700;color:${r.color}">${fmtQM(r.val)}</div>
+      </div>`).join(''));
   }
 
   // Slide 16 — Aging
@@ -394,8 +543,121 @@ async function loadCartera() {
 }
 
 /* ── Flujos ─────────────────────────────────────── */
+async function loadDetalleFlujos() {
+  // Slide 22 - top movements in the filtered month
+  const soc = document.getElementById('detalleFlujoSociedad')?.value || 'CONSOLIDADO';
+  const periodoKey = state.mes > 0 ? `${state.anio}-${String(state.mes).padStart(2,'0')}` : `${state.anio}`;
+  setText('detalleFlujoSub', `${soc === 'CONSOLIDADO' ? 'Todas las sociedades' : soc} · ${periodoFormal()}`);
+
+  if (soc === 'CONSOLIDADO') {
+    // Aggregate across all societies
+    const sociedades = ['EFICIENCIA URBANA','SER GEN CCC','ROSSIO','FRUGALEX','OTTAVIA','UTILICA','TEZZOLI','URBIVA','GARBATELLA','CAPIPOS','OVEST','CORCOLLE','LEOFRENI','GIBRALEON','TALOCCI','VILET'];
+    const ingrMap = {}, egrMap = {};
+    const results = await Promise.all(sociedades.map(s => apiFetch(`/api/flujos/resumen?sociedad=${encodeURIComponent(s)}&granularidad=mes`)));
+    results.forEach(r => {
+      if (!r || !r.periodos) return;
+      let target = r.periodos[r.periodos.length - 1];
+      if (state.mes > 0) {
+        const candidate = `${state.anio}-${String(state.mes).padStart(2,'0')}`;
+        if (r.periodos.includes(candidate)) target = candidate;
+      }
+      (r.secciones || []).forEach(sec => {
+        const t = sec.totales[target];
+        if (!t) return;
+        if (t.ingreso > 0) {
+          const key = `${sec.seccion}||${sec.categorias?.[0]?.categoria || sec.seccion}`;
+          ingrMap[key] = (ingrMap[key] || 0) + (t.ingreso || 0);
+        }
+        (sec.categorias || []).forEach(cat => {
+          const cv = cat.montos?.[target];
+          if (cv?.egreso > 0) {
+            const key = `${sec.seccion}||${cat.categoria}`;
+            egrMap[key] = (egrMap[key] || 0) + (cv.egreso || 0);
+          }
+        });
+      });
+    });
+    renderDetalleFlujosTables(ingrMap, egrMap);
+  } else {
+    const r = await apiFetch(`/api/flujos/resumen?sociedad=${encodeURIComponent(soc)}&granularidad=mes`);
+    if (!r || !r.periodos) return;
+    let target = r.periodos[r.periodos.length - 1];
+    if (state.mes > 0) {
+      const candidate = `${state.anio}-${String(state.mes).padStart(2,'0')}`;
+      if (r.periodos.includes(candidate)) target = candidate;
+    }
+    const ingrMap = {}, egrMap = {};
+    (r.secciones || []).forEach(sec => {
+      (sec.categorias || []).forEach(cat => {
+        const cv = cat.montos?.[target];
+        if (cv?.ingreso > 0) ingrMap[`${sec.seccion}||${cat.categoria}`] = (ingrMap[`${sec.seccion}||${cat.categoria}`] || 0) + (cv.ingreso || 0);
+        if (cv?.egreso  > 0) egrMap[`${sec.seccion}||${cat.categoria}`]  = (egrMap[`${sec.seccion}||${cat.categoria}`]  || 0) + (cv.egreso  || 0);
+      });
+    });
+    renderDetalleFlujosTables(ingrMap, egrMap);
+  }
+}
+
+function renderDetalleFlujosTables(ingrMap, egrMap) {
+  const topN = 8;
+  const ingrRows = Object.entries(ingrMap).sort((a,b)=>b[1]-a[1]).slice(0, topN);
+  const egrRows  = Object.entries(egrMap).sort((a,b)=>b[1]-a[1]).slice(0, topN);
+  const toRow = ([key, val]) => {
+    const [sec, cat] = key.split('||');
+    return `<tr><td style="font-size:11px;color:var(--muted)">${sec.replace('EGRESOS / ','')}</td><td>${cat}</td><td class="right bold">${fmtQ(val)}</td></tr>`;
+  };
+  setHTML('detalleIngresosTbody', ingrRows.map(toRow).join('') || '<tr><td colspan="3" style="text-align:center;color:var(--muted);padding:20px">Sin datos</td></tr>');
+  setHTML('detalleEgresosTbody', egrRows.map(toRow).join('') || '<tr><td colspan="3" style="text-align:center;color:var(--muted);padding:20px">Sin datos</td></tr>');
+}
+
 async function loadFlujos() {
-  const r = await apiFetch(`/api/flujos/resumen?sociedad=${encodeURIComponent(state.sociedad)}&granularidad=mes`);
+  const socSel = document.getElementById('flujoSociedad')?.value || state.sociedad;
+  if (socSel === 'CONSOLIDADO') {
+    // Aggregate KPIs from all societies
+    const sociedades = ['EFICIENCIA URBANA','SER GEN CCC','ROSSIO','FRUGALEX','OTTAVIA','UTILICA','TEZZOLI','URBIVA','GARBATELLA','CAPIPOS','OVEST','CORCOLLE','LEOFRENI','GIBRALEON','TALOCCI','VILET'];
+    let totalIni=0, totalIng=0, totalEgr=0, totalFin=0;
+    const secMap = {};
+    const results = await Promise.all(sociedades.map(s => apiFetch(`/api/flujos/resumen?sociedad=${encodeURIComponent(s)}&granularidad=mes`)));
+    results.forEach(r => {
+      if (!r || !r.periodos) return;
+      let target = r.periodos[r.periodos.length - 1];
+      if (state.mes > 0) {
+        const candidate = `${state.anio}-${String(state.mes).padStart(2,'0')}`;
+        if (r.periodos.includes(candidate)) target = candidate;
+      }
+      totalIni += r.saldos_iniciales[target] || 0;
+      totalFin += r.saldos_finales[target] || 0;
+      (r.secciones || []).forEach(sec => {
+        const t = sec.totales[target];
+        if (!t) return;
+        totalIng += t.ingreso || 0;
+        totalEgr += t.egreso  || 0;
+        if (!secMap[sec.seccion]) secMap[sec.seccion] = { ingreso:0, egreso:0 };
+        secMap[sec.seccion].ingreso += t.ingreso || 0;
+        secMap[sec.seccion].egreso  += t.egreso  || 0;
+      });
+    });
+    const neto = totalIng - totalEgr;
+    setText('flSaldoIni', fmtQM(totalIni));
+    setText('flIng', fmtQM(totalIng));
+    setText('flEgr', fmtQM(totalEgr));
+    setText('flSaldoFin', fmtQM(totalFin));
+    setText('flNeto', `Neto del período: ${neto>=0?'+':''}${fmtQM(neto)}`);
+    setText('flujoSub', `CONSOLIDADO · ${periodoFormal()}`);
+    const filas = Object.entries(secMap).map(([sec, t]) => ({ seccion: sec, ingreso: t.ingreso, egreso: t.egreso, neto: t.ingreso - t.egreso }));
+    setHTML('flujosTbody', [
+      ...filas.map(f => `<tr>
+        <td class="bold">${f.seccion}</td>
+        <td class="right" style="color:var(--green)">${fmtQ(f.ingreso)}</td>
+        <td class="right" style="color:var(--red)">${fmtQ(f.egreso)}</td>
+        <td class="right bold" style="color:${f.neto>=0?'var(--green)':'var(--red)'}">${fmtQ(f.neto)}</td>
+      </tr>`),
+      `<tr class="total"><td>TOTAL</td><td class="right">${fmtQ(totalIng)}</td><td class="right">${fmtQ(totalEgr)}</td><td class="right">${fmtQ(neto)}</td></tr>`
+    ].join(''));
+    return;
+  }
+
+  const r = await apiFetch(`/api/flujos/resumen?sociedad=${encodeURIComponent(socSel)}&granularidad=mes`);
   state.data.flujos = r;
 
   if (!r || !r.periodos || !r.periodos.length) {
@@ -435,7 +697,7 @@ async function loadFlujos() {
   setText('flEgr', fmtQM(totalEgr));
   setText('flSaldoFin', fmtQM(saldoFin));
   setText('flNeto', `Neto del período: ${neto >= 0 ? '+' : ''}${fmtQM(neto)}`);
-  setText('flujoSub', `${state.sociedad} · período ${target}`);
+  setText('flujoSub', `${socSel} · período ${target}`);
 
   setHTML('flujosTbody', [
     ...filas.map(f => `<tr>
@@ -570,20 +832,26 @@ function drawTendencia(data) {
   }
   // x axis labels
   const xLabels = data.map((d,i) => {
-    const dt = new Date(d.mes);
-    const lbl = MESES[dt.getMonth()+1].slice(0,3) + " " + String(dt.getFullYear()).slice(2);
+    // DATE_TRUNC returns e.g. "2026-03-01T00:00:00" = March sales
+    // Parse as UTC to avoid timezone shift
+    const mesStr = String(d.mes).substring(0, 7); // "2026-03"
+    const [y, m] = mesStr.split('-');
+    const lbl = MESES[parseInt(m)].slice(0,3) + " " + y.slice(2);
     return `<text x="${x(i)}" y="${H-pad.b+24}" text-anchor="middle" font-size="13" fill="var(--muted)" font-weight="600" style="font-family:Montserrat">${lbl}</text>`;
   }).join('');
 
   svg.innerHTML = grid + xLabels +
     linePath('ventas_brutas', 'var(--azul)') +
     linePath('ventas_netas',  'var(--green)') +
-    data.map((d,i) => `<rect x="${x(i)-10}" y="${y(Number(d.desistimientos||0)*max/Math.max(...data.map(x=>x.desistimientos||1)))}" width="20" height="${0}" fill="var(--red)"/>`).join('') +
-    // bars for desistimientos
     data.map((d,i) => {
       const yy = y(Number(d.desistimientos||0));
-      return `<rect x="${x(i)-12}" y="${yy}" width="24" height="${H-pad.b-yy}" fill="var(--red)" opacity="0.7" rx="2"/>`;
-    }).join('');
+      return `<rect x="${x(i)-12}" y="${yy}" width="24" height="${H-pad.b-yy}" fill="var(--red)" opacity="0.6" rx="2"/>`;
+    }).join('') +
+    // Quantity labels on each point
+    data.map((d,i) => `
+      <text x="${x(i)}" y="${y(Number(d.ventas_brutas||0))-10}" text-anchor="middle" font-size="13" font-weight="700" fill="var(--azul)" style="font-family:Montserrat">${d.ventas_brutas||0}</text>
+      <text x="${x(i)}" y="${y(Number(d.ventas_netas||0))-10}" text-anchor="middle" font-size="12" font-weight="600" fill="var(--green)" style="font-family:Montserrat">${d.ventas_netas||0}</text>
+    `).join('');
 }
 
 function drawAging(data) {
@@ -817,6 +1085,7 @@ async function loadAll() {
     await renderVentasSlides();
     await renderCarteraSlides();
     renderDemoFlujos();
+    // detalle flujos - skip in demo mode (no data)
     await renderPCVSlides();
     renderResumenEjecutivo();
     updateAllPeriodLabels();
@@ -825,7 +1094,7 @@ async function loadAll() {
 
   // Live data
   try {
-    await Promise.all([loadInventario(), loadVentas(), loadCartera(), loadFlujos(), loadPCV()]);
+    await Promise.all([loadInventario(), loadVentas(), loadCartera(), loadFlujos(), loadDetalleFlujos(), loadPCV()]);
     renderResumenEjecutivo();
     updateAllPeriodLabels();
     setStatus('ok', `Datos en vivo · ${periodoFormal()}`);
@@ -943,7 +1212,7 @@ async function renderVentasSlides() {
       </div>`);
 
     setText('finTasa', fmtPct(fin.tasa_anual_implicita));
-    setText('finCobrados', fmtQ(fin.intereses_cobrados));
+    setText('finCobrados', fmtQ(fin.intereses_cobrados));  // label updated in HTML to 'Intereses x Cobrar'
     setText('finCobLotes', `${fmtNum(fin.lotes_con_int)} contratos con interés`);
     setText('finNoCobrados', fmtQ(fin.intereses_no_cobrados));
     setText('finNoCobLotes', `${fmtNum(fin.lotes_sin_int)} contratos sin interés`);
@@ -1077,6 +1346,7 @@ function init() {
   document.getElementById('periodMes').addEventListener('change', e => { state.mes  = Number(e.target.value); loadAll(); });
   document.getElementById('periodAnio').addEventListener('change', e => { state.anio = Number(e.target.value); loadAll(); });
   document.getElementById('flujoSociedad').addEventListener('change', e => { state.sociedad = e.target.value; if (getToken()) loadFlujos(); });
+  document.getElementById('detalleFlujoSociedad')?.addEventListener('change', () => { if (getToken()) loadDetalleFlujos(); });
 
   // SSO from URL (?token=xxx&usuario=base64)
   const params = new URLSearchParams(window.location.search);

@@ -35,22 +35,28 @@ PROYECTOS_SBO_COMPLETO = {
     "SBO_FRUGALEX":          "SBO_FRUGALEX",            # ID 4  - Oasis Zacapa
     "SBO_GARBATELLA":        "SBO_GARBATELLA",          # ID 9  - Club Residencial Progreso
     "SBO_OVEST":             "SBO_OVEST",               # ID 11 - Hacienda Santa Lucia
+    "SBO_OTTAVIA":           "SBO_OTTAVIA",             # ID 5  - Cañadas de Jalapa
+    "SBO_TEZZOLI":           "SBO_TEZZOLI",             # ID 7  - Club Campestre Jumay
+    "SBO_URBIVA_2":          "SBO_URBIVA_2",            # ID 8  - Club del Bosque
+    "SBO_CAPIPOS":           "SBO_CAPIPOS",             # ID 10 - Arboleda Santa Elena
+    "SBO_ROSSIO":            "SBO_ROSSIO",              # ID 3  - Hacienda el Sol
 }
+
+# Vendedores especiales que indican BLOQUEADO o CANJE en SAP
+VENDEDORES_BLOQUEADO = {
+    "Bloqueo Municipal", "Apartado Proyecto Aptos", "Bloqueado",
+    "Grupo Consersa, S. A.", "Grupo Consersa, S.A.", "Grupo Consersa S.A.",
+}
+VENDEDORES_CANJE = {"Canje A", "canje a", "CANJE A"}
 
 # IDs con hoja SBO existente en el archivo (solo marcan vendidos, base en CONSBA)
 # LEOFRENI (13), TALOCCI (15) y VILET (16) NO tienen hoja aún — en migración SAP
 PROYECTOS_SBO_PARCIAL = {
-    "SBO_ROSSIO":     "SBO_ROSSIO",     # ID 3  - Hacienda el Sol
-    "SBO_OTTAVIA":    "SBO_OTTAVIA",     # ID 5  - Cañadas de Jalapa
-    "SBO_UTILICA":    "SBO_UTILICA",     # ID 6  - Condado Jutiapa
-    "SBO_TEZZOLI":    "SBO_TEZZOLI",     # ID 7  - Club Campestre Jumay
-    "SBO_URBIVA_2":   "SBO_URBIVA_2",    # ID 8  - Club del Bosque
-    "SBO_CAPIPOS":    "SBO_CAPIPOS",     # ID 10 - Arboleda Santa Elena
-    "SBO_CORCOLLE":   "SBO_CORCOLLE",    # ID 12 - Hacienda El Cafetal Fase I
-    "SBO_GIBRALEON":  "SBO_GIBRALEON",   # ID 14 - Hacienda El Cafetal Fase III
-    # ID 13 SBO_LEOFRENI  — sin hoja en el archivo, en migración SAP
-    # ID 15 SBO_TALOCCI   — sin hoja en el archivo, en migración SAP
-    # ID 16 SBO_VILET     — sin hoja en el archivo, en migración SAP
+    "SBO_UTILICA":    "SBO_UTILICA",     # ID 6  - Condado Jutiapa (CONSBA base)
+    "SBO_CORCOLLE":   "SBO_CORCOLLE",    # ID 12 - Hacienda El Cafetal Fase I (CONSBA base)
+    "SBO_GIBRALEON":  "SBO_GIBRALEON",   # ID 14 - Hacienda El Cafetal Fase III (CONSBA base)
+    # Leofreni (ID 13), Talocci (ID 15): solo CONSBA (todos bloqueados, sin hoja SBO)
+    # Vilet (ID 16): solo CONSBA (sin hoja SBO)
 }
 
 
@@ -212,6 +218,15 @@ def build_from_sbo(row, empresa_sap: str) -> dict:
 
     estatus_raw = clean_str(row.get("Status de venta")) or "DISPONIBLE"
     estatus = normalizar_estatus(estatus_raw)
+
+    # Override estatus based on CardName (Vendedor) for special SAP records
+    card_name = clean_str(row.get("CardName")) or ""
+    if card_name in VENDEDORES_BLOQUEADO:
+        estatus = "BLOQUEADO"
+        estatus_raw = "BLOQUEADO"
+    elif card_name in VENDEDORES_CANJE:
+        estatus = "CANJE"
+        estatus_raw = "CANJE A"
 
     precio_sd = clean_decimal(row.get("Precio Sin Descuento"), 0)
     precio_cd = clean_decimal(row.get("Precio con Descuento"), 0)

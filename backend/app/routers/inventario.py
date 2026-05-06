@@ -24,38 +24,110 @@ def get_proyectos_permitidos(current_user, db: Session) -> list[int]:
 
 @router.get("/resumen")
 async def get_resumen(
+    año: Optional[int] = Query(None),
+    mes: Optional[int] = Query(None),
     db: Session = Depends(get_db),
     current_user=Depends(get_current_user)
 ):
-    """KPIs consolidados de inventario para el dashboard principal."""
+    """
+    KPIs consolidados de inventario.
+    Con año/mes: lotes con fecha_venta > cutoff_date se tratan como DISPONIBLES.
+    Sin período: estado actual.
+    """
     proyectos_ids = get_proyectos_permitidos(current_user, db)
     if not proyectos_ids:
         return {"proyectos": [], "totales": {}}
 
     ids_str = ",".join(str(i) for i in proyectos_ids)
 
-    resumen = db.execute(text(f"""
-        SELECT * FROM v_resumen_inventario
-        WHERE proyecto_id IN ({ids_str})
-        ORDER BY nombre_proyecto
-    """)).fetchall()
+    # Per-project breakdown with period awareness
+    if año and mes:
+        resumen = db.execute(text(f"""
+            SELECT
+                p.id AS proyecto_id,
+                p.nombre_proyecto,
+                p.nombre_sociedad,
+                p.empresa_sap,
+                COUNT(l.id) AS total_lotes,
+                COUNT(l.id) FILTER (WHERE
+                    CASE WHEN l.fecha_venta IS NOT NULL AND l.fecha_venta > :cutoff::date
+                    THEN 'DISPONIBLE' ELSE l.estatus END = 'DISPONIBLE') AS disponibles,
+                COUNT(l.id) FILTER (WHERE
+                    CASE WHEN l.fecha_venta IS NOT NULL AND l.fecha_venta > :cutoff::date
+                    THEN 'DISPONIBLE' ELSE l.estatus END IN ('VENTA','RESERVADO')) AS vendidos_reservados,
+                COUNT(l.id) FILTER (WHERE
+                    CASE WHEN l.fecha_venta IS NOT NULL AND l.fecha_venta > :cutoff::date
+                    THEN 'DISPONIBLE' ELSE l.estatus END = 'BLOQUEADO') AS bloqueados,
+                COUNT(l.id) FILTER (WHERE
+                    CASE WHEN l.fecha_venta IS NOT NULL AND l.fecha_venta > :cutoff::date
+                    THEN 'DISPONIBLE' ELSE l.estatus END = 'CANJE') AS canjes,
+                COALESCE(SUM(l.precio_final) FILTER (WHERE
+                    CASE WHEN l.fecha_venta IS NOT NULL AND l.fecha_venta > :cutoff::date
+                    THEN 'DISPONIBLE' ELSE l.estatus END = 'DISPONIBLE'), 0) AS valor_disponible,
+                COALESCE(SUM(l.precio_final) FILTER (WHERE
+                    CASE WHEN l.fecha_venta IS NOT NULL AND l.fecha_venta > :cutoff::date
+                    THEN 'DISPONIBLE' ELSE l.estatus END IN ('VENTA','RESERVADO')), 0) AS valor_vendido,
+                COALESCE(SUM(l.precio_final) FILTER (WHERE
+                    CASE WHEN l.fecha_venta IS NOT NULL AND l.fecha_venta > :cutoff::date
+                    THEN 'DISPONIBLE' ELSE l.estatus END = 'BLOQUEADO'), 0) AS valor_bloqueado,
+                COALESCE(SUM(l.precio_final) FILTER (WHERE
+                    CASE WHEN l.fecha_venta IS NOT NULL AND l.fecha_venta > :cutoff::date
+                    THEN 'DISPONIBLE' ELSE l.estatus END = 'CANJE'), 0) AS valor_canjes,
+                COALESCE(SUM(l.precio_final), 0) AS valor_total,
+                ROUND(COUNT(l.id) FILTER (WHERE
+                    CASE WHEN l.fecha_venta IS NOT NULL AND l.fecha_venta > :cutoff::date
+                    THEN 'DISPONIBLE' ELSE l.estatus END IN ('VENTA','RESERVADO'))::NUMERIC
+                    / NULLIF(COUNT(l.id) FILTER (WHERE
+                    CASE WHEN l.fecha_venta IS NOT NULL AND l.fecha_venta > :cutoff::date
+                    THEN 'DISPONIBLE' ELSE l.estatus END NOT IN ('BLOQUEADO','CANJE')), 0) * 100, 2) AS porcentaje_absorcion
+            FROM lotes l
+            JOIN proyectos p ON p.id = l.proyecto_id
+            WHERE l.proyecto_id IN ({ids_str})
+            GROUP BY p.id, p.nombre_proyecto, p.nombre_sociedad, p.empresa_sap
+            ORDER BY p.nombre_proyecto
+        """), {"cutoff": cutoff}).fetchall()
+    else:
+        resumen = db.execute(text(f"""
+            SELECT * FROM v_resumen_inventario
+            WHERE proyecto_id IN ({ids_str})
+            ORDER BY nombre_proyecto
+        """)).fetchall()
 
     # Totales consolidados
+    # Period-aware: treat lotes with fecha_venta > cutoff as DISPONIBLE
+    import calendar
+    if año and mes:
+        last_day = calendar.monthrange(año, mes)[1]
+        cutoff = f"{año}-{mes:02d}-{last_day}"
+        period_params = {"cutoff": cutoff}
+        # Effective estatus: if fecha_venta > cutoff → DISPONIBLE, else real estatus
+        estatus_expr = """
+            CASE
+                WHEN l.fecha_venta IS NOT NULL AND l.fecha_venta > :cutoff::date
+                THEN 'DISPONIBLE'
+                ELSE l.estatus
+            END"""
+    else:
+        period_params = {}
+        estatus_expr = "l.estatus"
+
     totales = db.execute(text(f"""
         SELECT
-            COUNT(l.id)                                                    AS total_lotes,
-            COUNT(l.id) FILTER (WHERE l.estatus='DISPONIBLE')             AS disponibles,
-            COUNT(l.id) FILTER (WHERE l.estatus IN ('VENTA','RESERVADO')) AS vendidos,
-            COUNT(l.id) FILTER (WHERE l.estatus='BLOQUEADO')              AS bloqueados,
-            COUNT(l.id) FILTER (WHERE l.estatus='CANJE')                  AS canjes,
-            COALESCE(SUM(l.precio_final) FILTER (WHERE l.estatus='DISPONIBLE'), 0)             AS valor_disponible,
-            COALESCE(SUM(l.precio_final) FILTER (WHERE l.estatus IN ('VENTA','RESERVADO')), 0) AS valor_vendido,
-            COALESCE(SUM(l.precio_final), 0)                              AS valor_total,
-            ROUND(COUNT(l.id) FILTER (WHERE l.estatus IN ('VENTA','RESERVADO'))::NUMERIC
-                  / NULLIF(COUNT(l.id),0)*100, 2)                         AS pct_absorcion
+            COUNT(l.id)                                                                        AS total_lotes,
+            COUNT(l.id) FILTER (WHERE ({estatus_expr})='DISPONIBLE')                          AS disponibles,
+            COUNT(l.id) FILTER (WHERE ({estatus_expr}) IN ('VENTA','RESERVADO'))              AS vendidos,
+            COUNT(l.id) FILTER (WHERE ({estatus_expr})='BLOQUEADO')                           AS bloqueados,
+            COUNT(l.id) FILTER (WHERE ({estatus_expr})='CANJE')                               AS canjes,
+            COALESCE(SUM(l.precio_final) FILTER (WHERE ({estatus_expr})='DISPONIBLE'), 0)             AS valor_disponible,
+            COALESCE(SUM(l.precio_final) FILTER (WHERE ({estatus_expr}) IN ('VENTA','RESERVADO')), 0) AS valor_vendido,
+            COALESCE(SUM(l.precio_final) FILTER (WHERE ({estatus_expr})='BLOQUEADO'), 0)              AS valor_bloqueado,
+            COALESCE(SUM(l.precio_final) FILTER (WHERE ({estatus_expr})='CANJE'), 0)                  AS valor_canjes,
+            COALESCE(SUM(l.precio_final), 0)                                                  AS valor_total,
+            ROUND(COUNT(l.id) FILTER (WHERE ({estatus_expr}) IN ('VENTA','RESERVADO'))::NUMERIC
+                  / NULLIF(COUNT(l.id) FILTER (WHERE ({estatus_expr}) NOT IN ('BLOQUEADO','CANJE')),0)*100, 2) AS pct_absorcion
         FROM lotes l
         WHERE l.proyecto_id IN ({ids_str})
-    """)).fetchone()
+    """), period_params).fetchone()
 
     # Última sincronización
     last_sync = db.execute(text("""

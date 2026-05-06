@@ -250,21 +250,47 @@ html,body{height:100%;background:var(--bg);font-family:'Montserrat',sans-serif;c
 
 /* === Speaker notes hidden helper === */
 [hidden]{display:none!important}
+
+/* Download dropdown */
+.download-wrap{position:relative}
+.download-menu{display:none;position:absolute;top:calc(100% + 8px);right:0;background:var(--bg-card);border:1px solid var(--border);border-radius:10px;min-width:240px;box-shadow:0 8px 32px rgba(0,0,0,.18);z-index:200;overflow:hidden}
+.download-menu.open{display:block}
+.dl-item{padding:14px 18px;cursor:pointer;transition:background .15s;font-size:13px;font-weight:600;color:var(--text);display:flex;flex-direction:column;gap:2px;border-bottom:1px solid var(--border-soft)}
+.dl-item:last-child{border-bottom:none}
+.dl-item:hover{background:var(--bg)}
+.dl-item svg{margin-bottom:4px}
+.dl-toast{position:fixed;bottom:70px;right:18px;background:var(--azul);color:#fff;padding:12px 20px;border-radius:8px;font-size:12px;font-weight:600;z-index:300;display:none;animation:slideUp .2s ease}
+.dl-toast.show{display:flex;align-items:center;gap:10px}
+.dl-toast.err{background:#b91c1c}
 </style>
 </head>
 <body>
 
 <!-- Toolbar -->
-<div class="tb-counter"><span id="tbCount">1 / 25</span></div>
+<div class="tb-counter"><span id="tbCount">1 / 26</span></div>
 <div class="toolbar">
   <button class="tb-pill" id="themeBtn" title="Alternar claro/oscuro">
     <svg id="themeIcon" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
     <span id="themeLbl">Oscuro</span>
   </button>
-  <button class="tb-pill" onclick="window.print()" title="Imprimir / PDF">
-    <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
-    Imprimir
-  </button>
+  <div class="download-wrap" id="downloadWrap">
+    <button class="tb-pill" id="downloadBtn" onclick="toggleDownloadMenu(event)">
+      <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+      Descargar <span style="font-size:10px;opacity:.6">▼</span>
+    </button>
+    <div class="download-menu" id="downloadMenu">
+      <div class="dl-item" onclick="descargarPresentacion('pptx')">
+        <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" style="width:16px;height:16px"><rect x="2" y="4" width="20" height="14" rx="2"/><line x1="8" y1="20" x2="16" y2="20"/><line x1="12" y1="18" x2="12" y2="20"/></svg>
+        PowerPoint (.pptx)
+        <div style="font-size:11px;color:var(--muted);margin-top:2px">Editable, con todos los slides</div>
+      </div>
+      <div class="dl-item" onclick="descargarPresentacion('pdf')">
+        <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" style="width:16px;height:16px"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+        PDF (.pdf)
+        <div style="font-size:11px;color:var(--muted);margin-top:2px">Todos los slides, con colores</div>
+      </div>
+    </div>
+  </div>
 </div>
 
 <div class="period-selector">
@@ -333,7 +359,7 @@ html,body{height:100%;background:var(--bg);font-family:'Montserrat',sans-serif;c
             <h2 class="slide-title">Agenda</h2>
             <p class="slide-subtitle">Seis bloques · panorama operativo, financiero y áreas de atención</p>
           </div>
-          <div class="slide-header-right"><span class="slide-num">02 / 25</span></div>
+          <div class="slide-header-right"><span class="slide-num">02 / 26</span></div>
         </div>
         <div class="agenda-grid">
           <div class="agenda-item"><div class="agenda-num">01</div><div class="agenda-text"><div class="a-title">Resumen ejecutivo</div><div class="a-desc">Indicadores consolidados, el período en una página</div></div></div>
@@ -356,7 +382,7 @@ html,body{height:100%;background:var(--bg);font-family:'Montserrat',sans-serif;c
             <h2 class="slide-title">El período en una página</h2>
             <p class="slide-subtitle" id="resumenSub">Consolidado de las 13 sociedades</p>
           </div>
-          <div class="slide-header-right"><span class="slide-num">03 / 25</span></div>
+          <div class="slide-header-right"><span class="slide-num">03 / 26</span></div>
         </div>
         <div class="kpi-grid cols-4" style="margin-bottom:28px">
           <div class="kpi-card blue"><div class="kpi-label">Ventas brutas</div><div class="kpi-value blue" id="rsmVentasBrutas">—</div><div class="kpi-sub" id="rsmVentasValor">—</div></div>
@@ -396,7 +422,7 @@ html,body{height:100%;background:var(--bg);font-family:'Montserrat',sans-serif;c
             <h2 class="slide-title">Inventario consolidado</h2>
             <p class="slide-subtitle">Distribución de lotes y valor por estado</p>
           </div>
-          <div class="slide-header-right"><span class="slide-num">05 / 25</span></div>
+          <div class="slide-header-right"><span class="slide-num">05 / 26</span></div>
         </div>
         <div class="kpi-grid cols-5" style="margin-bottom:32px">
           <div class="kpi-card"><div class="kpi-label">Total lotes</div><div class="kpi-value" id="invTotal">—</div><div class="kpi-sub" id="invProyectos">—</div></div>
@@ -436,7 +462,7 @@ html,body{height:100%;background:var(--bg);font-family:'Montserrat',sans-serif;c
             <h2 class="slide-title">Absorción por proyecto</h2>
             <p class="slide-subtitle">Porcentaje de lotes vendidos · ordenado de mayor a menor</p>
           </div>
-          <div class="slide-header-right"><span class="slide-num">06 / 25</span></div>
+          <div class="slide-header-right"><span class="slide-num">06 / 26</span></div>
         </div>
         <div id="absorcionRows"></div>
       </div>
@@ -452,10 +478,10 @@ html,body{height:100%;background:var(--bg);font-family:'Montserrat',sans-serif;c
             <h2 class="slide-title">Valor disponible por proyecto</h2>
             <p class="slide-subtitle">Capital pendiente de venta — los proyectos con mayor potencial</p>
           </div>
-          <div class="slide-header-right"><span class="slide-num">07 / 25</span></div>
+          <div class="slide-header-right"><span class="slide-num">07 / 26</span></div>
         </div>
         <table class="exec-table" id="valorTable">
-          <thead><tr><th>#</th><th>Proyecto</th><th>Sociedad</th><th class="right">Disponibles</th><th class="right">Valor disponible (Q)</th><th class="right">Absorción</th></tr></thead>
+          <thead><tr><th>#</th><th>Proyecto</th><th>Sociedad</th><th class="right">Disponibles</th><th class="right">Valor disponible (Q)</th><th class="right">Ticket promedio (Q)</th><th class="right">Absorción</th></tr></thead>
           <tbody id="valorTbody"></tbody>
         </table>
       </div>
@@ -484,7 +510,7 @@ html,body{height:100%;background:var(--bg);font-family:'Montserrat',sans-serif;c
             <h2 class="slide-title">Resumen de ventas</h2>
             <p class="slide-subtitle" id="ventasSub">Indicadores del período · brutas, netas y composición financiera</p>
           </div>
-          <div class="slide-header-right"><span class="slide-num">09 / 25</span></div>
+          <div class="slide-header-right"><span class="slide-num">09 / 26</span></div>
         </div>
         <div class="kpi-grid cols-4" style="margin-bottom:24px">
           <div class="kpi-card blue"><div class="kpi-label">Ventas brutas</div><div class="kpi-value blue" id="vtBrutas">—</div><div class="kpi-sub" id="vtValorBruto">—</div></div>
@@ -499,8 +525,8 @@ html,body{height:100%;background:var(--bg);font-family:'Montserrat',sans-serif;c
             <div id="vtMezcla" style="margin-top:20px"></div>
           </div>
           <div class="chart-wrap">
-            <div class="chart-title">Composición financiera</div>
-            <div class="chart-sub">Capital, intereses cobrados e intereses no cobrados</div>
+            <div class="chart-title">Composición financiera (ventas del mes)</div>
+            <div class="chart-sub">Capital contado, intereses x cobrar e intereses sin cobrar</div>
             <div id="vtFinanciero" style="margin-top:20px"></div>
           </div>
         </div>
@@ -517,7 +543,7 @@ html,body{height:100%;background:var(--bg);font-family:'Montserrat',sans-serif;c
             <h2 class="slide-title">Tendencia mensual</h2>
             <p class="slide-subtitle">Últimos 12 meses · ventas brutas vs netas (después de desistimientos)</p>
           </div>
-          <div class="slide-header-right"><span class="slide-num">10 / 25</span></div>
+          <div class="slide-header-right"><span class="slide-num">10 / 26</span></div>
         </div>
         <div class="chart-wrap" style="padding:32px">
           <svg id="tendenciaChart" viewBox="0 0 1600 480" style="width:100%;height:auto;display:block"></svg>
@@ -540,11 +566,11 @@ html,body{height:100%;background:var(--bg);font-family:'Montserrat',sans-serif;c
             <h2 class="slide-title">Análisis financiero</h2>
             <p class="slide-subtitle">Tasas implícitas, intereses cobrados y oportunidad no capturada</p>
           </div>
-          <div class="slide-header-right"><span class="slide-num">11 / 25</span></div>
+          <div class="slide-header-right"><span class="slide-num">11 / 26</span></div>
         </div>
         <div class="kpi-grid cols-3" style="margin-bottom:32px">
           <div class="kpi-card dorado"><div class="kpi-label">Tasa anual implícita</div><div class="kpi-value dorado" id="finTasa">—</div><div class="kpi-sub">en contratos con interés</div></div>
-          <div class="kpi-card green"><div class="kpi-label">Intereses cobrados</div><div class="kpi-value green" id="finCobrados">—</div><div class="kpi-sub" id="finCobLotes">—</div></div>
+          <div class="kpi-card green"><div class="kpi-label">Intereses x Cobrar</div><div class="kpi-value green" id="finCobrados">—</div><div class="kpi-sub" id="finCobLotes">—</div></div>
           <div class="kpi-card red"><div class="kpi-label">Intereses no cobrados</div><div class="kpi-value red" id="finNoCobrados">—</div><div class="kpi-sub" id="finNoCobLotes">—</div></div>
         </div>
         <div class="callout blue"><div class="label">Oportunidad financiera</div><div class="text" id="finLectura">—</div></div>
@@ -565,11 +591,12 @@ html,body{height:100%;background:var(--bg);font-family:'Montserrat',sans-serif;c
             <h2 class="slide-title">Desempeño por vendedor</h2>
             <p class="slide-subtitle">Top 10 del período · ventas brutas, netas y ticket promedio</p>
           </div>
-          <div class="slide-header-right"><span class="slide-num">12 / 25</span></div>
+          <div class="slide-header-right"><span class="slide-num">12 / 26</span></div>
         </div>
         <table class="exec-table">
           <thead><tr><th>#</th><th>Vendedor</th><th>Equipo</th><th>Proyecto principal</th><th class="right">Brutas</th><th class="right">Desist.</th><th class="right">Netas</th><th class="right">Ticket prom. (Q)</th></tr></thead>
           <tbody id="vendedoresTbody"></tbody>
+          <tfoot id="vendedoresTfoot" style="background:var(--bg)"></tfoot>
         </table>
       </div>
       <div class="slide-footer"><span>Ventas · Por vendedor</span><span class="meta-period" data-period></span></div>
@@ -584,7 +611,7 @@ html,body{height:100%;background:var(--bg);font-family:'Montserrat',sans-serif;c
             <h2 class="slide-title">Metas vs avance</h2>
             <p class="slide-subtitle">Cumplimiento de metas anuales · CONSERSA + RV4</p>
           </div>
-          <div class="slide-header-right"><span class="slide-num">13 / 25</span></div>
+          <div class="slide-header-right"><span class="slide-num">13 / 26</span></div>
         </div>
         <div id="metasRows"></div>
       </div>
@@ -613,13 +640,13 @@ html,body{height:100%;background:var(--bg);font-family:'Montserrat',sans-serif;c
             <h2 class="slide-title">Resumen de cartera</h2>
             <p class="slide-subtitle">Capital pendiente de cobro · estado actual del portafolio</p>
           </div>
-          <div class="slide-header-right"><span class="slide-num">15 / 25</span></div>
+          <div class="slide-header-right"><span class="slide-num">15 / 26</span></div>
         </div>
         <div class="kpi-grid cols-4" style="margin-bottom:24px">
           <div class="kpi-card"><div class="kpi-label">Cartera total</div><div class="kpi-value" id="carTotal">—</div><div class="kpi-sub" id="carClientes">—</div></div>
-          <div class="kpi-card amber"><div class="kpi-label">Mora total</div><div class="kpi-value amber" id="carMora">—</div><div class="kpi-sub" id="carMoraTasa">—</div></div>
           <div class="kpi-card blue"><div class="kpi-label">Capital</div><div class="kpi-value blue" id="carCapital">—</div><div class="kpi-sub">saldo de capital pendiente</div></div>
           <div class="kpi-card purple"><div class="kpi-label">Intereses</div><div class="kpi-value purple" id="carIntereses">—</div><div class="kpi-sub">saldo de intereses pendientes</div></div>
+          <div class="kpi-card amber"><div class="kpi-label">Mora total</div><div class="kpi-value amber" id="carMora">—</div><div class="kpi-sub" id="carMoraTasa">—</div></div>
         </div>
         <div class="kpi-grid cols-4">
           <div class="kpi-card green"><div class="kpi-label">Cobro 30 días</div><div class="kpi-value green" id="carCobro30">—</div><div class="kpi-sub">cuotas próximas</div></div>
@@ -627,6 +654,8 @@ html,body{height:100%;background:var(--bg);font-family:'Montserrat',sans-serif;c
           <div class="kpi-card green"><div class="kpi-label">Cobro 90 días</div><div class="kpi-value green" id="carCobro90">—</div><div class="kpi-sub">cuotas próximas</div></div>
           <div class="kpi-card red"><div class="kpi-label">Clientes vencidos</div><div class="kpi-value red" id="carVencidos">—</div><div class="kpi-sub" id="carPctVenc">—</div></div>
         </div>
+        <!-- Aging detail row for mora breakout -->
+        <div id="carMoraAging" style="margin-top:18px;display:grid;grid-template-columns:repeat(4,1fr);gap:12px"></div>
       </div>
       <div class="slide-footer"><span>Cartera · Consolidado</span><span class="meta-period" data-period></span></div>
     </section>
@@ -640,7 +669,7 @@ html,body{height:100%;background:var(--bg);font-family:'Montserrat',sans-serif;c
             <h2 class="slide-title">Antigüedad de saldos vencidos</h2>
             <p class="slide-subtitle">Aging · cuántos días llevan vencidas las cuotas</p>
           </div>
-          <div class="slide-header-right"><span class="slide-num">16 / 25</span></div>
+          <div class="slide-header-right"><span class="slide-num">16 / 26</span></div>
         </div>
         <div class="two-col weighted">
           <div class="chart-wrap">
@@ -669,7 +698,7 @@ html,body{height:100%;background:var(--bg);font-family:'Montserrat',sans-serif;c
             <h2 class="slide-title">Proyección mensual de cobros</h2>
             <p class="slide-subtitle">Próximos 12 meses · capital + intereses programados</p>
           </div>
-          <div class="slide-header-right"><span class="slide-num">17 / 25</span></div>
+          <div class="slide-header-right"><span class="slide-num">17 / 26</span></div>
         </div>
         <div class="chart-wrap" style="padding:32px">
           <svg id="proyChart" viewBox="0 0 1600 480" style="width:100%;height:auto;display:block"></svg>
@@ -691,7 +720,7 @@ html,body{height:100%;background:var(--bg);font-family:'Montserrat',sans-serif;c
             <h2 class="slide-title">Desistimientos</h2>
             <p class="slide-subtitle">Cancelaciones del período · valor desistido y reintegros</p>
           </div>
-          <div class="slide-header-right"><span class="slide-num">18 / 25</span></div>
+          <div class="slide-header-right"><span class="slide-num">18 / 26</span></div>
         </div>
         <div class="kpi-grid cols-3" style="margin-bottom:30px">
           <div class="kpi-card red"><div class="kpi-label">Total desistimientos</div><div class="kpi-value red" id="desTotal">—</div><div class="kpi-sub" id="desTasa">—</div></div>
@@ -712,7 +741,7 @@ html,body{height:100%;background:var(--bg);font-family:'Montserrat',sans-serif;c
             <h2 class="slide-title">Casos que requieren atención</h2>
             <p class="slide-subtitle">Alertas automáticas · sobrepagos, alta concentración, vencidos críticos</p>
           </div>
-          <div class="slide-header-right"><span class="slide-num">19 / 25</span></div>
+          <div class="slide-header-right"><span class="slide-num">19 / 26</span></div>
         </div>
         <div class="kpi-grid cols-3" style="margin-bottom:24px">
           <div class="kpi-card red"><div class="kpi-label">Alertas rojas</div><div class="kpi-value red" id="alRoja">—</div><div class="kpi-sub">acción inmediata</div></div>
@@ -749,24 +778,28 @@ html,body{height:100%;background:var(--bg);font-family:'Montserrat',sans-serif;c
             <h2 class="slide-title">Flujo de efectivo del período</h2>
             <p class="slide-subtitle" id="flujoSub">Movimientos de caja agregados</p>
           </div>
-          <div class="slide-header-right"><span class="slide-num">21 / 25</span></div>
+          <div class="slide-header-right"><span class="slide-num">21 / 26</span></div>
         </div>
         <div style="display:flex;gap:12px;align-items:center;margin-bottom:20px">
           <span class="label-sm">Sociedad:</span>
           <select id="flujoSociedad" class="filter-select" style="padding:8px 12px;border:1px solid var(--border);border-radius:5px;background:var(--bg-section);color:var(--text);font-family:inherit;font-size:13px;font-weight:600;cursor:pointer">
-            <option value="EFICIENCIA URBANA">EFICIENCIA URBANA</option>
-            <option value="ROSSIO">ROSSIO</option>
-            <option value="FRUGALEX">FRUGALEX</option>
-            <option value="OTTAVIA">OTTAVIA</option>
-            <option value="UTILICA">UTILICA</option>
-            <option value="TEZZOLI">TEZZOLI</option>
-            <option value="SERVICIOS GENERALES">SERVICIOS GENERALES</option>
-            <option value="URBIVA 2">URBIVA 2</option>
-            <option value="GARBATELLA">GARBATELLA</option>
-            <option value="CAPIPOS">CAPIPOS</option>
-            <option value="OVEST">OVEST</option>
-            <option value="CORCOLLE">CORCOLLE</option>
-            <option value="GIBRALEON">GIBRALEON</option>
+            <option value="CONSOLIDADO">CONSOLIDADO (Todas)</option>
+            <option value="EFICIENCIA URBANA">Eficiencia Urbana — Hacienda Jumay</option>
+            <option value="SER GEN CCC">Servicios Generales — La Ceiba</option>
+            <option value="ROSSIO">Rossio — Hacienda el Sol</option>
+            <option value="FRUGALEX">Frugalex — Oasis Zacapa</option>
+            <option value="OTTAVIA">Ottavia — Cañadas de Jalapa</option>
+            <option value="UTILICA">Utilica — Condado Jutiapa</option>
+            <option value="TEZZOLI">Tezzoli — Club Campestre Jumay</option>
+            <option value="URBIVA">Urbiva — Club del Bosque</option>
+            <option value="GARBATELLA">Garbatella — Club Residencial El Progreso</option>
+            <option value="CAPIPOS">Capipos — Arboleada Santa Elena</option>
+            <option value="OVEST">Ovest — Hacienda Santa Lucia</option>
+            <option value="CORCOLLE">Corcolle — Hacienda El Cafetal Fase I</option>
+            <option value="LEOFRENI">Leofreni — Hacienda El Cafetal Fase II</option>
+            <option value="GIBRALEON">Gibraleón — Hacienda El Cafetal Fase III</option>
+            <option value="TALOCCI">Talocci — Hacienda El Cafetal Fase IV</option>
+            <option value="VILET">Vilet — Celajes De Tecpan</option>
           </select>
         </div>
         <div class="kpi-grid cols-4" style="margin-bottom:24px">
@@ -783,7 +816,60 @@ html,body{height:100%;background:var(--bg);font-family:'Montserrat',sans-serif;c
       <div class="slide-footer"><span>Flujos · Resumen</span><span class="meta-period" data-period></span></div>
     </section>
 
-    <!-- ═══════════ SLIDE 22 — DIVIDER PCV ═══════════ -->
+    <!-- ═══════════ SLIDE 22 — DETALLE MOVIMIENTOS FLUJOS ═══════════ -->
+    <section class="slide" data-screen-label="22 Detalle Movimientos">
+      <div class="slide-pad">
+        <div class="slide-header">
+          <div class="slide-header-left">
+            <span class="slide-section-tag">05 · Flujos de efectivo</span>
+            <h2 class="slide-title">Detalle de movimientos del mes</h2>
+            <p class="slide-subtitle" id="detalleFlujoSub">Principales movimientos por sección</p>
+          </div>
+          <div class="slide-header-right"><span class="slide-num">22 / 26</span></div>
+        </div>
+        <div style="display:flex;gap:12px;align-items:center;margin-bottom:18px">
+          <span class="label-sm">Sociedad:</span>
+          <select id="detalleFlujoSociedad" style="padding:7px 12px;border:1px solid var(--border);border-radius:5px;background:var(--bg-section);color:var(--text);font-family:inherit;font-size:12px;font-weight:600;cursor:pointer">
+            <option value="CONSOLIDADO">CONSOLIDADO (Todas)</option>
+            <option value="EFICIENCIA URBANA">Eficiencia Urbana</option>
+            <option value="SER GEN CCC">Servicios Generales</option>
+            <option value="ROSSIO">Rossio</option>
+            <option value="FRUGALEX">Frugalex</option>
+            <option value="OTTAVIA">Ottavia</option>
+            <option value="UTILICA">Utilica</option>
+            <option value="TEZZOLI">Tezzoli</option>
+            <option value="URBIVA">Urbiva</option>
+            <option value="GARBATELLA">Garbatella</option>
+            <option value="CAPIPOS">Capipos</option>
+            <option value="OVEST">Ovest</option>
+            <option value="CORCOLLE">Corcolle</option>
+            <option value="LEOFRENI">Leofreni</option>
+            <option value="GIBRALEON">Gibraleón</option>
+            <option value="TALOCCI">Talocci</option>
+            <option value="VILET">Vilet</option>
+          </select>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:18px">
+          <div>
+            <h3 style="font-size:15px;font-weight:700;color:var(--text);margin-bottom:10px">Top movimientos · Egresos</h3>
+            <table class="exec-table" style="font-size:12px" id="detalleEgresosTbl">
+              <thead><tr><th>Sección</th><th>Categoría</th><th class="right">Monto (Q)</th></tr></thead>
+              <tbody id="detalleEgresosTbody"></tbody>
+            </table>
+          </div>
+          <div>
+            <h3 style="font-size:15px;font-weight:700;color:var(--text);margin-bottom:10px">Top movimientos · Ingresos</h3>
+            <table class="exec-table" style="font-size:12px" id="detalleIngresosTbl">
+              <thead><tr><th>Sección</th><th>Categoría</th><th class="right">Monto (Q)</th></tr></thead>
+              <tbody id="detalleIngresosTbody"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+      <div class="slide-footer"><span>Flujos · Detalle</span><span class="meta-period" data-period></span></div>
+    </section>
+
+    <!-- ═══════════ SLIDE 23 — DIVIDER PCV ═══════════ -->
     <section class="slide" data-screen-label="22 Divider PCV">
       <div class="divider">
         <div class="divider-num">06</div>
@@ -805,7 +891,7 @@ html,body{height:100%;background:var(--bg);font-family:'Montserrat',sans-serif;c
             <h2 class="slide-title">Cumplimiento de promesas de compraventa</h2>
             <p class="slide-subtitle">Lotes vendidos sin contrato firmado · brecha jurídica</p>
           </div>
-          <div class="slide-header-right"><span class="slide-num">23 / 25</span></div>
+          <div class="slide-header-right"><span class="slide-num">23 / 26</span></div>
         </div>
         <div class="kpi-grid cols-4" style="margin-bottom:24px">
           <div class="kpi-card"><div class="kpi-label">Total ventas</div><div class="kpi-value" id="pcvTotal">—</div><div class="kpi-sub">histórico</div></div>
@@ -833,7 +919,7 @@ html,body{height:100%;background:var(--bg);font-family:'Montserrat',sans-serif;c
             <h2 class="slide-title">Registros que requieren revisión</h2>
             <p class="slide-subtitle">Inconsistencias detectadas automáticamente entre SAP y nuestros tableros</p>
           </div>
-          <div class="slide-header-right"><span class="slide-num">24 / 25</span></div>
+          <div class="slide-header-right"><span class="slide-num">24 / 26</span></div>
         </div>
         <div class="kpi-grid cols-4" style="margin-bottom:24px">
           <div class="kpi-card red"><div class="kpi-label">Inconsistencias rojas</div><div class="kpi-value red" id="regRojas">—</div><div class="kpi-sub">corregir en SAP</div></div>
@@ -871,6 +957,8 @@ html,body{height:100%;background:var(--bg);font-family:'Montserrat',sans-serif;c
 
   </div>
 </div>
+
+<div class="dl-toast" id="dlToast"></div>
 
 <script src="presentacion.js"></script>
 
