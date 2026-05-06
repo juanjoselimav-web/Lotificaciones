@@ -266,6 +266,14 @@ td { text-align: right; white-space: nowrap; }
       <a class="nav-item" href="/inventario.html">
         <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9,22 9,12 15,12 15,22"/></svg>Inventario
       </a>
+<a class="nav-item" id="btn-junta" target="_blank" href="/presentacion.html"
+   style="background:rgba(212,168,0,0.15);color:#FFCA08;">
+  <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+    <rect x="2" y="4" width="20" height="14" rx="2"/>
+    <line x1="8" y1="20" x2="16" y2="20"/>
+    <line x1="12" y1="18" x2="12" y2="20"/>
+  </svg>Junta Directiva
+      </a>
       <a class="nav-item" href="/cartera.html">
         <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>Cartera
       </a>
@@ -997,6 +1005,14 @@ async function syncManual() {
 
 // ── Init ──────────────────────────────────────────────────────────────────────
 cargarPeriodos().then(cargarResumen);
+</script>
+<script>
+document.getElementById('btn-junta').addEventListener('click', e => {
+  e.preventDefault();
+  const token = localStorage.getItem('token') || '';
+  const usuario = localStorage.getItem('usuario') || '';
+  window.open(`/presentacion.html?token=${encodeURIComponent(token)}&usuario=${btoa(usuario)}`, '_blank');
+});
 </script>
 </body>
 </html>
