@@ -228,24 +228,16 @@ def build_from_sbo(row, empresa_sap: str) -> dict:
     estatus_raw = clean_str(row.get("Status de venta")) or "DISPONIBLE"
     estatus = normalizar_estatus(estatus_raw)
 
-    # Override por CardName (bloqueados) y Plazo (canjes)
+    # Prioridad: Plazo='Canje A' gana sobre todo (incluyendo CardName bloqueado)
     card_name_val = clean_str(row.get("CardName")) or ""
     plazo_val = str(row.get("Plazo", "")).strip()
-    if card_name_val in VENDEDORES_BLOQUEADO:
-        estatus = "BLOQUEADO"
-        estatus_raw = "BLOQUEADO"
-    elif plazo_val in PLAZO_CANJE:
+    if plazo_val in PLAZO_CANJE:
+        # Canje A siempre cuenta como venta tipo CANJE
         estatus = "CANJE"
         estatus_raw = "CANJE A"
-
-    # Override estatus based on CardName (Vendedor) for special SAP records
-    card_name = clean_str(row.get("CardName")) or ""
-    if card_name in VENDEDORES_BLOQUEADO:
+    elif card_name_val in VENDEDORES_BLOQUEADO:
         estatus = "BLOQUEADO"
         estatus_raw = "BLOQUEADO"
-    elif card_name in VENDEDORES_CANJE:
-        estatus = "CANJE"
-        estatus_raw = "CANJE A"
 
     precio_sd = clean_decimal(row.get("Precio Sin Descuento"), 0)
     precio_cd = clean_decimal(row.get("Precio con Descuento"), 0)
@@ -441,9 +433,9 @@ def sync_inventario():
                     # No está en SBO → disponible, usar CONSBA
                     estatus_raw = clean_str(row.get("Estatus")) or "DISPONIBLE"
                     estatus = normalizar_estatus(estatus_raw)
-                    # Durante migración: si CONSBA dice vendido pero no está en SBO → disponible
-                    if estatus == "VENTA":
-                        estatus = "DISPONIBLE"
+                    # Mantener estatus VENTA de CONSBA (son ventas reales históricas)
+                    # Solo marcar DISPONIBLE si el estatus es ambiguo/vacío
+                    pass
 
                     precio = get_precio_consba(row)
 

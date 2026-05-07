@@ -26,21 +26,19 @@ async def get_kpis(
     current_user=Depends(get_current_user)
 ):
     """
-    KPIs de cartera. Lógica confirmada con RV Cuatro:
-    - Cartera total = TODAS las líneas open BB+S con saldo>0 (sin filtro DocDate)
-    - Aging por MES CALENDARIO: 0-30=mes actual, 31-60=mes anterior, 61-90=mes-2, etc.
-    - Mora (31+ días) = saldo vencido en meses ANTERIORES al mes filtrado
-    - Cobro 30d = cuotas del mes siguiente, 60d = mes+2, 90d = mes+3
+    KPIs de cartera. Lógica RV Cuatro:
+    - Cartera = todas las líneas open BB+S con saldo>0 (sin filtro DocDate)
+    - Aging por MES CALENDARIO: 0-30=mes actual, 31-60=mes anterior, 61-90=mes-2
+    - Mora 31+ = vencidas en meses ANTERIORES al mes filtrado
+    - Cobro 30d/60d/90d = cuotas del mes siguiente/+2/+3 (individualmente)
     """
     import calendar
-    from datetime import date, timedelta
+    from datetime import date
 
     ef = "AND empresa = :empresa" if empresa else ""
     params = {}
-    if empresa:
-        params["empresa"] = empresa
+    if empresa: params["empresa"] = empresa
 
-    # Determinar mes/año de referencia
     if año and mes:
         ref_year, ref_month = año, mes
     else:
@@ -48,126 +46,83 @@ async def get_kpis(
         ref_year, ref_month = today.year, today.month
 
     last_day = calendar.monthrange(ref_year, ref_month)[1]
-    ref_date = f"{ref_year}-{ref_month:02d}-{last_day}"   # último día del mes
 
-    # Mes anterior (para mora = vencidas antes del mes actual)
-    if ref_month == 1:
-        prev_year, prev_month = ref_year - 1, 12
-    else:
-        prev_year, prev_month = ref_year, ref_month - 1
-    prev_last = calendar.monthrange(prev_year, prev_month)[1]
-    mora_cutoff = f"{prev_year}-{prev_month:02d}-{prev_last}"  # último día del mes anterior
-
-    # Mes de inicio del mes actual (para aging 0-30)
-    current_month_start = f"{ref_year}-{ref_month:02d}-01"
-
-    # Meses futuros para cobros
-    def next_month(y, m, n):
-        m2 = m + n
-        y2 = y + (m2 - 1) // 12
-        m2 = (m2 - 1) % 12 + 1
-        last = calendar.monthrange(y2, m2)[1]
-        return f"{y2}-{m2:02d}-01", f"{y2}-{m2:02d}-{last}"
-
-    cobro30_start, cobro30_end = next_month(ref_year, ref_month, 1)
-    cobro60_start, cobro60_end = next_month(ref_year, ref_month, 2)
-    cobro90_start, cobro90_end = next_month(ref_year, ref_month, 3)
-
-    # Aging: meses hacia atrás
-    def month_range(y, m, n_back):
-        """Retorna (start, end) del mes N meses atrás desde (y,m)."""
-        m2 = m - n_back
+    def prev_month(y, m, n=1):
+        m2 = m - n
         y2 = y
-        while m2 <= 0:
-            m2 += 12
-            y2 -= 1
+        while m2 <= 0: m2 += 12; y2 -= 1
         last = calendar.monthrange(y2, m2)[1]
         return f"{y2}-{m2:02d}-01", f"{y2}-{m2:02d}-{last}"
 
-    # 0-30d = mes actual
-    aging00_start = current_month_start
-    aging00_end   = ref_date
-    # 31-60d = mes anterior
-    aging31_start, aging31_end = month_range(ref_year, ref_month, 1)
-    # 61-90d = mes-2
-    aging61_start, aging61_end = month_range(ref_year, ref_month, 2)
-    # 91-180d = meses -3 a -6
-    aging91_start, _ = month_range(ref_year, ref_month, 6)
-    _, aging91_end   = month_range(ref_year, ref_month, 3)
-    # +180d = antes de mes-6
-    aging180_end = aging91_start  # exclusive
+    def next_month(y, m, n=1):
+        m2 = m + n
+        y2 = y + (m2-1)//12
+        m2 = (m2-1)%12+1
+        last = calendar.monthrange(y2, m2)[1]
+        return f"{y2}-{m2:02d}-01", f"{y2}-{m2:02d}-{last}"
+
+    # Aging buckets (calendar months)
+    cur_start = f"{ref_year}-{ref_month:02d}-01"
+    cur_end   = f"{ref_year}-{ref_month:02d}-{last_day}"
+    p1s, p1e  = prev_month(ref_year, ref_month, 1)
+    p2s, p2e  = prev_month(ref_year, ref_month, 2)
+    p3s, p3e  = prev_month(ref_year, ref_month, 3)
+    p6s, _    = prev_month(ref_year, ref_month, 6)
+    _, p3e_   = prev_month(ref_year, ref_month, 3)
+
+    # Cobros (next months)
+    n1s, n1e = next_month(ref_year, ref_month, 1)
+    n2s, n2e = next_month(ref_year, ref_month, 2)
+    n3s, n3e = next_month(ref_year, ref_month, 3)
+
+    # Mora cutoff = last day of previous month
+    mora_cutoff = p1e  # "2026-03-31" for April
 
     params.update({
-        "aging00_start": aging00_start, "aging00_end": aging00_end,
-        "aging31_start": aging31_start, "aging31_end": aging31_end,
-        "aging61_start": aging61_start, "aging61_end": aging61_end,
-        "aging91_start": aging91_start, "aging91_end": aging91_end,
-        "aging180_end": aging180_end,
+        "cur_start": cur_start, "cur_end": cur_end,
+        "p1s": p1s, "p1e": p1e, "p2s": p2s, "p2e": p2e,
+        "p3s": p3s, "p3e": p3e, "p6s": p6s,
+        "n1s": n1s, "n1e": n1e, "n2s": n2s, "n2e": n2e,
+        "n3s": n3s, "n3e": n3e,
         "mora_cutoff": mora_cutoff,
-        "cobro30_start": cobro30_start, "cobro30_end": cobro30_end,
-        "cobro60_start": cobro60_start, "cobro60_end": cobro60_end,
-        "cobro90_start": cobro90_start, "cobro90_end": cobro90_end,
     })
 
-    kpis = db.execute(text(f"""
+    k = db.execute(text(f"""
         SELECT
-            -- Cartera: TODAS las líneas open con saldo>0 (sin filtro DocDate)
-            SUM(CASE WHEN tipo_linea='BB' AND saldo_pendiente > 0
-                     THEN saldo_pendiente ELSE 0 END) AS capital_total,
-            SUM(CASE WHEN tipo_linea='S'  AND saldo_pendiente > 0
-                     THEN saldo_pendiente ELSE 0 END) AS intereses_total,
-            SUM(CASE WHEN saldo_pendiente > 0
-                     THEN saldo_pendiente ELSE 0 END) AS cartera_total,
-
-            -- Mora = saldo vencido en meses ANTERIORES al mes filtrado (31+ días)
-            SUM(CASE WHEN saldo_pendiente > 0
-                     AND fecha_programada_cobro < :mora_cutoff::date
+            SUM(CASE WHEN tipo_linea='BB' AND saldo_pendiente>0 THEN saldo_pendiente ELSE 0 END) AS capital_total,
+            SUM(CASE WHEN tipo_linea='S'  AND saldo_pendiente>0 THEN saldo_pendiente ELSE 0 END) AS intereses_total,
+            SUM(CASE WHEN saldo_pendiente>0 THEN saldo_pendiente ELSE 0 END) AS cartera_total,
+            -- Mora 31+ días = cuotas de meses anteriores al mes filtrado
+            SUM(CASE WHEN saldo_pendiente>0 AND fecha_programada_cobro < :mora_cutoff::date
                      THEN saldo_pendiente ELSE 0 END) AS mora_total,
-
             -- Aging por mes calendario
-            SUM(CASE WHEN saldo_pendiente > 0
-                     AND fecha_programada_cobro BETWEEN :aging00_start::date AND :aging00_end::date
-                     THEN saldo_pendiente ELSE 0 END) AS aging_0_30,
-            SUM(CASE WHEN saldo_pendiente > 0
-                     AND fecha_programada_cobro BETWEEN :aging31_start::date AND :aging31_end::date
-                     THEN saldo_pendiente ELSE 0 END) AS aging_31_60,
-            SUM(CASE WHEN saldo_pendiente > 0
-                     AND fecha_programada_cobro BETWEEN :aging61_start::date AND :aging61_end::date
-                     THEN saldo_pendiente ELSE 0 END) AS aging_61_90,
-            SUM(CASE WHEN saldo_pendiente > 0
-                     AND fecha_programada_cobro BETWEEN :aging91_start::date AND :aging91_end::date
-                     THEN saldo_pendiente ELSE 0 END) AS aging_91_180,
-            SUM(CASE WHEN saldo_pendiente > 0
-                     AND fecha_programada_cobro < :aging180_end::date
-                     THEN saldo_pendiente ELSE 0 END) AS aging_180_mas,
-
-            COUNT(DISTINCT CASE WHEN saldo_pendiente > 0 THEN card_code END) AS clientes_activos,
-            COUNT(DISTINCT CASE WHEN saldo_pendiente > 0
-                                AND fecha_programada_cobro < :mora_cutoff::date
+            SUM(CASE WHEN saldo_pendiente>0 AND fecha_programada_cobro BETWEEN :cur_start::date AND :cur_end::date
+                     THEN saldo_pendiente ELSE 0 END) AS mora_0_30,
+            SUM(CASE WHEN saldo_pendiente>0 AND fecha_programada_cobro BETWEEN :p1s::date AND :p1e::date
+                     THEN saldo_pendiente ELSE 0 END) AS mora_31_60,
+            SUM(CASE WHEN saldo_pendiente>0 AND fecha_programada_cobro BETWEEN :p2s::date AND :p2e::date
+                     THEN saldo_pendiente ELSE 0 END) AS mora_61_90,
+            SUM(CASE WHEN saldo_pendiente>0 AND fecha_programada_cobro BETWEEN :p3s::date AND :p3e::date
+                     THEN saldo_pendiente ELSE 0 END) AS mora_91_180,
+            SUM(CASE WHEN saldo_pendiente>0 AND fecha_programada_cobro < :p6s::date
+                     THEN saldo_pendiente ELSE 0 END) AS mora_180_mas,
+            COUNT(DISTINCT CASE WHEN saldo_pendiente>0 THEN card_code END) AS clientes_activos,
+            COUNT(DISTINCT CASE WHEN saldo_pendiente>0 AND fecha_programada_cobro < :mora_cutoff::date
                                 THEN card_code END) AS clientes_vencidos,
-
-            -- Cobros = cuotas de meses futuros individuales
-            SUM(CASE WHEN saldo_pendiente > 0
-                     AND fecha_programada_cobro BETWEEN :cobro30_start::date AND :cobro30_end::date
+            -- Cobros: mes siguiente, mes+2, mes+3 (individualmente)
+            SUM(CASE WHEN saldo_pendiente>0 AND fecha_programada_cobro BETWEEN :n1s::date AND :n1e::date
                      THEN saldo_pendiente ELSE 0 END) AS cobro_30d,
-            SUM(CASE WHEN saldo_pendiente > 0
-                     AND fecha_programada_cobro BETWEEN :cobro60_start::date AND :cobro60_end::date
+            SUM(CASE WHEN saldo_pendiente>0 AND fecha_programada_cobro BETWEEN :n2s::date AND :n2e::date
                      THEN saldo_pendiente ELSE 0 END) AS cobro_60d,
-            SUM(CASE WHEN saldo_pendiente > 0
-                     AND fecha_programada_cobro BETWEEN :cobro90_start::date AND :cobro90_end::date
+            SUM(CASE WHEN saldo_pendiente>0 AND fecha_programada_cobro BETWEEN :n3s::date AND :n3e::date
                      THEN saldo_pendiente ELSE 0 END) AS cobro_90d
         FROM ov_cartera
-        WHERE line_status='O'
-          AND tipo_linea IN ('BB', 'S')
-          {ef}
+        WHERE line_status='O' AND tipo_linea IN ('BB','S') {ef}
     """), params).fetchone()
 
-    # Desistimientos del período
     des_where = "1=1"
     des_p = {}
-    if empresa:
-        des_where += " AND empresa = :empresa"
-        des_p["empresa"] = empresa
+    if empresa: des_where += " AND empresa=:empresa"; des_p["empresa"] = empresa
     if año and mes:
         des_where += " AND EXTRACT(YEAR FROM fecha_desistimiento)=:año AND EXTRACT(MONTH FROM fecha_desistimiento)=:mes"
         des_p.update({"año": año, "mes": mes})
@@ -179,22 +134,18 @@ async def get_kpis(
         FROM desistimientos WHERE {des_where}
     """), des_p).fetchone()
 
-    d = dict(kpis._mapping)
+    d = dict(k._mapping)
     d["desistimientos_total"]       = desist.total
     d["desistimientos_pagado"]      = float(desist.total_pagado)
     d["desistimientos_reintegrado"] = float(desist.total_reintegrado)
-    d["mora_31_60"]   = float(d.get("aging_31_60") or 0)
-    d["mora_61_90"]   = float(d.get("aging_61_90") or 0)
-    d["mora_91_180"]  = float(d.get("aging_91_180") or 0)
-    d["mora_180_mas"] = float(d.get("aging_180_mas") or 0)
-    d["mora_0_30"]    = float(d.get("aging_0_30") or 0)
-
+    for f in ["mora_0_30","mora_31_60","mora_61_90","mora_91_180","mora_180_mas"]:
+        d[f] = float(d.get(f) or 0)
     cartera = float(d.get("cartera_total") or 0)
     mora    = float(d.get("mora_total") or 0)
-    d["tasa_mora"] = round(mora / cartera * 100, 2) if cartera > 0 else 0
+    d["tasa_mora"] = round(mora/cartera*100, 2) if cartera > 0 else 0
 
-    return {k: float(v) if v is not None and isinstance(v, (int, float)) else v
-            for k, v in d.items()}
+    return {k2: float(v) if v is not None and isinstance(v,(int,float)) else v
+            for k2, v in d.items()}
 
 
 @router.get("/empresas")
@@ -387,7 +338,7 @@ async def get_proyeccion_mensual(
           AND tipo_linea IN ('BB', 'S')
           AND saldo_pendiente > 0
           AND fecha_programada_cobro >= :start_date::date
-          AND fecha_programada_cobro < :start_date::date + (:meses || ' months')::INTERVAL
+          AND fecha_programada_cobro < :start_date::date + (CAST(:meses AS TEXT) || ' months')::INTERVAL
           {ef}
         GROUP BY DATE_TRUNC('month', fecha_programada_cobro)
         ORDER BY mes
@@ -413,61 +364,40 @@ async def get_aging(
     if empresa: params["empresa"] = empresa
 
     if año and mes:
-        ref_year, ref_month = año, mes
+        ry, rm = año, mes
     else:
         today = date.today()
-        ref_year, ref_month = today.year, today.month
+        ry, rm = today.year, today.month
 
-    last_day = calendar.monthrange(ref_year, ref_month)[1]
-    ref_date = f"{ref_year}-{ref_month:02d}-{last_day}"
+    last_day = calendar.monthrange(ry, rm)[1]
 
-    # Build month ranges for aging buckets
-    def get_month_range(y, m, n_back):
-        m2 = m - n_back
+    def month_range(y, m, n=0):
+        m2 = m - n
         y2 = y
-        while m2 <= 0:
-            m2 += 12
-            y2 -= 1
+        while m2 <= 0: m2 += 12; y2 -= 1
         last = calendar.monthrange(y2, m2)[1]
-        return f"{y2}-{m2:02d}-01", f"{y2}-{m2:02d}-{last}", f"{calendar.month_abbr[m2]} {y2}"
+        import calendar as cal
+        return (f"{y2}-{m2:02d}-01", f"{y2}-{m2:02d}-{last}",
+                f"{cal.month_abbr[m2]} {y2}")
 
     buckets = [
-        (f"{ref_year}-{ref_month:02d}-01", ref_date,
-         f"0-30 días ({calendar.month_name[ref_month]} {ref_year})",
-         "0-30 días"),
-        (*get_month_range(ref_year, ref_month, 1)[:2],
-         f"31-60 días ({get_month_range(ref_year, ref_month, 1)[2]})",
-         "31-60 días"),
-        (*get_month_range(ref_year, ref_month, 2)[:2],
-         f"61-90 días ({get_month_range(ref_year, ref_month, 2)[2]})",
-         "61-90 días"),
-        (*get_month_range(ref_year, ref_month, 3)[:2],
-         f"91-120 días ({get_month_range(ref_year, ref_month, 3)[2]})",
-         "91-120 días"),
+        (*month_range(ry,rm,0)[:2], f"0-30 días", month_range(ry,rm,0)[2]),
+        (*month_range(ry,rm,1)[:2], f"31-60 días", month_range(ry,rm,1)[2]),
+        (*month_range(ry,rm,2)[:2], f"61-90 días", month_range(ry,rm,2)[2]),
+        (*month_range(ry,rm,3)[:2], f"91-120 días", month_range(ry,rm,3)[2]),
     ]
 
     result = []
-    for start_d, end_d, label, rango_base in buckets:
+    for s, e, rango, mes_label in buckets:
         row = db.execute(text(f"""
-            SELECT
-                COUNT(DISTINCT card_code) AS clientes,
-                COUNT(*) AS cuotas,
-                COALESCE(SUM(saldo_pendiente), 0) AS monto
+            SELECT COUNT(DISTINCT card_code) AS clientes, COUNT(*) AS cuotas,
+                   COALESCE(SUM(saldo_pendiente),0) AS monto
             FROM ov_cartera
-            WHERE line_status='O'
-              AND tipo_linea IN ('BB','S')
-              AND saldo_pendiente > 0
-              AND fecha_programada_cobro BETWEEN :s::date AND :e::date
-              {ef}
-        """), {**params, "s": start_d, "e": end_d}).fetchone()
-        result.append({
-            "rango": rango_base,
-            "label": label,
-            "clientes": row.clientes,
-            "cuotas": row.cuotas,
-            "monto": float(row.monto)
-        })
-
+            WHERE line_status='O' AND tipo_linea IN ('BB','S') AND saldo_pendiente>0
+              AND fecha_programada_cobro BETWEEN :s::date AND :e::date {ef}
+        """), {**params, "s": s, "e": e}).fetchone()
+        result.append({"rango": rango, "label": f"{rango} ({mes_label})",
+                       "clientes": row.clientes, "cuotas": row.cuotas, "monto": float(row.monto)})
     return result
 
 

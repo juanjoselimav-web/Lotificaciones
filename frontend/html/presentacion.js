@@ -418,167 +418,35 @@ async function loadVentas() {
   // Slide 13 — Metas
   if (metas && metas.length) {
     setHTML('metasRows', metas.map(m => {
-      const pct = Number(m.cumplimiento_pct || 0);
-      const pctC = Number(m.cumplimiento_consersa_pct || 0);
-      const pctR = Number(m.cumplimiento_rv4_pct || 0);
-      const color = pct >= 80 ? 'var(--green)' : pct >= 50 ? 'var(--dorado)' : 'var(--red)';
-      const colC = pctC >= 80 ? 'var(--green)' : pctC >= 50 ? 'var(--dorado)' : 'var(--red)';
-      const colR = pctR >= 80 ? 'var(--green)' : pctR >= 50 ? 'var(--dorado)' : 'var(--red)';
-      if (m.meta_total === 0) return ''; // skip projects with no meta
-      return `<div style="background:var(--bg-card);border:1px solid var(--border);border-radius:8px;padding:14px 20px;margin-bottom:10px;display:grid;grid-template-columns:200px 1fr 160px;gap:16px;align-items:center">
-        <div style="font-size:15px;font-weight:700;color:var(--text)">${m.proyecto}</div>
+      if ((m.meta_total||0) === 0) return '';
+      const pct  = Number(m.cumplimiento_pct||0);
+      const pctC = Number(m.cumplimiento_consersa_pct||0);
+      const pctR = Number(m.cumplimiento_rv4_pct||0);
+      const col  = pct>=80?'var(--green)':pct>=50?'var(--dorado)':'var(--red)';
+      const colC = pctC>=80?'var(--green)':pctC>=50?'var(--dorado)':'var(--red)';
+      const colR = pctR>=80?'var(--green)':pctR>=50?'var(--dorado)':'var(--red)';
+      const vs   = m.ventas_sin_asignar||0;
+      return `<div style="background:var(--bg-card);border:1px solid var(--border);border-radius:8px;padding:12px 18px;margin-bottom:10px;display:grid;grid-template-columns:170px 1fr 130px;gap:14px;align-items:center">
+        <div style="font-size:14px;font-weight:700">${m.proyecto}</div>
         <div>
-          <div style="display:grid;grid-template-columns:80px 1fr 60px;gap:8px;align-items:center;margin-bottom:4px">
-            <span style="font-size:11px;font-weight:600;color:var(--muted)">CONSERSA</span>
-            <div style="height:10px;background:var(--border-soft);border-radius:4px;overflow:hidden"><div style="height:100%;background:${colC};width:${Math.min(pctC,100)}%"></div></div>
-            <span style="font-size:12px;font-weight:700;color:${colC};text-align:right">${fmtNum(m.ventas_consersa||0)}/${fmtNum(m.meta_consersa)}</span>
+          <div style="display:grid;grid-template-columns:70px 1fr 55px;gap:6px;align-items:center;margin-bottom:5px">
+            <span style="font-size:10px;color:var(--muted);font-weight:600">CONSERSA</span>
+            <div style="height:9px;background:var(--border-soft);border-radius:3px;overflow:hidden"><div style="height:100%;background:${colC};width:${Math.min(pctC,100)}%"></div></div>
+            <span style="font-size:11px;font-weight:700;color:${colC};text-align:right">${m.ventas_consersa||0}/${m.meta_consersa}</span>
           </div>
-          <div style="display:grid;grid-template-columns:80px 1fr 60px;gap:8px;align-items:center">
-            <span style="font-size:11px;font-weight:600;color:var(--muted)">RV4</span>
-            <div style="height:10px;background:var(--border-soft);border-radius:4px;overflow:hidden"><div style="height:100%;background:${colR};width:${Math.min(pctR,100)}%"></div></div>
-            <span style="font-size:12px;font-weight:700;color:${colR};text-align:right">${fmtNum(m.ventas_rv4||0)}/${fmtNum(m.meta_rv4)}</span>
+          <div style="display:grid;grid-template-columns:70px 1fr 55px;gap:6px;align-items:center">
+            <span style="font-size:10px;color:var(--muted);font-weight:600">RV4</span>
+            <div style="height:9px;background:var(--border-soft);border-radius:3px;overflow:hidden"><div style="height:100%;background:${colR};width:${Math.min(pctR,100)}%"></div></div>
+            <span style="font-size:11px;font-weight:700;color:${colR};text-align:right">${m.ventas_rv4||0}/${m.meta_rv4}</span>
           </div>
+          ${vs>0?`<div style="font-size:10px;color:var(--muted);margin-top:3px">Sin asignar: ${vs}</div>`:''}
         </div>
         <div style="text-align:right">
-          <div style="font-size:22px;font-weight:700;color:${color}">${fmtPct(pct)}</div>
-          <div style="font-size:11px;color:var(--muted)">${fmtNum(m.ventas_total)} / ${fmtNum(m.meta_total)} total</div>
+          <div style="font-size:20px;font-weight:700;color:${col}">${fmtPct(pct)}</div>
+          <div style="font-size:10px;color:var(--muted)">${m.ventas_total||0}/${m.meta_total}</div>
         </div>
       </div>`;
-    }).filter(Boolean).join(''));
-  } else {
-    setHTML('metasRows', `<div style="text-align:center;color:var(--muted);padding:60px">Sin metas configuradas para ${state.anio}</div>`);
-  }
-
-  // Slide 10 — Tendencia
-  if (tend && tend.length) drawTendencia(tend);
-}
-
-/* ── Cartera ────────────────────────────────────── */
-async function loadCartera() {
-  const cqs = carteraPeriodParams();
-  const [k, aging, proy, alertas, desist] = await Promise.all([
-    apiFetch(`/api/cartera/kpis?${cqs}`),
-    apiFetch(`/api/cartera/aging?${cqs}`),
-    apiFetch(`/api/cartera/proyeccion-mensual?meses=12&${cqs}`),
-    apiFetch('/api/cartera/alertas'),
-    apiFetch('/api/cartera/desistimientos?page=1&page_size=50')
-  ]);
-  state.data.cartera = { k, aging, proy, alertas, desist };
-
-  // Slide 15 — KPIs
-  if (k) {
-    setText('carTotal', fmtQM(k.cartera_total));
-    setText('carClientes', `${fmtNum(k.clientes_activos)} clientes activos`);
-    setText('carMora', fmtQM(k.mora_total));
-    setText('carMoraTasa', `Tasa ${fmtPct(k.tasa_mora)}`);
-    setText('carCapital', fmtQM(k.capital_total));
-    setText('carIntereses', fmtQM(k.intereses_total));
-    setText('carCobro30', fmtQM(k.cobro_30d));
-    setText('carCobro60', fmtQM(k.cobro_60d));
-    setText('carCobro90', fmtQM(k.cobro_90d));
-    setText('carVencidos', fmtNum(k.clientes_vencidos));
-    const pctVenc = k.clientes_activos ? (k.clientes_vencidos / k.clientes_activos * 100) : 0;
-    setText('carPctVenc', `${pctVenc.toFixed(1)}% del total`);
-    // Tasa mora = cartera vencida 31+ días / cartera total
-    const moraReal = (k.mora_31_60||0) + (k.mora_61_90||0) + (k.mora_91_180||0) + (k.mora_180_mas||0);
-    const tasaMora = k.cartera_total ? (moraReal / k.cartera_total * 100) : k.tasa_mora;
-    setText('carMoraTasa', `Tasa ${fmtPct(k.tasa_mora)} · vencida 31+ días`);
-    // Aging breakout mini cards
-    const agingRanges = [
-      { label:'0-30 días',   sub:'mes actual',   val: k.mora_0_30   || k.aging_0_30   || 0, color:'var(--dorado)' },
-      { label:'31-60 días',  sub:'mes anterior', val: k.mora_31_60  || k.aging_31_60  || 0, color:'var(--amber)' },
-      { label:'61-90 días',  sub:'mes -2',       val: k.mora_61_90  || k.aging_61_90  || 0, color:'#dc2626' },
-      { label:'91-180 días', sub:'meses -3 a -6',val: k.mora_91_180 || k.aging_91_180 || 0, color:'#7f1d1d' },
-      { label:'+180 días',   sub:'histórico',    val: k.mora_180_mas|| k.aging_180_mas|| 0, color:'#450a0a' },
-    ];
-    setHTML('carMoraAging', agingRanges.map(r => `
-      <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:8px;padding:10px 14px;border-left:4px solid ${r.color}">
-        <div style="font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin-bottom:2px">${r.label}</div>
-        <div style="font-size:10px;color:var(--muted);margin-bottom:6px">${r.sub}</div>
-        <div style="font-size:18px;font-weight:700;color:${r.color}">${fmtQM(r.val)}</div>
-      </div>`).join(''));
-  }
-
-  // Slide 16 — Aging
-  if (aging && aging.length) {
-    setHTML('agingTbody', aging.map(a => `
-      <tr><td class="bold">${a.rango}</td><td class="right">${fmtNum(a.cuotas)}</td><td class="right">${fmtNum(a.clientes)}</td><td class="right bold" style="color:var(--red)">${fmtQ(a.monto)}</td></tr>
-    `).join(''));
-    drawAging(aging);
-
-    const total = aging.reduce((s,a)=>s+Number(a.monto||0),0);
-    const criticos = aging.filter(a => a.rango.includes('+180') || a.rango.includes('91-180'));
-    const montoCrit = criticos.reduce((s,a)=>s+Number(a.monto||0),0);
-    const pctCrit = total ? (montoCrit/total*100) : 0;
-    setText('agingLectura', `${fmtPct(pctCrit)} del monto vencido (${fmtQM(montoCrit)}) tiene más de 90 días — son los casos que requieren gestión inmediata o provisiones.`);
-  }
-
-  // Slide 17 — Proyección mensual
-  if (proy && proy.length) drawProyeccion(proy);
-
-  // Slide 18 — Desistimientos
-  if (k) {
-    setText('desTotal', fmtNum(k.desistimientos_total));
-    setText('desPagado', fmtQM(k.desistimientos_pagado));
-    setText('desReint', fmtQM(k.desistimientos_reintegrado));
-    const ret = k.desistimientos_pagado - k.desistimientos_reintegrado;
-    setText('desRetencion', `Retenido por sociedad: ${fmtQM(ret)}`);
-    setText('desLectura', `Históricamente, ${fmtNum(k.desistimientos_total)} desistimientos representaron ${fmtQM(k.desistimientos_pagado)} en pagos de clientes. Se reintegró ${fmtQM(k.desistimientos_reintegrado)} y la sociedad retuvo ${fmtQM(ret)} por concepto de penalizaciones contractuales.`);
-  }
-
-  // Slide 19 — Alertas
-  if (alertas) {
-    setText('alRoja', fmtNum(alertas.rojas));
-    setText('alAmar', fmtNum(alertas.amarillas));
-    setText('alTotal', fmtNum(alertas.total));
-    const top = (alertas.alertas || []).slice(0, 8);
-    setHTML('alertasTbody', top.length
-      ? top.map(a => `<tr>
-          <td><span class="pill ${a.nivel === 'ROJO' ? 'red' : 'amber'}">${a.nivel}</span></td>
-          <td class="bold">${humanType(a.tipo)}</td>
-          <td>${a.mensaje}</td>
-          <td style="font-size:13px;color:var(--text-soft)">${a.detalle}</td>
-        </tr>`).join('')
-      : `<tr><td colspan="4" style="text-align:center;color:var(--muted);padding:40px">Sin alertas activas</td></tr>`
-    );
-  }
-}
-
-/* ── Flujos ─────────────────────────────────────── */
-async function loadDetalleFlujos() {
-  // Slide 22 - top movements in the filtered month
-  const soc = document.getElementById('detalleFlujoSociedad')?.value || 'CONSOLIDADO';
-  const periodoKey = state.mes > 0 ? `${state.anio}-${String(state.mes).padStart(2,'0')}` : `${state.anio}`;
-  setText('detalleFlujoSub', `${soc === 'CONSOLIDADO' ? 'Todas las sociedades' : soc} · ${periodoFormal()}`);
-
-  if (soc === 'CONSOLIDADO') {
-    // Aggregate across all societies
-    const sociedades = ['EFICIENCIA URBANA','SER GEN CCC','ROSSIO','FRUGALEX','OTTAVIA','UTILICA','TEZZOLI','URBIVA','GARBATELLA','CAPIPOS','OVEST','CORCOLLE','LEOFRENI','GIBRALEON','TALOCCI','VILET'];
-    const ingrMap = {}, egrMap = {};
-    const results = await Promise.all(sociedades.map(s => apiFetch(`/api/flujos/resumen?sociedad=${encodeURIComponent(s)}&granularidad=mes`)));
-    results.forEach(r => {
-      if (!r || !r.periodos) return;
-      let target = r.periodos[r.periodos.length - 1];
-      if (state.mes > 0) {
-        const candidate = `${state.anio}-${String(state.mes).padStart(2,'0')}`;
-        if (r.periodos.includes(candidate)) target = candidate;
-      }
-      (r.secciones || []).forEach(sec => {
-        const t = sec.totales[target];
-        if (!t) return;
-        if (t.ingreso > 0) {
-          const key = `${sec.seccion}||${sec.categorias?.[0]?.categoria || sec.seccion}`;
-          ingrMap[key] = (ingrMap[key] || 0) + (t.ingreso || 0);
-        }
-        (sec.categorias || []).forEach(cat => {
-          const cv = cat.montos?.[target];
-          if (cv?.egreso > 0) {
-            const key = `${sec.seccion}||${cat.categoria}`;
-            egrMap[key] = (egrMap[key] || 0) + (cv.egreso || 0);
-          }
-        });
-      });
-    });
+    }).filter(Boolean).join(''));;
     renderDetalleFlujosTables(ingrMap, egrMap);
   } else {
     const r = await apiFetch(`/api/flujos/resumen?sociedad=${encodeURIComponent(soc)}&granularidad=mes`);
@@ -1347,6 +1215,17 @@ function init() {
   document.getElementById('periodAnio').value = state.anio;
   document.getElementById('periodMes').addEventListener('change', e => { state.mes  = Number(e.target.value); loadAll(); });
   document.getElementById('periodAnio').addEventListener('change', e => { state.anio = Number(e.target.value); loadAll(); });
+  // Keepalive: ping every 20s to prevent backend session timeout
+  setInterval(async () => {
+    try {
+      const token = getToken();
+      if (token) await fetch('/api/auth/me', {
+        headers: { 'Authorization': `Bearer ${token}` },
+        signal: AbortSignal.timeout(5000)
+      });
+    } catch(e) { /* ignore keepalive errors */ }
+  }, 20000);
+
   document.getElementById('flujoSociedad').addEventListener('change', e => { state.sociedad = e.target.value; if (getToken()) loadFlujos(); });
   document.getElementById('detalleFlujoSociedad')?.addEventListener('change', () => { if (getToken()) loadDetalleFlujos(); });
 

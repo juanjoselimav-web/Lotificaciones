@@ -31,7 +31,7 @@ async def get_vendedores(
                COUNT(DISTINCT l.id) AS ventas_total
         FROM vendedores v
         LEFT JOIN lotes l ON l.vendedor = v.nombre 
-                         AND l.estatus IN ('VENTA','RESERVADO')
+                         AND l.estatus IN ('VENTA','RESERVADO','CANJE')
         WHERE {where}
         GROUP BY v.id
         ORDER BY v.equipo, v.nombre
@@ -81,50 +81,50 @@ async def get_kpis(
     # Ventas brutas = lotes vendidos/reservados EXCLUYE bloqueados/canjes/especiales
     ventas = db.execute(text(f"""
         SELECT
-            COUNT(*) FILTER (WHERE l.estatus IN ('VENTA','RESERVADO')
+            COUNT(*) FILTER (WHERE l.estatus IN ('VENTA','RESERVADO','CANJE')
                 AND (l.vendedor IS NULL OR l.vendedor NOT IN (
                     '-Ningún empleado del departamento de ventas-',
                     'Canje A','Bloqueado','Bloqueo Municipal','Apartado Proyecto Aptos'
                 )))
             AS ventas_brutas,
-            COALESCE(SUM(l.precio_final) FILTER (WHERE l.estatus IN ('VENTA','RESERVADO')
+            COALESCE(SUM(l.precio_final) FILTER (WHERE l.estatus IN ('VENTA','RESERVADO','CANJE')
                 AND (l.vendedor IS NULL OR l.vendedor NOT IN (
                     '-Ningún empleado del departamento de ventas-',
                     'Canje A','Bloqueado','Bloqueo Municipal','Apartado Proyecto Aptos'
                 ))), 0)
             AS valor_bruto,
-            COALESCE(SUM(l.total_intereses) FILTER (WHERE l.estatus IN ('VENTA','RESERVADO')
+            COALESCE(SUM(l.total_intereses) FILTER (WHERE l.estatus IN ('VENTA','RESERVADO','CANJE')
                 AND (l.vendedor IS NULL OR l.vendedor NOT IN (
                     '-Ningún empleado del departamento de ventas-',
                     'Canje A','Bloqueado','Bloqueo Municipal','Apartado Proyecto Aptos'
                 ))), 0) AS intereses_pactados,
-            COALESCE(AVG(l.precio_final) FILTER (WHERE l.estatus IN ('VENTA','RESERVADO')
+            COALESCE(AVG(l.precio_final) FILTER (WHERE l.estatus IN ('VENTA','RESERVADO','CANJE')
                 AND (l.vendedor IS NULL OR l.vendedor NOT IN (
                     '-Ningún empleado del departamento de ventas-',
                     'Canje A','Bloqueado','Bloqueo Municipal','Apartado Proyecto Aptos'
                 ))), 0) AS ticket_promedio,
-            COUNT(*) FILTER (WHERE l.forma_pago = 'CONTADO' AND l.estatus IN ('VENTA','RESERVADO')
+            COUNT(*) FILTER (WHERE l.forma_pago = 'CONTADO' AND l.estatus IN ('VENTA','RESERVADO','CANJE')
                 AND (l.vendedor IS NULL OR l.vendedor NOT IN (
                     '-Ningún empleado del departamento de ventas-',
                     'Canje A','Bloqueado','Bloqueo Municipal','Apartado Proyecto Aptos'
                 ))) AS contado,
-            COUNT(*) FILTER (WHERE l.forma_pago = 'CREDITOSININTERES' AND l.estatus IN ('VENTA','RESERVADO')
+            COUNT(*) FILTER (WHERE l.forma_pago = 'CREDITOSININTERES' AND l.estatus IN ('VENTA','RESERVADO','CANJE')
                 AND (l.vendedor IS NULL OR l.vendedor NOT IN (
                     '-Ningún empleado del departamento de ventas-',
                     'Canje A','Bloqueado','Bloqueo Municipal','Apartado Proyecto Aptos'
                 ))) AS sin_interes,
-            COUNT(*) FILTER (WHERE l.forma_pago = 'CREDITOCONINTERES' AND l.estatus IN ('VENTA','RESERVADO')
+            COUNT(*) FILTER (WHERE l.forma_pago = 'CREDITOCONINTERES' AND l.estatus IN ('VENTA','RESERVADO','CANJE')
                 AND (l.vendedor IS NULL OR l.vendedor NOT IN (
                     '-Ningún empleado del departamento de ventas-',
                     'Canje A','Bloqueado','Bloqueo Municipal','Apartado Proyecto Aptos'
                 ))) AS con_interes,
-            COALESCE(AVG(l.plazo) FILTER (WHERE l.plazo > 0 AND l.estatus IN ('VENTA','RESERVADO')
+            COALESCE(AVG(l.plazo) FILTER (WHERE l.plazo > 0 AND l.estatus IN ('VENTA','RESERVADO','CANJE')
                 AND (l.vendedor IS NULL OR l.vendedor NOT IN (
                     '-Ningún empleado del departamento de ventas-',
                     'Canje A','Bloqueado','Bloqueo Municipal','Apartado Proyecto Aptos'
                 ))), 0) AS plazo_promedio,
             -- Desglose especiales (bloqueados, canjes)
-            COUNT(*) FILTER (WHERE l.estatus IN ('VENTA','RESERVADO')
+            COUNT(*) FILTER (WHERE l.estatus IN ('VENTA','RESERVADO','CANJE')
                 AND l.vendedor IN (
                     '-Ningún empleado del departamento de ventas-',
                     'Canje A','Bloqueado','Bloqueo Municipal','Apartado Proyecto Aptos'
@@ -256,7 +256,7 @@ async def get_tendencia(
             )) AS sin_vendedor
         FROM lotes l
         JOIN proyectos p ON p.id = l.proyecto_id
-        WHERE l.estatus IN ('VENTA','RESERVADO')
+        WHERE l.estatus IN ('VENTA','RESERVADO','CANJE')
           AND {date_filter}
           {pf}
         GROUP BY DATE_TRUNC('month', l.fecha_venta)
@@ -332,7 +332,7 @@ async def get_mezcla_plazos(
             COALESCE(SUM(l.total_intereses), 0) AS intereses
         FROM lotes l
         JOIN proyectos p ON p.id = l.proyecto_id
-        WHERE l.estatus IN ('VENTA','RESERVADO')
+        WHERE l.estatus IN ('VENTA','RESERVADO','CANJE')
           AND {date_filter}
           AND l.fecha_venta IS NOT NULL
           AND l.plazo IS NOT NULL AND l.plazo > 0
@@ -351,7 +351,7 @@ async def get_proyectos_ventas(
     rows = db.execute(text("""
         SELECT DISTINCT p.nombre_proyecto
         FROM lotes l JOIN proyectos p ON p.id = l.proyecto_id
-        WHERE l.estatus IN ('VENTA','RESERVADO') AND l.fecha_venta IS NOT NULL
+        WHERE l.estatus IN ('VENTA','RESERVADO','CANJE') AND l.fecha_venta IS NOT NULL
         ORDER BY p.nombre_proyecto
     """)).fetchall()
     return [r[0] for r in rows]
@@ -394,7 +394,7 @@ async def get_analisis_financiero(
             COALESCE(AVG(l.plazo) FILTER (WHERE l.forma_pago='CREDITOSININTERES' AND l.plazo > 0), 0) AS plazo_prom_sin_int
         FROM lotes l
         JOIN proyectos p ON p.id = l.proyecto_id
-        WHERE l.estatus IN ('VENTA','RESERVADO')
+        WHERE l.estatus IN ('VENTA','RESERVADO','CANJE')
           AND {date_filter}
           AND l.fecha_venta IS NOT NULL
           {pf}
@@ -439,7 +439,7 @@ async def get_inconsistencias(
                p.nombre_proyecto, l.precio_final, l.plazo,
                l.total_intereses, l.forma_pago, l.fecha_venta
         FROM lotes l JOIN proyectos p ON p.id = l.proyecto_id
-        WHERE l.estatus IN ('VENTA','RESERVADO')
+        WHERE l.estatus IN ('VENTA','RESERVADO','CANJE')
           AND l.forma_pago = 'CREDITOCONINTERES'
           AND (l.total_intereses IS NULL OR l.total_intereses = 0)
         ORDER BY p.nombre_proyecto, l.manzana
@@ -461,7 +461,7 @@ async def get_inconsistencias(
                p.nombre_proyecto, l.precio_final, l.plazo,
                l.total_intereses, l.forma_pago, l.fecha_venta
         FROM lotes l JOIN proyectos p ON p.id = l.proyecto_id
-        WHERE l.estatus IN ('VENTA','RESERVADO')
+        WHERE l.estatus IN ('VENTA','RESERVADO','CANJE')
           AND l.forma_pago = 'CREDITOSININTERES'
           AND l.total_intereses > 0
         ORDER BY l.total_intereses DESC
@@ -482,7 +482,7 @@ async def get_inconsistencias(
         SELECT l.unidad_key, l.manzana, l.card_name,
                p.nombre_proyecto, l.precio_final, l.forma_pago
         FROM lotes l JOIN proyectos p ON p.id = l.proyecto_id
-        WHERE l.estatus IN ('VENTA','RESERVADO')
+        WHERE l.estatus IN ('VENTA','RESERVADO','CANJE')
           AND l.forma_pago LIKE 'CREDITO%'
           AND (l.plazo IS NULL OR l.plazo = 0)
     """)).fetchall()
@@ -528,7 +528,7 @@ async def get_detalle_mes(
         FROM lotes l
         JOIN proyectos p ON p.id = l.proyecto_id
         LEFT JOIN vendedores v ON v.nombre = l.vendedor
-        WHERE l.estatus IN ('VENTA','RESERVADO')
+        WHERE l.estatus IN ('VENTA','RESERVADO','CANJE')
           AND DATE_TRUNC('month', l.fecha_venta) = :mes::date
           {pf} {fp}
         ORDER BY l.fecha_venta DESC, p.nombre_proyecto
@@ -571,7 +571,7 @@ async def get_detalle_plazo(
         FROM lotes l
         JOIN proyectos p ON p.id = l.proyecto_id
         LEFT JOIN vendedores v ON v.nombre = l.vendedor
-        WHERE l.estatus IN ('VENTA','RESERVADO')
+        WHERE l.estatus IN ('VENTA','RESERVADO','CANJE')
           AND l.plazo = :plazo
           AND l.forma_pago = :forma_pago
           AND {date_filter}
@@ -617,7 +617,7 @@ async def get_mezcla(
             COALESCE(AVG(l.plazo) FILTER (WHERE l.plazo > 0), 0) AS plazo_prom
         FROM lotes l
         JOIN proyectos p ON p.id = l.proyecto_id
-        WHERE l.estatus IN ('VENTA','RESERVADO')
+        WHERE l.estatus IN ('VENTA','RESERVADO','CANJE')
           AND {date_filter}
           AND l.forma_pago IS NOT NULL
           {pf}
@@ -666,7 +666,7 @@ async def get_por_vendedor(
         FROM lotes l
         JOIN proyectos p ON p.id = l.proyecto_id
         LEFT JOIN vendedores v ON v.nombre = l.vendedor
-        WHERE l.estatus IN ('VENTA','RESERVADO')
+        WHERE l.estatus IN ('VENTA','RESERVADO','CANJE')
           AND {date_filter}
           AND l.fecha_venta IS NOT NULL
           AND l.vendedor NOT IN (
@@ -734,218 +734,90 @@ async def get_metas(
     db: Session = Depends(get_db),
     current_user=Depends(get_current_user)
 ):
-    if mes:
-        date_filter = "DATE_TRUNC('month', l.fecha_venta) = make_date(:año, :mes, 1)"
-        params = {"año": año, "mes": mes}
-    else:
-        date_filter = "EXTRACT(YEAR FROM l.fecha_venta) = :año"
-        params = {"año": año}
+    """Metas vs avance por PROYECTO (sin responsable), mensual. Lee metas del Excel."""
+    import pandas as pd
+    from pathlib import Path
+    settings = get_settings()
 
-    rows = db.execute(text(f"""
-        SELECT
-            m.responsable,
-            m.proyecto,
-            m.meta_consersa,
-            m.meta_rv4,
-            m.meta_consersa + m.meta_rv4 AS meta_total,
-            COUNT(l.id) FILTER (WHERE v.equipo = 'CONSERSA') AS ventas_consersa,
-            COUNT(l.id) FILTER (WHERE v.equipo = 'RV4') AS ventas_rv4,
-            COUNT(l.id) AS ventas_total,
-            ROUND(COUNT(l.id)::NUMERIC / NULLIF(m.meta_consersa + m.meta_rv4, 0) * 100, 1) AS cumplimiento_pct
-        FROM metas_ventas m
-        LEFT JOIN proyectos p ON p.nombre_proyecto ILIKE '%' || split_part(m.proyecto,' ',1) || '%'
-        LEFT JOIN lotes l ON l.proyecto_id = p.id
-                         AND l.estatus IN ('VENTA','RESERVADO')
-                         AND {date_filter}
-                         AND l.vendedor NOT IN (
-                             '-Ningún empleado del departamento de ventas-',
-                             'Canje A','Bloqueado','Bloqueo Municipal','Apartado Proyecto Aptos'
-                         )
-        LEFT JOIN vendedores v ON v.nombre = l.vendedor
-        WHERE m.año = :año AND m.mes = 0
-        GROUP BY m.responsable, m.proyecto, m.meta_consersa, m.meta_rv4
-        ORDER BY m.responsable, m.proyecto
-    """), params).fetchall()
+    metas_excel = []
+    try:
+        df_m = pd.read_excel(Path(settings.path_ov_cartera), sheet_name="METAS VENTAS", header=0)
+        df_m.columns = [str(c).strip() for c in df_m.columns]
+        for _, row in df_m.iterrows():
+            desc = str(row.get("Descripción", "") or "").strip()
+            if not desc or desc.lower() == "nan": continue
+            metas_excel.append({
+                "proyecto": desc,
+                "meta_consersa": int(float(row.get("Metas Consersa", 0) or 0)),
+                "meta_rv4":      int(float(row.get("Metas RV4", 0) or 0)),
+            })
+    except Exception as e:
+        import logging; logging.getLogger(__name__).warning(f"No se pudo leer metas Excel: {e}")
 
-    return [dict(r._mapping) for r in rows]
+    date_filter = "DATE_TRUNC('month', l.fecha_venta) = make_date(:año, :mes, 1)" if mes else "EXTRACT(YEAR FROM l.fecha_venta) = :año"
+    params = {"año": año, **({"mes": mes} if mes else {})}
 
-
-# ── REGISTROS A REVISAR ───────────────────────────────────────
-
-@router.get("/registros-revision")
-async def get_registros_revision(
-    db: Session = Depends(get_db),
-    current_user=Depends(get_current_user)
-):
-    issues = []
-
-    # 1. Vendedores sin equipo asignado (reales, no sistema)
-    sin_equipo = db.execute(text("""
-        SELECT v.nombre, COUNT(l.id) AS ventas
-        FROM vendedores v
-        LEFT JOIN lotes l ON l.vendedor = v.nombre AND l.estatus IN ('VENTA','RESERVADO')
-        WHERE v.equipo = 'SIN_ASIGNAR' AND v.es_sistema = FALSE AND v.activo = TRUE
-        GROUP BY v.nombre ORDER BY ventas DESC
-    """)).fetchall()
-    for r in sin_equipo:
-        issues.append({
-            "tipo": "VENDEDOR_SIN_EQUIPO",
-            "nivel": "AMARILLO",
-            "mensaje": f"Vendedor sin equipo asignado: {r.nombre}",
-            "detalle": f"{r.ventas} ventas registradas sin equipo — asignar CONSERSA o RV4",
-            "accion": "Ir a configuración de vendedores",
-            "referencia": r.nombre
-        })
-
-    # 2. Ventas sin vendedor (registros sistema)
-    sin_vendedor = db.execute(text("""
-        SELECT l.vendedor, COUNT(*) AS cantidad,
-               COALESCE(SUM(l.precio_final), 0) AS valor
-        FROM lotes l
-        WHERE l.estatus IN ('VENTA','RESERVADO')
-          AND l.vendedor IN (
-              '-Ningún empleado del departamento de ventas-',
-              'Canje A','Bloqueado','Bloqueo Municipal','Apartado Proyecto Aptos'
-          )
-        GROUP BY l.vendedor ORDER BY cantidad DESC
-    """)).fetchall()
-    for r in sin_vendedor:
-        issues.append({
-            "tipo": "VENTA_SIN_VENDEDOR",
-            "nivel": "GRIS",
-            "mensaje": f"Registro especial: '{r.vendedor}'",
-            "detalle": f"{r.cantidad} lotes | Q {float(r.valor):,.0f} — no se incluyen en KPIs de ventas",
-            "accion": "Revisar si corresponde a canje, bloqueo o error SAP",
-            "referencia": r.vendedor
-        })
-
-    # 3. Desistimientos con fecha anterior a venta (error de datos)
-    fecha_error = db.execute(text("""
-        SELECT nombre_cliente, empresa, lote, fecha_venta, fecha_desistimiento,
-               fecha_desistimiento - fecha_venta AS dias
-        FROM desistimientos
-        WHERE fecha_desistimiento < fecha_venta
-        ORDER BY dias
-    """)).fetchall()
-    for r in fecha_error:
-        issues.append({
-            "tipo": "FECHA_DESISTIMIENTO_INCORRECTA",
-            "nivel": "ROJO",
-            "mensaje": f"Desistimiento antes de la venta: {r.nombre_cliente}",
-            "detalle": f"Lote: {r.lote} | Venta: {r.fecha_venta} | Desistimiento: {r.fecha_desistimiento} | Diferencia: {r.dias} días",
-            "accion": "Corregir fecha en SAP",
-            "referencia": r.nombre_cliente
-        })
-
-    # 4. Vendedores nuevos en SAP no registrados en tabla vendedores
-    nuevos = db.execute(text("""
-        SELECT DISTINCT l.vendedor
-        FROM lotes l
-        WHERE l.estatus IN ('VENTA','RESERVADO')
-          AND l.vendedor IS NOT NULL
-          AND l.vendedor NOT IN (SELECT nombre FROM vendedores)
-    """)).fetchall()
-    for r in nuevos:
-        # Auto-insert new vendor
-        try:
-            db.execute(text(
-                "INSERT INTO vendedores (nombre, equipo, activo, es_sistema) VALUES (:n, 'SIN_ASIGNAR', true, false) ON CONFLICT (nombre) DO NOTHING"
-            ), {"n": r.vendedor})
-            db.commit()
-        except Exception:
-            db.rollback()
-        issues.append({
-            "tipo": "VENDEDOR_NUEVO",
-            "nivel": "AMARILLO",
-            "mensaje": f"Nuevo vendedor detectado en SAP: {r.vendedor}",
-            "detalle": "Fue agregado automáticamente — asignar equipo CONSERSA o RV4",
-            "accion": "Asignar equipo en configuración",
-            "referencia": r.vendedor
-        })
-
-    return {
-        "total": len(issues),
-        "rojas": len([i for i in issues if i["nivel"] == "ROJO"]),
-        "amarillas": len([i for i in issues if i["nivel"] == "AMARILLO"]),
-        "grises": len([i for i in issues if i["nivel"] == "GRIS"]),
-        "issues": issues
-    }
-
-
-# ══════════════════════════════════════════════════════════════
-# MÓDULO PCV — Control de Promesas de Compraventa
-# ══════════════════════════════════════════════════════════════
-
-PCV_FIRMADO = "Contrato Promesa de Compra venta"
-
-@router.get("/pcv/kpis")
-async def get_pcv_kpis(
-    proyecto: Optional[str] = Query(None),
-    vendedor: Optional[str] = Query(None),
-    db: Session = Depends(get_db),
-    current_user=Depends(get_current_user)
-):
-    pf = "AND p.nombre_proyecto = :proyecto" if proyecto else ""
-    vf = "AND l.vendedor = :vendedor" if vendedor else ""
-    params = {}
-    if proyecto: params["proyecto"] = proyecto
-    if vendedor: params["vendedor"] = vendedor
-
-    r = db.execute(text(f"""
-        SELECT
-            COUNT(*) AS total_ventas,
-            COUNT(*) FILTER (WHERE l.status_promesa_compraventa = :pcv_val) AS con_pcv,
-            COUNT(*) FILTER (WHERE l.status_promesa_compraventa != :pcv_val
-                              OR l.status_promesa_compraventa IS NULL) AS sin_pcv,
-            -- 2026
-            COUNT(*) FILTER (WHERE EXTRACT(YEAR FROM l.fecha_venta) = 2026) AS ventas_2026,
-            COUNT(*) FILTER (WHERE EXTRACT(YEAR FROM l.fecha_venta) = 2026
-                              AND (l.status_promesa_compraventa != :pcv_val
-                                   OR l.status_promesa_compraventa IS NULL)) AS sin_pcv_2026,
-            -- Por antigüedad sin PCV
-            COUNT(*) FILTER (WHERE (l.status_promesa_compraventa != :pcv_val OR l.status_promesa_compraventa IS NULL)
-                              AND l.fecha_venta IS NOT NULL
-                              AND CURRENT_DATE - l.fecha_venta::date BETWEEN 1 AND 15) AS sin_pcv_0_15,
-            COUNT(*) FILTER (WHERE (l.status_promesa_compraventa != :pcv_val OR l.status_promesa_compraventa IS NULL)
-                              AND l.fecha_venta IS NOT NULL
-                              AND CURRENT_DATE - l.fecha_venta::date BETWEEN 16 AND 30) AS sin_pcv_16_30,
-            COUNT(*) FILTER (WHERE (l.status_promesa_compraventa != :pcv_val OR l.status_promesa_compraventa IS NULL)
-                              AND l.fecha_venta IS NOT NULL
-                              AND CURRENT_DATE - l.fecha_venta::date BETWEEN 31 AND 90) AS sin_pcv_31_90,
-            COUNT(*) FILTER (WHERE (l.status_promesa_compraventa != :pcv_val OR l.status_promesa_compraventa IS NULL)
-                              AND l.fecha_venta IS NOT NULL
-                              AND CURRENT_DATE - l.fecha_venta::date > 30) AS sin_pcv_mas30,
-            COUNT(*) FILTER (WHERE (l.status_promesa_compraventa != :pcv_val OR l.status_promesa_compraventa IS NULL)
-                              AND l.fecha_venta IS NOT NULL
-                              AND CURRENT_DATE - l.fecha_venta::date > 90) AS sin_pcv_mas90,
-            -- Tiempo promedio de gestión (para los que tienen PCV)
-            COALESCE(AVG(
-                CASE WHEN l.status_promesa_compraventa = :pcv_val
-                     AND l.fecha_solicitud_pcv IS NOT NULL AND l.fecha_venta IS NOT NULL
-                THEN l.fecha_solicitud_pcv::date - l.fecha_venta::date END
-            ), 0) AS dias_prom_gestion
+    ventas_rows = db.execute(text(f"""
+        SELECT p.nombre_proyecto AS proyecto,
+               COALESCE(v.equipo, 'SIN_ASIGNAR') AS equipo,
+               COUNT(l.id) AS ventas
         FROM lotes l
         JOIN proyectos p ON p.id = l.proyecto_id
-        WHERE l.estatus IN ('VENTA','RESERVADO')
+        LEFT JOIN vendedores v ON v.nombre = l.vendedor
+        WHERE l.estatus IN ('VENTA','RESERVADO','CANJE')
           AND l.fecha_venta IS NOT NULL
-          AND l.vendedor NOT IN (
+          AND {date_filter}
+          AND COALESCE(l.vendedor,'') NOT IN (
               '-Ningún empleado del departamento de ventas-',
-              'Canje A','Bloqueado','Bloqueo Municipal','Apartado Proyecto Aptos'
+              'Bloqueado','Bloqueo Municipal','Apartado Proyecto Aptos'
           )
-          {pf} {vf}
-    """), {**params, "pcv_val": PCV_FIRMADO}).fetchone()
+        GROUP BY p.nombre_proyecto, COALESCE(v.equipo, 'SIN_ASIGNAR')
+    """), params).fetchall()
 
-    d = dict(r._mapping)
-    total = int(d.get("total_ventas") or 0)
-    con = int(d.get("con_pcv") or 0)
-    d["pct_cumplimiento"] = round(con / total * 100, 1) if total > 0 else 0
+    PROY_MAP = {
+        "Ottavia":"Cañadas de Jalapa","Tezzoli":"Club Campestre Jumay",
+        "Eficiencia Urbana":"Hacienda Jumay","Servicios Generales":"La Ceiba",
+        "Capipos":"Arboleda Santa Elena","Urbiva":"Club del Bosque",
+        "Corcolle":"Hacienda El Cafetal Fase I","Frugalex":"Oasis Zacapa",
+        "Ovest":"Hacienda Santa Lucia","Vilet":"Celajes De Tecpan",
+        "Rossio":"Hacienda el Sol","Utilica":"Condado Jutiapa",
+        "Garbatella":"Club Residencial El Progreso",
+    }
 
-    v2026 = int(d.get("ventas_2026") or 0)
-    sin2026 = int(d.get("sin_pcv_2026") or 0)
-    d["pct_sin_pcv_2026"] = round(sin2026 / v2026 * 100, 1) if v2026 > 0 else 0
+    ventas_map = {}
+    for r in ventas_rows:
+        p = r.proyecto
+        if p not in ventas_map: ventas_map[p] = {"consersa":0,"rv4":0,"sin_asignar":0}
+        eq = r.equipo.upper()
+        if eq == "CONSERSA": ventas_map[p]["consersa"] += r.ventas
+        elif eq == "RV4":    ventas_map[p]["rv4"]      += r.ventas
+        else:                ventas_map[p]["sin_asignar"] += r.ventas
 
-    return {k: float(v) if isinstance(v, (int, float)) and v is not None else v
-            for k, v in d.items()}
+    result = []
+    for m in metas_excel:
+        desc = m["proyecto"]
+        bd_nombre = PROY_MAP.get(desc, desc)
+        v = ventas_map.get(bd_nombre, {"consersa":0,"rv4":0,"sin_asignar":0})
+        vc, vr, vs = v["consersa"], v["rv4"], v["sin_asignar"]
+        vt = vc + vr + vs
+        mt = m["meta_consersa"] + m["meta_rv4"]
+        if mt == 0: continue
+        result.append({
+            "proyecto": desc,
+            "nombre_proyecto_bd": bd_nombre,
+            "meta_consersa": m["meta_consersa"],
+            "meta_rv4": m["meta_rv4"],
+            "meta_total": mt,
+            "ventas_consersa": vc,
+            "ventas_rv4": vr,
+            "ventas_sin_asignar": vs,
+            "ventas_total": vt,
+            "cumplimiento_pct": round(vt/mt*100, 1) if mt > 0 else 0.0,
+            "cumplimiento_consersa_pct": round(vc/m["meta_consersa"]*100,1) if m["meta_consersa"] > 0 else 0.0,
+            "cumplimiento_rv4_pct": round(vr/m["meta_rv4"]*100,1) if m["meta_rv4"] > 0 else 0.0,
+        })
+
+    return result
 
 
 @router.get("/pcv/pendientes")
@@ -960,7 +832,7 @@ async def get_pcv_pendientes(
 ):
     """Lotes vendidos sin PCV firmado."""
     conditions = [
-        "l.estatus IN ('VENTA','RESERVADO')",
+        "l.estatus IN ('VENTA','RESERVADO','CANJE')",
         "l.fecha_venta IS NOT NULL",
         f"(l.status_promesa_compraventa != '{PCV_FIRMADO}' OR l.status_promesa_compraventa IS NULL)",
         """l.vendedor NOT IN ('-Ningún empleado del departamento de ventas-',
@@ -1054,7 +926,7 @@ async def get_pcv_por_vendedor(
         FROM lotes l
         JOIN proyectos p ON p.id = l.proyecto_id
         LEFT JOIN vendedores v ON v.nombre = l.vendedor
-        WHERE l.estatus IN ('VENTA','RESERVADO')
+        WHERE l.estatus IN ('VENTA','RESERVADO','CANJE')
           AND l.fecha_venta IS NOT NULL
           AND l.vendedor NOT IN (
               '-Ningún empleado del departamento de ventas-',
