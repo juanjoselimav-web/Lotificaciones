@@ -454,8 +454,28 @@ async function loadDetalleFlujos() {
   const soc = document.getElementById('detalleFlujoSociedad')?.value || 'CONSOLIDADO';
   setText('detalleFlujoSub', `${soc === 'CONSOLIDADO' ? 'Todas las sociedades' : soc} · ${periodoFormal()}`);
   if (soc === 'CONSOLIDADO') {
-    setHTML('detalleIngresosTbody', '<tr><td colspan="3" style="text-align:center;color:var(--muted);padding:20px">Selecciona una sociedad para ver detalle</td></tr>');
-    setHTML('detalleEgresosTbody', '<tr><td colspan="3" style="text-align:center;color:var(--muted);padding:20px">Selecciona una sociedad</td></tr>');
+    // Aggregate top 3 sociedades for CONSOLIDADO view (avoid 16 parallel calls)
+    const TOP_SOC = ['EFICIENCIA URBANA','SER GEN CCC','OTTAVIA','ROSSIO','FRUGALEX'];
+    const ingrMapC = {}, egrMapC = {};
+    const results = await Promise.all(TOP_SOC.map(s =>
+      apiFetch(`/api/flujos/resumen?sociedad=${encodeURIComponent(s)}&granularidad=mes`).catch(()=>null)
+    ));
+    results.forEach(r => {
+      if (!r || !r.periodos) return;
+      let tgt = r.periodos[r.periodos.length - 1];
+      if (state.mes > 0) {
+        const cand = `${state.anio}-${String(state.mes).padStart(2,'0')}`;
+        if (r.periodos.includes(cand)) tgt = cand;
+      }
+      (r.secciones || []).forEach(sec => {
+        (sec.categorias || []).forEach(cat => {
+          const cv = cat.montos?.[tgt];
+          if (cv?.ingreso > 0) ingrMapC[`${sec.seccion}||${cat.categoria}`] = (ingrMapC[`${sec.seccion}||${cat.categoria}`]||0) + cv.ingreso;
+          if (cv?.egreso  > 0) egrMapC[`${sec.seccion}||${cat.categoria}`]  = (egrMapC[`${sec.seccion}||${cat.categoria}`]||0)  + cv.egreso;
+        });
+      });
+    });
+    renderDetalleFlujosTables(ingrMapC, egrMapC);
     return;
   }
   const r = await apiFetch(`/api/flujos/resumen?sociedad=${encodeURIComponent(soc)}&granularidad=mes`);
@@ -591,8 +611,8 @@ async function loadFlujos() {
 /* ── PCV ────────────────────────────────────────── */
 async function loadPCV() {
   const [k, reg] = await Promise.all([
-    apiFetch('/api/ventas/pcv/kpis'),
-    apiFetch('/api/ventas/registros-revision')
+    apiFetch('/api/ventas/pcv/kpis').catch(()=>null),
+    apiFetch('/api/ventas/registros-revision').catch(()=>null)
   ]);
   state.data.pcv = { k, reg };
 
@@ -785,7 +805,7 @@ function drawProyeccion(data) {
     const mesStr = String(d.mes).substring(0,7); const [y,m] = mesStr.split('-');
     const lbl = MESES[parseInt(m)].slice(0,3);
     return `
-      <rect x="${x}" y="${yInt}" width="${w}" height="${intH}" fill="var(--purple)" rx="3 3 0 0"/>
+      <rect x="${x}" y="${yInt}" width="${w}" height="${intH}" fill="var(--purple)" rx="3"/>
       <rect x="${x}" y="${yCap}" width="${w}" height="${capH}" fill="var(--blue)"/>
       <text x="${x + w/2}" y="${yInt - 6}" text-anchor="middle" font-size="11" font-weight="700" fill="var(--text)" style="font-family:Montserrat">${fmtQM(cap+intr)}</text>
       <text x="${x + w/2}" y="${H - pad.b + 22}" text-anchor="middle" font-size="13" font-weight="600" fill="var(--muted)" style="font-family:Montserrat">${lbl}</text>`;
@@ -950,7 +970,8 @@ function updateAllPeriodLabels() {
 }
 
 async function loadAll() {
-  setStatus('loading', 'Cargando datos…');
+  window._loadStart = Date.now();
+  setStatus('loading', 'Cargando datos… (puede tardar 5-15 segundos)');
   const token = getToken();
 
   if (!token) {
@@ -972,11 +993,14 @@ async function loadAll() {
 
   // Live data
   try {
-    await Promise.all([loadInventario(), loadVentas(), loadFlujos(), loadDetalleFlujos(), loadPCV()]);
-    await renderCarteraSlides();
+    await Promise.all([loadInventario(), loadVentas(), loadCartera(), loadFlujos(), loadDetalleFlujos(), loadPCV()]);
     renderResumenEjecutivo();
     updateAllPeriodLabels();
+    const loadEnd = Date.now();
     setStatus('ok', `Datos en vivo · ${periodoFormal()}`);
+    // Show load time in footer
+    const loadMs = loadEnd - (window._loadStart || loadEnd);
+    if (loadMs > 500) console.log(`Datos cargados en ${(loadMs/1000).toFixed(1)}s`);
   } catch (e) {
     console.error('Load error:', e);
     setStatus('error', 'Error cargando datos');
@@ -1132,6 +1156,24 @@ async function renderVentasSlides() {
   }
 
   if (v.tend && v.tend.length) drawTendencia(v.tend);
+}
+
+async function loadCartera() {
+  const cqs = carteraPeriodParams();
+  try {
+    const [k, aging, proy, alertas, desist] = await Promise.all([
+      apiFetch(`/api/cartera/kpis?${cqs}`),
+      apiFetch(`/api/cartera/aging?${cqs}`),
+      apiFetch(`/api/cartera/proyeccion-mensual?meses=12&${cqs}`),
+      apiFetch('/api/cartera/alertas').catch(()=>null),
+      apiFetch('/api/cartera/desistimientos?page_size=20').catch(()=>null),
+    ]);
+    state.data.cartera = { k, aging, proy, alertas, desist };
+  } catch(e) {
+    console.warn('loadCartera:', e);
+    state.data.cartera = {};
+  }
+  await renderCarteraSlides();
 }
 
 async function renderCarteraSlides() {
