@@ -707,6 +707,30 @@ async def get_metas(
     db: Session = Depends(get_db),
     current_user=Depends(get_current_user)
 ):
+    """
+    Metas vs avance por PROYECTO (sin responsable), mensual o anual.
+    Lee metas directamente del Excel — hoja METAS VENTAS.
+    """
+    import pandas as pd
+    from pathlib import Path
+    settings = get_settings()
+
+    # Leer metas del Excel
+    metas_excel = []
+    try:
+        xl_path = Path(settings.path_ov_cartera)
+        df_m = pd.read_excel(xl_path, sheet_name="METAS VENTAS", header=0)
+        df_m.columns = [str(c).strip() for c in df_m.columns]
+        for _, row in df_m.iterrows():
+            desc = str(row.get("Descripción", "") or "").strip()
+            if not desc or desc.lower() == "nan": continue
+            meta_c = int(float(row.get("Metas Consersa", 0) or 0))
+            meta_r = int(float(row.get("Metas RV4", 0) or 0))
+            metas_excel.append({"proyecto": desc, "meta_consersa": meta_c, "meta_rv4": meta_r})
+    except Exception as e:
+        import logging; logging.getLogger(__name__).warning(f"No se pudo leer metas Excel: {e}")
+        metas_excel = []
+
     if mes:
         date_filter = "DATE_TRUNC('month', l.fecha_venta) = make_date(:año, :mes, 1)"
         params = {"año": año, "mes": mes}
@@ -714,36 +738,79 @@ async def get_metas(
         date_filter = "EXTRACT(YEAR FROM l.fecha_venta) = :año"
         params = {"año": año}
 
-    rows = db.execute(text(f"""
+    # Ventas del período por proyecto y equipo
+    ventas_rows = db.execute(text(f"""
         SELECT
-            m.responsable,
-            m.proyecto,
-            m.meta_consersa,
-            m.meta_rv4,
-            m.meta_consersa + m.meta_rv4 AS meta_total,
-            COUNT(l.id) FILTER (WHERE v.equipo = 'CONSERSA') AS ventas_consersa,
-            COUNT(l.id) FILTER (WHERE v.equipo = 'RV4') AS ventas_rv4,
-            COUNT(l.id) AS ventas_total,
-            ROUND(COUNT(l.id)::NUMERIC / NULLIF(m.meta_consersa + m.meta_rv4, 0) * 100, 1) AS cumplimiento_pct
-        FROM metas_ventas m
-        LEFT JOIN proyectos p ON p.nombre_proyecto ILIKE '%' || split_part(m.proyecto,' ',1) || '%'
-        LEFT JOIN lotes l ON l.proyecto_id = p.id
-                         AND l.estatus IN ('VENTA','RESERVADO')
-                         AND {date_filter}
-                         AND l.vendedor NOT IN (
-                             '-Ningún empleado del departamento de ventas-',
-                             'Canje A','Bloqueado','Bloqueo Municipal','Apartado Proyecto Aptos'
-                         )
+            p.nombre_proyecto AS proyecto,
+            COALESCE(v.equipo, 'SIN_ASIGNAR') AS equipo,
+            COUNT(l.id) AS ventas
+        FROM lotes l
+        JOIN proyectos p ON p.id = l.proyecto_id
         LEFT JOIN vendedores v ON v.nombre = l.vendedor
-        WHERE m.año = :año AND m.mes = 0
-        GROUP BY m.responsable, m.proyecto, m.meta_consersa, m.meta_rv4
-        ORDER BY m.responsable, m.proyecto
+        WHERE l.estatus IN ('VENTA','RESERVADO')
+          AND l.fecha_venta IS NOT NULL
+          AND {date_filter}
+          AND l.vendedor NOT IN (
+              '-Ningún empleado del departamento de ventas-',
+              'Canje A','Bloqueado','Bloqueo Municipal','Apartado Proyecto Aptos'
+          )
+        GROUP BY p.nombre_proyecto, COALESCE(v.equipo, 'SIN_ASIGNAR')
     """), params).fetchall()
 
-    return [dict(r._mapping) for r in rows]
+    # Map: nombre_proyecto_bd → {consersa, rv4}
+    ventas_map = {}
+    for r in ventas_rows:
+        proy = r.proyecto
+        if proy not in ventas_map:
+            ventas_map[proy] = {"consersa": 0, "rv4": 0}
+        eq = r.equipo.upper()
+        if eq == "CONSERSA":
+            ventas_map[proy]["consersa"] += r.ventas
+        elif eq == "RV4":
+            ventas_map[proy]["rv4"] += r.ventas
 
+    # Mapeo nombre Excel → nombre BD
+    PROY_MAP = {
+        "Ottavia": "Cañadas de Jalapa",
+        "Tezzoli": "Club Campestre Jumay",
+        "Eficiencia Urbana": "Hacienda Jumay",
+        "Servicios Generales": "La Ceiba",
+        "Capipos": "Arboleda Santa Elena",
+        "Urbiva": "Club del Bosque",
+        "Corcolle": "Hacienda El Cafetal Fase I",
+        "Frugalex": "Oasis Zacapa",
+        "Ovest": "Hacienda Santa Lucia",
+        "Vilet": "Celajes De Tecpan",
+        "Rossio": "Hacienda el Sol",
+        "Utilica": "Condado Jutiapa",
+        "Garbatella": "Club Residencial El Progreso",
+    }
 
-# ── REGISTROS A REVISAR ───────────────────────────────────────
+    result = []
+    for m in metas_excel:
+        desc = m["proyecto"]
+        bd_nombre = PROY_MAP.get(desc, desc)
+        v = ventas_map.get(bd_nombre, {"consersa": 0, "rv4": 0})
+        vc, vr = v["consersa"], v["rv4"]
+        vt = vc + vr
+        mt = m["meta_consersa"] + m["meta_rv4"]
+        if mt == 0: continue
+        result.append({
+            "proyecto": desc,
+            "nombre_proyecto_bd": bd_nombre,
+            "meta_consersa": m["meta_consersa"],
+            "meta_rv4": m["meta_rv4"],
+            "meta_total": mt,
+            "ventas_consersa": vc,
+            "ventas_rv4": vr,
+            "ventas_total": vt,
+            "cumplimiento_pct": round(vt / mt * 100, 1) if mt > 0 else 0.0,
+            "cumplimiento_consersa_pct": round(vc / m["meta_consersa"] * 100, 1) if m["meta_consersa"] > 0 else 0.0,
+            "cumplimiento_rv4_pct": round(vr / m["meta_rv4"] * 100, 1) if m["meta_rv4"] > 0 else 0.0,
+        })
+
+    return result
+
 
 @router.get("/registros-revision")
 async def get_registros_revision(

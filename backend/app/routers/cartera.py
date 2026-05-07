@@ -122,6 +122,16 @@ async def get_kpis(
         cobro90_filter = "AND fecha_programada_cobro BETWEEN CURRENT_DATE AND CURRENT_DATE+90"
         desist_filter = ""
 
+    # Build aging range conditions using direct date strings (no :param for dynamic dates)
+    if año and mes:
+        mc = mora_cutoff  # already set above e.g. "2026-02-28"
+    else:
+        # Default: 30 days before today
+        from datetime import date, timedelta
+        today = date.today()
+        first_this_month = today.replace(day=1)
+        mc = (first_this_month - timedelta(days=1)).isoformat()  # last day of prev month
+
     kpis = db.execute(text(f"""
         SELECT
             SUM(CASE WHEN tipo_linea='BB' AND line_status='O' AND saldo_pendiente > 0
@@ -130,31 +140,28 @@ async def get_kpis(
                      THEN saldo_pendiente ELSE 0 END) AS intereses_total,
             SUM(CASE WHEN line_status='O' AND saldo_pendiente > 0
                      THEN saldo_pendiente ELSE 0 END) AS cartera_total,
-            -- Mora: vencidas al último día del mes anterior (31+ días vencidas al cierre del mes)
             SUM(CASE WHEN line_status='O' AND saldo_pendiente > 0
                      {mora_filter}
                      THEN saldo_pendiente ELSE 0 END) AS mora_total,
-            -- Aging rangos (vs. último día del mes anterior)
             SUM(CASE WHEN line_status='O' AND saldo_pendiente > 0 {mora_filter}
-                     AND fecha_programada_cobro > :mora_cutoff::date - INTERVAL '30 days'
+                     AND fecha_programada_cobro > '{mc}'::date - INTERVAL '30 days'
                      THEN saldo_pendiente ELSE 0 END) AS mora_31_60,
             SUM(CASE WHEN line_status='O' AND saldo_pendiente > 0 {mora_filter}
-                     AND fecha_programada_cobro <= :mora_cutoff::date - INTERVAL '30 days'
-                     AND fecha_programada_cobro > :mora_cutoff::date - INTERVAL '60 days'
+                     AND fecha_programada_cobro <= '{mc}'::date - INTERVAL '30 days'
+                     AND fecha_programada_cobro > '{mc}'::date - INTERVAL '60 days'
                      THEN saldo_pendiente ELSE 0 END) AS mora_61_90,
             SUM(CASE WHEN line_status='O' AND saldo_pendiente > 0 {mora_filter}
-                     AND fecha_programada_cobro <= :mora_cutoff::date - INTERVAL '60 days'
-                     AND fecha_programada_cobro > :mora_cutoff::date - INTERVAL '150 days'
+                     AND fecha_programada_cobro <= '{mc}'::date - INTERVAL '60 days'
+                     AND fecha_programada_cobro > '{mc}'::date - INTERVAL '150 days'
                      THEN saldo_pendiente ELSE 0 END) AS mora_91_180,
             SUM(CASE WHEN line_status='O' AND saldo_pendiente > 0 {mora_filter}
-                     AND fecha_programada_cobro <= :mora_cutoff::date - INTERVAL '150 days'
+                     AND fecha_programada_cobro <= '{mc}'::date - INTERVAL '150 days'
                      THEN saldo_pendiente ELSE 0 END) AS mora_180_mas,
             COUNT(DISTINCT CASE WHEN line_status='O' AND saldo_pendiente > 0
                                 THEN card_code END) AS clientes_activos,
             COUNT(DISTINCT CASE WHEN line_status='O' AND saldo_pendiente > 0
                                 {mora_filter}
                                 THEN card_code END) AS clientes_vencidos,
-            -- Cobros: próximo mes calendario desde el mes filtrado
             SUM(CASE WHEN line_status='O' AND saldo_pendiente > 0
                      {cobro30_filter}
                      THEN saldo_pendiente ELSE 0 END) AS cobro_30d,

@@ -311,6 +311,12 @@ def sync_inventario():
             logger.info(f"[SYNC] {sheet_name}: {len(df)} lotes (fuente completa)")
             total_leidos += len(df)
 
+            # DELETE stale rows before re-inserting (removes old config artifacts)
+            deleted = db.execute(text("DELETE FROM lotes WHERE proyecto_id=:pid"), {"pid": proyecto_id}).rowcount
+            if deleted > 0:
+                logger.info(f"[SYNC] {sheet_name}: {deleted} filas previas eliminadas")
+            db.commit()
+
             for _, row in df.iterrows():
                 lote_key = clean_str(row.get("Lote"))
                 if not lote_key:
@@ -380,6 +386,7 @@ def sync_inventario():
             logger.info(f"[SYNC] {len(ventas_sbo)} lotes vendidos cargados de hojas SBO parciales")
 
             batch_count = 0
+            proyectos_eliminados = set()  # track which projects already had DELETE run
             for _, row in df_consba.iterrows():
                 nombre_proyecto = normalizar_nombre_proyecto(clean_str(row.get("Nombre del proyecto")))
                 unidad_key = clean_str(row.get("Unidad_Key"))
@@ -392,6 +399,14 @@ def sync_inventario():
 
                 proyecto_id = pinfo["id"]
                 empresa_sap = pinfo["empresa"]
+
+                # Delete stale rows once per project before first row
+                if proyecto_id not in proyectos_eliminados:
+                    deleted = db.execute(text("DELETE FROM lotes WHERE proyecto_id=:pid"), {"pid": proyecto_id}).rowcount
+                    if deleted > 0:
+                        logger.info(f"[SYNC CONSBA] {nombre_proyecto}: {deleted} filas previas eliminadas")
+                    db.commit()
+                    proyectos_eliminados.add(proyecto_id)
 
                 venta_row = ventas_sbo.get((empresa_sap, unidad_key))
 
