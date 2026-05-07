@@ -265,16 +265,20 @@ async function loadInventario() {
     const pct = Number(p.porcentaje_absorcion || 0);
     const vendidos = Number(p.vendidos_reservados || p.vendidos || 0);
     const total = Number(p.total_lotes || 0);
-    return `<div class="bar-row" style="padding:${sorted.length > 8 ? '10px 0' : '14px 0'}">
-      <div class="bar-name" style="font-size:${sorted.length > 8 ? '12px' : '14px'}">${p.nombre_proyecto}<div style="font-size:10px;color:var(--muted);font-weight:500;margin-top:1px">${p.nombre_sociedad}</div></div>
-      <div class="bar-track"><div class="bar-fill" style="width:${Math.min(pct,100)}%"></div></div>
-      <div class="bar-pct" style="font-size:13px">${fmtPct(pct)}<div style="font-size:10px;color:var(--muted);font-weight:500;margin-top:1px;text-align:right">${vendidos}/${total}</div></div>
+    return `<div class="bar-row" style="padding:${sorted.length > 10 ? '8px 0' : '13px 0'}">
+      <div class="bar-name" style="font-size:${sorted.length > 10 ? '12px' : '14px'}">${p.nombre_proyecto}<div style="font-size:11px;color:var(--muted);font-weight:500;margin-top:1px">${p.nombre_sociedad}</div></div>
+      <div class="bar-track" style="height:${sorted.length > 10 ? '10px' : '14px'}"><div class="bar-fill" style="width:${Math.min(pct,100)}%"></div></div>
+      <div class="bar-pct" style="font-size:${sorted.length > 10 ? '14px' : '16px'};min-width:100px">${fmtPct(pct)}<div style="font-size:11px;color:var(--muted);font-weight:500;margin-top:1px;text-align:right">${vendidos}/${total}</div></div>
     </div>`;
   }).join(''));
 
   // Slide 7 — Valor por proyecto (con ticket promedio)
   const byValor = [...proyectos].sort((a,b) => Number(b.valor_disponible||0) - Number(a.valor_disponible||0));
-  setHTML('valorTbody', byValor.map((p, i) => {
+
+  // Ensure table wrapper is scrollable
+  const valorTableWrap = document.getElementById('valorTbl')?.closest('.table-wrap') || document.getElementById('valorTbl')?.parentElement;
+  if (valorTableWrap) { valorTableWrap.style.maxHeight = '55vh'; valorTableWrap.style.overflowY = 'auto'; }
+    setHTML('valorTbody', byValor.map((p, i) => {
     const pct = Number(p.porcentaje_absorcion || 0);
     const cls = pct >= 60 ? 'green' : pct >= 30 ? 'amber' : 'red';
     const disp = Number(p.disponibles || 0);
@@ -707,10 +711,11 @@ function drawLegend(elId, segs, total) {
 }
 
 function drawTendencia(data) {
-  const svg = document.getElementById('tendenciaChart');
-  if (!svg) return;
+  const container = document.getElementById('tendenciaChart');
+  if (!container || !data || !data.length) return;
   const W = 1600, H = 480, pad = { l: 60, r: 30, t: 30, b: 60 };
-  const max = Math.max(...data.map(d => Number(d.ventas_brutas||0)), 1);
+  const maxVal = Math.max(...data.map(d => Math.max(Number(d.ventas_brutas||0), Number(d.desistimientos||0))), 1);
+  const max = maxVal;
   const x = i => pad.l + (i * (W - pad.l - pad.r) / Math.max(data.length-1,1));
   const y = v => H - pad.b - (v / max) * (H - pad.t - pad.b);
 
@@ -738,18 +743,21 @@ function drawTendencia(data) {
     return `<text x="${x(i)}" y="${H-pad.b+24}" text-anchor="middle" font-size="13" fill="var(--muted)" font-weight="600" style="font-family:Montserrat">${lbl}</text>`;
   }).join('');
 
-  svg.innerHTML = grid + xLabels +
+  const svgContent = grid + xLabels +
     linePath('ventas_brutas', 'var(--azul)') +
     linePath('ventas_netas',  'var(--green)') +
     data.map((d,i) => {
       const yy = y(Number(d.desistimientos||0));
-      return `<rect x="${x(i)-12}" y="${yy}" width="24" height="${H-pad.b-yy}" fill="var(--red)" opacity="0.6" rx="2"/>`;
+      const barH = Math.max(0, H-pad.b-yy);
+      return barH > 0 ? `<rect x="${x(i)-12}" y="${yy}" width="24" height="${barH}" fill="var(--red)" opacity="0.6" rx="2"/>` : '';
     }).join('') +
-    // Quantity labels on each point
     data.map((d,i) => `
       <text x="${x(i)}" y="${y(Number(d.ventas_brutas||0))-10}" text-anchor="middle" font-size="13" font-weight="700" fill="var(--azul)" style="font-family:Montserrat">${d.ventas_brutas||0}</text>
       <text x="${x(i)}" y="${y(Number(d.ventas_netas||0))-10}" text-anchor="middle" font-size="12" font-weight="600" fill="var(--green)" style="font-family:Montserrat">${d.ventas_netas||0}</text>
     `).join('');
+
+  // Replace container content with a fresh SVG element
+  container.innerHTML = `<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:${H}px">${svgContent}</svg>`;
 }
 
 function drawAging(data) {

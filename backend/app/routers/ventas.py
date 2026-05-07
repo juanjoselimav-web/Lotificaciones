@@ -823,6 +823,119 @@ async def get_metas(
     return result
 
 
+@router.get("/pcv/kpis")
+async def get_pcv_kpis(
+    año: Optional[int] = Query(None),
+    mes: Optional[int] = Query(None),
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user)
+):
+    """KPIs de Promesas de Compraventa."""
+    date_filter = ""
+    params = {}
+    if año and mes:
+        date_filter = "AND EXTRACT(YEAR FROM l.fecha_venta)=:año AND EXTRACT(MONTH FROM l.fecha_venta)=:mes"
+        params = {"año": año, "mes": mes}
+    elif año:
+        date_filter = "AND EXTRACT(YEAR FROM l.fecha_venta)=:año"
+        params = {"año": año}
+
+    row = db.execute(text(f"""
+        SELECT
+            COUNT(l.id) FILTER (WHERE l.estatus IN ('VENTA','RESERVADO','CANJE')) AS total_ventas,
+            COUNT(l.id) FILTER (WHERE l.estatus IN ('VENTA','RESERVADO','CANJE')
+                AND l.status_promesa_compraventa IS NOT NULL
+                AND l.status_promesa_compraventa != '') AS con_pcv,
+            COUNT(l.id) FILTER (WHERE l.estatus IN ('VENTA','RESERVADO','CANJE')
+                AND (l.status_promesa_compraventa IS NULL OR l.status_promesa_compraventa = '')) AS sin_pcv,
+            COUNT(l.id) FILTER (WHERE l.estatus IN ('VENTA','RESERVADO','CANJE')
+                AND l.fecha_venta >= DATE_TRUNC('year', CURRENT_DATE)
+                AND (l.status_promesa_compraventa IS NULL OR l.status_promesa_compraventa = '')) AS sin_pcv_2026,
+            COALESCE(AVG(CASE WHEN l.status_promesa_compraventa IS NOT NULL
+                             AND l.status_promesa_compraventa != ''
+                             AND l.fecha_venta IS NOT NULL
+                             THEN (CURRENT_DATE - l.fecha_venta::date)::int END), 0) AS dias_prom_gestion,
+            COUNT(l.id) FILTER (WHERE l.estatus IN ('VENTA','RESERVADO','CANJE')
+                AND (l.status_promesa_compraventa IS NULL OR l.status_promesa_compraventa = '')
+                AND l.fecha_venta IS NOT NULL
+                AND (CURRENT_DATE - l.fecha_venta::date) BETWEEN 0 AND 15) AS sin_pcv_0_15,
+            COUNT(l.id) FILTER (WHERE l.estatus IN ('VENTA','RESERVADO','CANJE')
+                AND (l.status_promesa_compraventa IS NULL OR l.status_promesa_compraventa = '')
+                AND l.fecha_venta IS NOT NULL
+                AND (CURRENT_DATE - l.fecha_venta::date) BETWEEN 16 AND 30) AS sin_pcv_16_30,
+            COUNT(l.id) FILTER (WHERE l.estatus IN ('VENTA','RESERVADO','CANJE')
+                AND (l.status_promesa_compraventa IS NULL OR l.status_promesa_compraventa = '')
+                AND l.fecha_venta IS NOT NULL
+                AND (CURRENT_DATE - l.fecha_venta::date) BETWEEN 31 AND 90) AS sin_pcv_31_90,
+            COUNT(l.id) FILTER (WHERE l.estatus IN ('VENTA','RESERVADO','CANJE')
+                AND (l.status_promesa_compraventa IS NULL OR l.status_promesa_compraventa = '')
+                AND l.fecha_venta IS NOT NULL
+                AND (CURRENT_DATE - l.fecha_venta::date) > 90) AS sin_pcv_mas90
+        FROM lotes l
+        WHERE l.estatus IN ('VENTA','RESERVADO','CANJE') {date_filter}
+    """), params).fetchone()
+
+    d = dict(row._mapping) if row else {}
+    total = d.get("total_ventas") or 0
+    con   = d.get("con_pcv") or 0
+    sin   = d.get("sin_pcv") or 0
+    sin26 = d.get("sin_pcv_2026") or 0
+    d["pct_cumplimiento"]  = round(con / total * 100, 1) if total else 0
+    d["pct_sin_pcv_2026"]  = round(sin26 / total * 100, 1) if total else 0
+    return {k: (float(v) if v is not None else 0) for k, v in d.items()}
+
+
+@router.get("/registros-revision")
+async def get_registros_revision(
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user)
+):
+    """Inconsistencias detectadas automáticamente entre SAP y tablero."""
+    issues = []
+
+    # Crédito con interés pero total_intereses = 0
+    rows = db.execute(text("""
+        SELECT l.id, l.unidad_key, l.forma_pago, l.precio_final, l.total_intereses,
+               p.nombre_proyecto, l.vendedor, l.card_name
+        FROM lotes l JOIN proyectos p ON p.id = l.proyecto_id
+        WHERE l.estatus IN ('VENTA','RESERVADO')
+          AND l.forma_pago = 'CREDITOCONINTERES'
+          AND (l.total_intereses IS NULL OR l.total_intereses = 0)
+        LIMIT 20
+    """)).fetchall()
+    for r in rows:
+        issues.append({
+            "tipo": "CON_INTERES_SIN_MONTO", "nivel": "ROJO",
+            "mensaje": f"Crédito con interés sin monto: {r.card_name or r.unidad_key}",
+            "detalle": f"{r.nombre_proyecto} | {r.unidad_key} | Q {r.precio_final:,.0f}",
+            "accion": "Revisar contrato en SAP — Total Intereses = 0"
+        })
+
+    # Ventas sin vendedor asignado (excluye canjes/bloqueados)
+    rows2 = db.execute(text("""
+        SELECT COUNT(*) as cnt, l.proyecto_id, p.nombre_proyecto
+        FROM lotes l JOIN proyectos p ON p.id = l.proyecto_id
+        WHERE l.estatus IN ('VENTA','RESERVADO')
+          AND (l.vendedor IS NULL OR l.vendedor = '')
+        GROUP BY l.proyecto_id, p.nombre_proyecto
+        HAVING COUNT(*) > 0
+        LIMIT 10
+    """)).fetchall()
+    for r in rows2:
+        issues.append({
+            "tipo": "VENTA_SIN_VENDEDOR", "nivel": "GRIS",
+            "mensaje": f"{r.cnt} ventas sin vendedor en {r.nombre_proyecto}",
+            "detalle": f"Ventas sin asignación de vendedor",
+            "accion": "Verificar en SAP el campo Vendedor"
+        })
+
+    rojas    = sum(1 for i in issues if i["nivel"] == "ROJO")
+    amarillas = sum(1 for i in issues if i["nivel"] == "AMARILLO")
+    grises   = sum(1 for i in issues if i["nivel"] == "GRIS")
+    return {"total": len(issues), "rojas": rojas, "amarillas": amarillas,
+            "grises": grises, "issues": issues}
+
+
 @router.get("/pcv/pendientes")
 async def get_pcv_pendientes(
     proyecto: Optional[str] = Query(None),

@@ -40,6 +40,14 @@ async def get_resumen(
 
     ids_str = ",".join(str(i) for i in proyectos_ids)
 
+    # Define cutoff BEFORE any query uses it
+    import calendar as _cal
+    if año and mes:
+        _last = _cal.monthrange(año, mes)[1]
+        cutoff = f"{año}-{mes:02d}-{_last}"
+    else:
+        cutoff = None
+
     # Per-project breakdown with period awareness
     if año and mes:
         resumen = db.execute(text(f"""
@@ -93,12 +101,8 @@ async def get_resumen(
             ORDER BY nombre_proyecto
         """)).fetchall()
 
-    # Totales consolidados
-    # Period-aware: treat lotes with fecha_venta > cutoff as DISPONIBLE
-    import calendar
+    # Totales consolidados — cutoff already defined above
     if año and mes:
-        last_day = calendar.monthrange(año, mes)[1]
-        cutoff = f"{año}-{mes:02d}-{last_day}"
         period_params = {"cutoff": cutoff}
         # Effective estatus: if fecha_venta > cutoff → DISPONIBLE, else real estatus
         estatus_expr = """

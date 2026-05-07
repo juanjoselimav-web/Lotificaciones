@@ -1474,8 +1474,7 @@ async function init() {
   loadResumen();
   loadRevision();
   // Pre-load PCV badge
-  api('/api/ventas/pcv/kpis').catch(()=>null).then(function(k){ if(!k) return;  }
-  });
+  // pcv kpis loaded on tab click
 }
 
 init();
