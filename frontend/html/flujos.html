@@ -516,7 +516,7 @@ function resetTimer() {
   _timer = setTimeout(function() {
     localStorage.removeItem("token"); localStorage.removeItem("usuario");
     window.location.href = "/index.html?msg=inactividad";
-  }, 120000);
+  }, 10800000);
 }
 ["mousemove","keydown","click","scroll","touchstart"].forEach(function(e) {
   document.addEventListener(e, resetTimer, true);
