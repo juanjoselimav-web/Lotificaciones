@@ -301,7 +301,7 @@ async function loadVentas() {
     apiFetch(`/api/ventas/analisis-financiero?${qs}`),
     apiFetch(`/api/ventas/por-vendedor?${qs}`),
     apiFetch(`/api/ventas/metas?año=${state.anio}`),
-    apiFetch(`/api/ventas/tendencia-mensual?meses_atras=12&año=${state.anio}&mes=${state.mes > 0 ? state.mes : ''}`)
+    apiFetch(`/api/ventas/tendencia-mensual?meses_atras=12${state.mes > 0 ? '&año='+state.anio+'&mes='+state.mes : ''}`)
   ]);
   state.data.ventas = { k, mezcla, fin, vend, metas, tend };
 
@@ -446,10 +446,19 @@ async function loadVentas() {
           <div style="font-size:10px;color:var(--muted)">${m.ventas_total||0}/${m.meta_total}</div>
         </div>
       </div>`;
-    }).filter(Boolean).join(''));;
-    renderDetalleFlujosTables(ingrMap, egrMap);
-  } else {
-    const r = await apiFetch(`/api/flujos/resumen?sociedad=${encodeURIComponent(soc)}&granularidad=mes`);
+    }).filter(Boolean).join(''));
+  } // end metas block
+} // end loadVentas
+
+async function loadDetalleFlujos() {
+  const soc = document.getElementById('detalleFlujoSociedad')?.value || 'CONSOLIDADO';
+  setText('detalleFlujoSub', `${soc === 'CONSOLIDADO' ? 'Todas las sociedades' : soc} · ${periodoFormal()}`);
+  if (soc === 'CONSOLIDADO') {
+    setHTML('detalleIngresosTbody', '<tr><td colspan="3" style="text-align:center;color:var(--muted);padding:20px">Selecciona una sociedad para ver detalle</td></tr>');
+    setHTML('detalleEgresosTbody', '<tr><td colspan="3" style="text-align:center;color:var(--muted);padding:20px">Selecciona una sociedad</td></tr>');
+    return;
+  }
+  const r = await apiFetch(`/api/flujos/resumen?sociedad=${encodeURIComponent(soc)}&granularidad=mes`);
     if (!r || !r.periodos) return;
     let target = r.periodos[r.periodos.length - 1];
     if (state.mes > 0) {
@@ -465,7 +474,6 @@ async function loadVentas() {
       });
     });
     renderDetalleFlujosTables(ingrMap, egrMap);
-  }
 }
 
 function renderDetalleFlujosTables(ingrMap, egrMap) {
@@ -964,7 +972,8 @@ async function loadAll() {
 
   // Live data
   try {
-    await Promise.all([loadInventario(), loadVentas(), loadCartera(), loadFlujos(), loadDetalleFlujos(), loadPCV()]);
+    await Promise.all([loadInventario(), loadVentas(), loadFlujos(), loadDetalleFlujos(), loadPCV()]);
+    await renderCarteraSlides();
     renderResumenEjecutivo();
     updateAllPeriodLabels();
     setStatus('ok', `Datos en vivo · ${periodoFormal()}`);

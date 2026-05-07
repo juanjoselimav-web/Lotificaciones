@@ -50,35 +50,35 @@ async def get_resumen(
                 p.empresa_sap,
                 COUNT(l.id) AS total_lotes,
                 COUNT(l.id) FILTER (WHERE
-                    CASE WHEN l.fecha_venta IS NOT NULL AND l.fecha_venta > :cutoff::date
+                    CASE WHEN l.fecha_venta IS NOT NULL AND l.fecha_venta > CAST(:cutoff AS DATE)
                     THEN 'DISPONIBLE' ELSE l.estatus END = 'DISPONIBLE') AS disponibles,
                 COUNT(l.id) FILTER (WHERE
-                    CASE WHEN l.fecha_venta IS NOT NULL AND l.fecha_venta > :cutoff::date
+                    CASE WHEN l.fecha_venta IS NOT NULL AND l.fecha_venta > CAST(:cutoff AS DATE)
                     THEN 'DISPONIBLE' ELSE l.estatus END IN ('VENTA','RESERVADO')) AS vendidos_reservados,
                 COUNT(l.id) FILTER (WHERE
-                    CASE WHEN l.fecha_venta IS NOT NULL AND l.fecha_venta > :cutoff::date
+                    CASE WHEN l.fecha_venta IS NOT NULL AND l.fecha_venta > CAST(:cutoff AS DATE)
                     THEN 'DISPONIBLE' ELSE l.estatus END = 'BLOQUEADO') AS bloqueados,
                 COUNT(l.id) FILTER (WHERE
-                    CASE WHEN l.fecha_venta IS NOT NULL AND l.fecha_venta > :cutoff::date
+                    CASE WHEN l.fecha_venta IS NOT NULL AND l.fecha_venta > CAST(:cutoff AS DATE)
                     THEN 'DISPONIBLE' ELSE l.estatus END = 'CANJE') AS canjes,
                 COALESCE(SUM(l.precio_final) FILTER (WHERE
-                    CASE WHEN l.fecha_venta IS NOT NULL AND l.fecha_venta > :cutoff::date
+                    CASE WHEN l.fecha_venta IS NOT NULL AND l.fecha_venta > CAST(:cutoff AS DATE)
                     THEN 'DISPONIBLE' ELSE l.estatus END = 'DISPONIBLE'), 0) AS valor_disponible,
                 COALESCE(SUM(l.precio_final) FILTER (WHERE
-                    CASE WHEN l.fecha_venta IS NOT NULL AND l.fecha_venta > :cutoff::date
+                    CASE WHEN l.fecha_venta IS NOT NULL AND l.fecha_venta > CAST(:cutoff AS DATE)
                     THEN 'DISPONIBLE' ELSE l.estatus END IN ('VENTA','RESERVADO')), 0) AS valor_vendido,
                 COALESCE(SUM(l.precio_final) FILTER (WHERE
-                    CASE WHEN l.fecha_venta IS NOT NULL AND l.fecha_venta > :cutoff::date
+                    CASE WHEN l.fecha_venta IS NOT NULL AND l.fecha_venta > CAST(:cutoff AS DATE)
                     THEN 'DISPONIBLE' ELSE l.estatus END = 'BLOQUEADO'), 0) AS valor_bloqueado,
                 COALESCE(SUM(l.precio_final) FILTER (WHERE
-                    CASE WHEN l.fecha_venta IS NOT NULL AND l.fecha_venta > :cutoff::date
+                    CASE WHEN l.fecha_venta IS NOT NULL AND l.fecha_venta > CAST(:cutoff AS DATE)
                     THEN 'DISPONIBLE' ELSE l.estatus END = 'CANJE'), 0) AS valor_canjes,
                 COALESCE(SUM(l.precio_final), 0) AS valor_total,
                 ROUND(COUNT(l.id) FILTER (WHERE
-                    CASE WHEN l.fecha_venta IS NOT NULL AND l.fecha_venta > :cutoff::date
+                    CASE WHEN l.fecha_venta IS NOT NULL AND l.fecha_venta > CAST(:cutoff AS DATE)
                     THEN 'DISPONIBLE' ELSE l.estatus END IN ('VENTA','RESERVADO'))::NUMERIC
                     / NULLIF(COUNT(l.id) FILTER (WHERE
-                    CASE WHEN l.fecha_venta IS NOT NULL AND l.fecha_venta > :cutoff::date
+                    CASE WHEN l.fecha_venta IS NOT NULL AND l.fecha_venta > CAST(:cutoff AS DATE)
                     THEN 'DISPONIBLE' ELSE l.estatus END NOT IN ('BLOQUEADO','CANJE')), 0) * 100, 2) AS porcentaje_absorcion
             FROM lotes l
             JOIN proyectos p ON p.id = l.proyecto_id
@@ -103,7 +103,7 @@ async def get_resumen(
         # Effective estatus: if fecha_venta > cutoff → DISPONIBLE, else real estatus
         estatus_expr = """
             CASE
-                WHEN l.fecha_venta IS NOT NULL AND l.fecha_venta > :cutoff::date
+                WHEN l.fecha_venta IS NOT NULL AND l.fecha_venta > CAST(:cutoff AS DATE)
                 THEN 'DISPONIBLE'
                 ELSE l.estatus
             END"""

@@ -820,7 +820,7 @@ async function loadMetas() {
   const tbody = document.getElementById('metasBody');
   if (!data || !data.length) {tbody.innerHTML = '<tr><td colspan="9" class="empty">Sin datos</td></tr>'; return;}
 
-  let totMC=0,totMR=0,totMT=0,totVC=0,totVR=0,totVT=0;
+  let totMC=0,totMR=0,totMT=0,totVC=0,totVR=0,totVT=0,totVSA=0;
   tbody.innerHTML = data.map(r => {
     const pct = parseFloat(r.cumplimiento_pct || 0);
     const cls = pct >= 80 ? 'sem-verde' : pct >= 50 ? 'sem-amarillo' : 'sem-rojo';
@@ -1239,32 +1239,19 @@ async function drillPlazo(plazo, formaPago) {
 
 // ── REVISION (incluye inconsistencias) ───────────────────────
 async function loadRevision() {
-  const [data, inconsist] = await Promise.all([
-    api('/api/ventas/registros-revision'),
-    api('/api/ventas/inconsistencias')
-  ]);
-  var allIssues = [];
-  if (inconsist && inconsist.issues) allIssues = allIssues.concat(inconsist.issues);
-  if (data && data.issues) allIssues = allIssues.concat(data.issues);
-  var rojas = (inconsist ? inconsist.rojas : 0) + (data ? data.rojas : 0);
-  document.getElementById('revisionBadge').textContent = rojas || allIssues.length;
-  const cont = document.getElementById('revisionContent');
-  if (!allIssues.length) { cont.innerHTML = '<div class="empty">✅ Sin registros pendientes de revisión</div>'; return; }
-  var iconos = {CON_INTERES_SIN_MONTO:'🔴',SIN_INTERES_CON_MONTO:'🔴',CREDITO_SIN_PLAZO:'🟡',VENDEDOR_SIN_EQUIPO:'🟡',VENTA_SIN_VENDEDOR:'⚫',FECHA_DESISTIMIENTO_INCORRECTA:'🔴',VENDEDOR_NUEVO:'🟡'};
-  cont.innerHTML = '<div style="margin-bottom:14px;font-size:12px;color:var(--muted);font-weight:500">' +
-    rojas + ' alertas críticas · ' + (allIssues.length - rojas) + ' pendientes</div>' +
-    allIssues.map(function(i){
-      return '<div class="issue ' + i.nivel.toLowerCase() + '">' +
-        '<div class="issue-icon">' + (iconos[i.tipo]||'⚠') + '</div><div>' +
-        '<div class="issue-tipo">' + i.tipo.replace(/_/g,' ') + '</div>' +
-        '<div class="issue-msg">' + i.mensaje + '</div>' +
-        '<div class="issue-det">' + i.detalle + '</div>' +
-        '<div class="issue-accion">' + (i.accion||'') + '</div>' +
-        '</div></div>';
-    }).join('');
+  try {
+    const [revision] = await Promise.all([
+      api('/api/ventas/registros-revision').catch(()=>null),
+    ]);
+    if (!revision) {
+      document.getElementById('tabRevisionContent') && (document.getElementById('tabRevisionContent').innerHTML = '<div style="padding:40px;text-align:center;color:var(--muted)">Sin datos de revisión disponibles</div>');
+      return;
+    }
+    renderRevision(revision);
+  } catch(e) { console.warn('loadRevision:', e); }
 }
 
-// ── CONFIG EQUIPOS ────────────────────────────────────────────
+
 async function loadConfig() {
   const data = await api('/api/ventas/vendedores');
   if (!data) return;
@@ -1326,44 +1313,25 @@ var pcvPage = 1;
 var pcvTimer;
 
 async function loadPCV() {
-  var proyecto = document.getElementById('proyectoSel').value;
-  var q = '/api/ventas/pcv/kpis' + (proyecto ? '?proyecto=' + encodeURIComponent(proyecto) : '');
-  const [kpis, pendientes, porVendedor] = await Promise.all([
-    api(q),
-    loadPcvPendientesData(),
-    api('/api/ventas/pcv/por-vendedor' + (proyecto ? '?proyecto=' + encodeURIComponent(proyecto) : ''))
-  ]);
-  if (kpis) renderPcvKpis(kpis);
-  if (pendientes) renderPcvPendientes(pendientes);
-  if (porVendedor) renderPcvVendedor(porVendedor);
-  await loadPcvVendedoresFiltro();
+  try {
+    const kpis = await api('/api/ventas/pcv/kpis').catch(()=>null);
+    if (!kpis) {
+      const el = document.getElementById('pcvKpisSection');
+      if (el) el.innerHTML = '<div style="padding:30px;text-align:center;color:var(--muted)">Sin datos de PCV</div>';
+      return;
+    }
+    renderPCVKpis(kpis);
+  } catch(e) { console.warn('loadPCV:', e); }
+  try {
+    const f = getFilters();
+    const q = buildQ();
+    const pending = await api('/api/ventas/pcv/pendientes' + q).catch(()=>null);
+    if (pending) renderPCVPendientes(pending);
+    const pv = await api('/api/ventas/pcv/por-vendedor' + q).catch(()=>null);
+    if (pv) renderPCVPorVendedor(pv);
+  } catch(e) { console.warn('loadPCV detail:', e); }
 }
 
-function renderPcvKpis(k) {
-  var pct = parseFloat(k.pct_cumplimiento || 0);
-  var pctColor = pct >= 80 ? 'var(--green)' : pct >= 50 ? 'var(--amber)' : 'var(--red)';
-  document.getElementById('pcvPct').style.color = pctColor;
-  document.getElementById('pcvPct').textContent = pct.toFixed(1) + '%';
-  document.getElementById('pcvPctSub').textContent = 'Meta: 100% | ' + (pct >= 80 ? '✓ Bien' : pct >= 50 ? '⚠ Atención' : '✗ Crítico');
-  document.getElementById('pcvCon').textContent = fmtNum(k.con_pcv);
-  document.getElementById('pcvSin').textContent = fmtNum(k.sin_pcv);
-  document.getElementById('pcvSinSub').textContent = fmtNum(k.sin_pcv_mas30) + ' con +30 días';
-  document.getElementById('pcvSin2026').textContent = fmtNum(k.sin_pcv_2026);
-  document.getElementById('pcvSin2026Sub').textContent = k.pct_sin_pcv_2026 + '% de ventas 2026';
-  document.getElementById('pcvSin2026Sub').style.color = parseFloat(k.pct_sin_pcv_2026) > 50 ? 'var(--red)' : 'var(--muted)';
-  document.getElementById('pcvDias').textContent = Math.round(k.dias_prom_gestion || 0) + ' d';
-
-  // Aging cards - usar los rangos exactos del backend
-  document.getElementById('pcvAge1').textContent = fmtNum(k.sin_pcv_0_15 || 0);
-  document.getElementById('pcvAge2').textContent = fmtNum(k.sin_pcv_16_30 || 0);
-  document.getElementById('pcvAge3').textContent = fmtNum(k.sin_pcv_31_90 || 0);
-  document.getElementById('pcvAge4').textContent = fmtNum(k.sin_pcv_mas90 || 0);
-
-  // Update badge
-  var badge = document.getElementById('pcvBadge');
-  badge.style.display = 'inline-flex';
-  badge.textContent = k.sin_pcv_mas30 || 0;
-}
 
 async function loadPcvPendientesData() {
   var proyecto = document.getElementById('proyectoSel').value;
@@ -1506,12 +1474,7 @@ async function init() {
   loadResumen();
   loadRevision();
   // Pre-load PCV badge
-  api('/api/ventas/pcv/kpis').then(function(k){
-    if (k && k.sin_pcv_mas30 > 0) {
-      var b = document.getElementById('pcvBadge');
-      b.style.display = 'inline-flex';
-      b.textContent = k.sin_pcv_mas30;
-    }
+  api('/api/ventas/pcv/kpis').catch(()=>null).then(function(k){ if(!k) return;  }
   });
 }
 

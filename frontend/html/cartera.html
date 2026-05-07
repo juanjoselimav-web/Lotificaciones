@@ -484,6 +484,7 @@ const API='';
 
 let chartCobros=null;
 let empresaActual='';
+let carteraMes=null, carteraAnio=new Date().getFullYear();
 let clientesPage=1, desistPage=1;
 let clientesTimer;
 
@@ -516,6 +517,15 @@ async function init(){
   await loadAlertas();
 }
 
+function onPeriodoChange(){
+  const mesEl = document.getElementById('mesSel');
+  const anioEl = document.getElementById('añoSel');
+  carteraMes  = mesEl  && mesEl.value  ? parseInt(mesEl.value)  : null;
+  carteraAnio = anioEl && anioEl.value ? parseInt(anioEl.value) : new Date().getFullYear();
+  loadKPIs();
+  loadAlertas();
+}
+
 function onEmpresaChange(){
   empresaActual=document.getElementById('empresaSel').value;
   loadKPIs();
@@ -526,7 +536,11 @@ function onEmpresaChange(){
 
 // ── KPIs ─────────────────────────────────────────
 async function loadKPIs(){
-  const q=empresaActual?`?empresa=${encodeURIComponent(empresaActual)}`:'';
+  // Build query string with empresa + optional period
+  const parts = [];
+  if (empresaActual) parts.push(`empresa=${encodeURIComponent(empresaActual)}`);
+  if (carteraMes)   parts.push(`mes=${carteraMes}`, `a\u00f1o=${carteraAnio}`);
+  const q = parts.length ? '?' + parts.join('&') : '';
   const [kpis, proyeccion, aging] = await Promise.all([
     api('/api/cartera/kpis'+q),
     api('/api/cartera/proyeccion-mensual'+q),
