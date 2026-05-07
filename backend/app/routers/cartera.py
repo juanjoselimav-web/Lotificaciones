@@ -93,28 +93,28 @@ async def get_kpis(
             SUM(CASE WHEN tipo_linea='S'  AND saldo_pendiente>0 THEN saldo_pendiente ELSE 0 END) AS intereses_total,
             SUM(CASE WHEN saldo_pendiente>0 THEN saldo_pendiente ELSE 0 END) AS cartera_total,
             -- Mora 31+ días = cuotas de meses anteriores al mes filtrado
-            SUM(CASE WHEN saldo_pendiente>0 AND fecha_programada_cobro < :mora_cutoff::date
+            SUM(CASE WHEN saldo_pendiente>0 AND fecha_programada_cobro < CAST(:mora_cutoff AS DATE)
                      THEN saldo_pendiente ELSE 0 END) AS mora_total,
             -- Aging por mes calendario
-            SUM(CASE WHEN saldo_pendiente>0 AND fecha_programada_cobro BETWEEN :cur_start::date AND :cur_end::date
+            SUM(CASE WHEN saldo_pendiente>0 AND fecha_programada_cobro BETWEEN CAST(:cur_start AS DATE) AND CAST(:cur_end AS DATE)
                      THEN saldo_pendiente ELSE 0 END) AS mora_0_30,
-            SUM(CASE WHEN saldo_pendiente>0 AND fecha_programada_cobro BETWEEN :p1s::date AND :p1e::date
+            SUM(CASE WHEN saldo_pendiente>0 AND fecha_programada_cobro BETWEEN CAST(:p1s AS DATE) AND CAST(:p1e AS DATE)
                      THEN saldo_pendiente ELSE 0 END) AS mora_31_60,
-            SUM(CASE WHEN saldo_pendiente>0 AND fecha_programada_cobro BETWEEN :p2s::date AND :p2e::date
+            SUM(CASE WHEN saldo_pendiente>0 AND fecha_programada_cobro BETWEEN CAST(:p2s AS DATE) AND CAST(:p2e AS DATE)
                      THEN saldo_pendiente ELSE 0 END) AS mora_61_90,
-            SUM(CASE WHEN saldo_pendiente>0 AND fecha_programada_cobro BETWEEN :p3s::date AND :p3e::date
+            SUM(CASE WHEN saldo_pendiente>0 AND fecha_programada_cobro BETWEEN CAST(:p3s AS DATE) AND CAST(:p3e AS DATE)
                      THEN saldo_pendiente ELSE 0 END) AS mora_91_180,
-            SUM(CASE WHEN saldo_pendiente>0 AND fecha_programada_cobro < :p6s::date
+            SUM(CASE WHEN saldo_pendiente>0 AND fecha_programada_cobro < CAST(:p6s AS DATE)
                      THEN saldo_pendiente ELSE 0 END) AS mora_180_mas,
             COUNT(DISTINCT CASE WHEN saldo_pendiente>0 THEN card_code END) AS clientes_activos,
-            COUNT(DISTINCT CASE WHEN saldo_pendiente>0 AND fecha_programada_cobro < :mora_cutoff::date
+            COUNT(DISTINCT CASE WHEN saldo_pendiente>0 AND fecha_programada_cobro < CAST(:mora_cutoff AS DATE)
                                 THEN card_code END) AS clientes_vencidos,
             -- Cobros: mes siguiente, mes+2, mes+3 (individualmente)
-            SUM(CASE WHEN saldo_pendiente>0 AND fecha_programada_cobro BETWEEN :n1s::date AND :n1e::date
+            SUM(CASE WHEN saldo_pendiente>0 AND fecha_programada_cobro BETWEEN CAST(:n1s AS DATE) AND CAST(:n1e AS DATE)
                      THEN saldo_pendiente ELSE 0 END) AS cobro_30d,
-            SUM(CASE WHEN saldo_pendiente>0 AND fecha_programada_cobro BETWEEN :n2s::date AND :n2e::date
+            SUM(CASE WHEN saldo_pendiente>0 AND fecha_programada_cobro BETWEEN CAST(:n2s AS DATE) AND CAST(:n2e AS DATE)
                      THEN saldo_pendiente ELSE 0 END) AS cobro_60d,
-            SUM(CASE WHEN saldo_pendiente>0 AND fecha_programada_cobro BETWEEN :n3s::date AND :n3e::date
+            SUM(CASE WHEN saldo_pendiente>0 AND fecha_programada_cobro BETWEEN CAST(:n3s AS DATE) AND CAST(:n3e AS DATE)
                      THEN saldo_pendiente ELSE 0 END) AS cobro_90d
         FROM ov_cartera
         WHERE line_status='O' AND tipo_linea IN ('BB','S') {ef}
@@ -337,8 +337,8 @@ async def get_proyeccion_mensual(
         WHERE line_status='O'
           AND tipo_linea IN ('BB', 'S')
           AND saldo_pendiente > 0
-          AND fecha_programada_cobro >= :start_date::date
-          AND fecha_programada_cobro < :start_date::date + (CAST(:meses AS TEXT) || ' months')::INTERVAL
+          AND fecha_programada_cobro >= CAST(:start_date AS DATE)
+          AND fecha_programada_cobro < CAST(:start_date AS DATE) + (CAST(:meses AS TEXT) || ' months')::INTERVAL
           {ef}
         GROUP BY DATE_TRUNC('month', fecha_programada_cobro)
         ORDER BY mes
@@ -394,7 +394,7 @@ async def get_aging(
                    COALESCE(SUM(saldo_pendiente),0) AS monto
             FROM ov_cartera
             WHERE line_status='O' AND tipo_linea IN ('BB','S') AND saldo_pendiente>0
-              AND fecha_programada_cobro BETWEEN :s::date AND :e::date {ef}
+              AND fecha_programada_cobro BETWEEN CAST(:s AS DATE) AND CAST(:e AS DATE) {ef}
         """), {**params, "s": s, "e": e}).fetchone()
         result.append({"rango": rango, "label": f"{rango} ({mes_label})",
                        "clientes": row.clientes, "cuotas": row.cuotas, "monto": float(row.monto)})

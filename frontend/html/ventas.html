@@ -313,13 +313,14 @@ td{padding:9px 13px;vertical-align:middle}
         </div>
         <table>
           <thead><tr>
-            <th>Responsable</th><th>Proyecto</th>
+            <th>Proyecto</th>
             <th style="color:var(--consersa)">Meta CONSERSA</th>
             <th style="color:var(--rv4)">Meta RV4</th>
             <th>Meta Total</th>
-            <th style="color:var(--consersa)">Ventas CONSERSA</th>
-            <th style="color:var(--rv4)">Ventas RV4</th>
-            <th>Total Vendido</th>
+            <th style="color:var(--consersa)">Vtas CONSERSA</th>
+            <th style="color:var(--rv4)">Vtas RV4</th>
+            <th>Sin Vendedor</th>
+            <th>Total</th>
             <th>Cumplimiento</th>
           </tr></thead>
           <tbody id="metasBody"><tr><td colspan="9" class="empty">Cargando...</td></tr></tbody>
@@ -825,15 +826,16 @@ async function loadMetas() {
     const cls = pct >= 80 ? 'sem-verde' : pct >= 50 ? 'sem-amarillo' : 'sem-rojo';
     const w = Math.min(pct, 100);
     totMC+=r.meta_consersa; totMR+=r.meta_rv4; totMT+=r.meta_total;
-    totVC+=r.ventas_consersa||0; totVR+=r.ventas_rv4||0; totVT+=r.ventas_total||0;
+    totVC+=r.ventas_consersa||0; totVR+=r.ventas_rv4||0; totVT+=r.ventas_total||0; totVSA+=r.ventas_sin_asignar||0;
+    const vsa = r.ventas_sin_asignar || 0;
     return `<tr>
-      <td style="font-weight:600">${r.responsable}</td>
-      <td style="font-size:11px">${r.proyecto}</td>
+      <td style="font-weight:600">${r.proyecto}</td>
       <td style="text-align:center;color:var(--consersa);font-weight:600">${r.meta_consersa}</td>
       <td style="text-align:center;color:var(--rv4);font-weight:600">${r.meta_rv4}</td>
       <td style="text-align:center;font-weight:700">${r.meta_total}</td>
       <td style="text-align:center;color:var(--consersa)">${r.ventas_consersa || 0}</td>
       <td style="text-align:center;color:var(--rv4)">${r.ventas_rv4 || 0}</td>
+      <td style="text-align:center;color:var(--muted)">${vsa > 0 ? vsa : '—'}</td>
       <td style="text-align:center;font-weight:700">${r.ventas_total || 0}</td>
       <td><div class="semaforo ${cls}">
         <div class="sem-bar-bg"><div class="sem-bar" style="width:${w}%"></div></div>
@@ -841,12 +843,13 @@ async function loadMetas() {
       </div></td>
     </tr>`;
   }).join('') + `<tr class="total-row">
-    <td colspan="2">TOTAL</td>
+    <td>TOTAL</td>
     <td style="text-align:center;color:var(--consersa)">${totMC}</td>
     <td style="text-align:center;color:var(--rv4)">${totMR}</td>
     <td style="text-align:center;font-weight:700">${totMT}</td>
     <td style="text-align:center;color:var(--consersa)">${totVC}</td>
     <td style="text-align:center;color:var(--rv4)">${totVR}</td>
+    <td style="text-align:center;color:var(--muted)">${totVSA}</td>
     <td style="text-align:center;font-weight:700">${totVT}</td>
     <td><div class="semaforo ${totVT/totMT>=.8?'sem-verde':totVT/totMT>=.5?'sem-amarillo':'sem-rojo'}">
       <div class="sem-bar-bg"><div class="sem-bar" style="width:${Math.min(totVT/totMT*100,100)}%"></div></div>

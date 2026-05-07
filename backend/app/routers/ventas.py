@@ -8,6 +8,9 @@ from app.core.security import get_current_user
 
 router = APIRouter(prefix="/api/ventas", tags=["ventas"])
 
+# Constante para status de PCV firmado
+PCV_FIRMADO = "PCV FIRMADO"  # valor exacto en BD (ajustar si difiere)
+
 
 # ── VENDEDORES ────────────────────────────────────────────────
 
@@ -233,8 +236,8 @@ async def get_tendencia(
         end_date = f"{año}-{mes:02d}-{last_day}"
         # Start = N months before end_date
         params = {"end_date": end_date, "meses": meses_atras}
-        date_filter = "l.fecha_venta >= :end_date::date - (:meses || ' months')::INTERVAL AND l.fecha_venta <= :end_date::date AND l.fecha_venta IS NOT NULL"
-        desist_date = "fecha_desistimiento >= :end_date::date - (:meses || ' months')::INTERVAL AND fecha_desistimiento <= :end_date::date"
+        date_filter = "l.fecha_venta >= CAST(:end_date AS DATE) - (:meses || ' months')::INTERVAL AND l.fecha_venta <= CAST(:end_date AS DATE) AND l.fecha_venta IS NOT NULL"
+        desist_date = "fecha_desistimiento >= CAST(:end_date AS DATE) - (:meses || ' months')::INTERVAL AND fecha_desistimiento <= CAST(:end_date AS DATE)"
     else:
         date_filter = "l.fecha_venta >= CURRENT_DATE - (:meses || ' months')::INTERVAL AND l.fecha_venta IS NOT NULL"
         params = {"meses": meses_atras}
@@ -529,7 +532,7 @@ async def get_detalle_mes(
         JOIN proyectos p ON p.id = l.proyecto_id
         LEFT JOIN vendedores v ON v.nombre = l.vendedor
         WHERE l.estatus IN ('VENTA','RESERVADO','CANJE')
-          AND DATE_TRUNC('month', l.fecha_venta) = :mes::date
+          AND DATE_TRUNC('month', l.fecha_venta) = CAST(:mes AS DATE)
           {pf} {fp}
         ORDER BY l.fecha_venta DESC, p.nombre_proyecto
     """), params).fetchall()
