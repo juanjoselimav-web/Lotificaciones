@@ -42,6 +42,15 @@ PROYECTOS_SBO_COMPLETO = {
     "SBO_ROSSIO":            "SBO_ROSSIO",              # ID 3  - Hacienda el Sol
 }
 
+# CardNames que indican BLOQUEADO en SAP (se marcan como BLOQUEADO, NO como venta)
+VENDEDORES_BLOQUEADO = frozenset({
+    "Bloqueo Municipal", "Apartado Proyecto Aptos", "Bloqueado",
+    "Grupo Consersa, S. A.", "Grupo Consersa, S.A.", "Grupo Consersa S.A.",
+    "Ansak, S.A.",
+})
+# El valor de Plazo "Canje A" indica canje (cuenta como venta)
+PLAZO_CANJE = frozenset({"Canje A", "canje a", "CANJE A"})
+
 # Vendedores especiales que indican BLOQUEADO o CANJE en SAP
 VENDEDORES_BLOQUEADO = {
     "Bloqueo Municipal", "Apartado Proyecto Aptos", "Bloqueado",
@@ -219,6 +228,16 @@ def build_from_sbo(row, empresa_sap: str) -> dict:
     estatus_raw = clean_str(row.get("Status de venta")) or "DISPONIBLE"
     estatus = normalizar_estatus(estatus_raw)
 
+    # Override por CardName (bloqueados) y Plazo (canjes)
+    card_name_val = clean_str(row.get("CardName")) or ""
+    plazo_val = str(row.get("Plazo", "")).strip()
+    if card_name_val in VENDEDORES_BLOQUEADO:
+        estatus = "BLOQUEADO"
+        estatus_raw = "BLOQUEADO"
+    elif plazo_val in PLAZO_CANJE:
+        estatus = "CANJE"
+        estatus_raw = "CANJE A"
+
     # Override estatus based on CardName (Vendedor) for special SAP records
     card_name = clean_str(row.get("CardName")) or ""
     if card_name in VENDEDORES_BLOQUEADO:
@@ -311,7 +330,7 @@ def sync_inventario():
             logger.info(f"[SYNC] {sheet_name}: {len(df)} lotes (fuente completa)")
             total_leidos += len(df)
 
-            # DELETE stale rows before re-inserting (removes old config artifacts)
+            # DELETE filas previas para evitar duplicados de configs antiguas
             deleted = db.execute(text("DELETE FROM lotes WHERE proyecto_id=:pid"), {"pid": proyecto_id}).rowcount
             if deleted > 0:
                 logger.info(f"[SYNC] {sheet_name}: {deleted} filas previas eliminadas")
@@ -386,7 +405,7 @@ def sync_inventario():
             logger.info(f"[SYNC] {len(ventas_sbo)} lotes vendidos cargados de hojas SBO parciales")
 
             batch_count = 0
-            proyectos_eliminados = set()  # track which projects already had DELETE run
+            proyectos_eliminados = set()
             for _, row in df_consba.iterrows():
                 nombre_proyecto = normalizar_nombre_proyecto(clean_str(row.get("Nombre del proyecto")))
                 unidad_key = clean_str(row.get("Unidad_Key"))
@@ -400,7 +419,7 @@ def sync_inventario():
                 proyecto_id = pinfo["id"]
                 empresa_sap = pinfo["empresa"]
 
-                # Delete stale rows once per project before first row
+                # DELETE una sola vez por proyecto al comienzo
                 if proyecto_id not in proyectos_eliminados:
                     deleted = db.execute(text("DELETE FROM lotes WHERE proyecto_id=:pid"), {"pid": proyecto_id}).rowcount
                     if deleted > 0:

@@ -170,8 +170,16 @@ td{padding:9px 13px;vertical-align:middle}
         Flujos de Efectivo
       </a>
     </div>
-    <div class="nav-section" id="adminSection" style="display:none">
+    <div class="nav-section" id="adminSection">
       <span class="nav-label">Administración</span>
+      <a class="nav-item" id="btn-junta" href="/presentacion.html"
+         style="background:rgba(212,168,0,0.15);color:#FFCA08;">
+        <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+          <rect x="2" y="4" width="20" height="14" rx="2"/>
+          <line x1="8" y1="20" x2="16" y2="20"/>
+          <line x1="12" y1="18" x2="12" y2="20"/>
+        </svg>Junta Directiva
+      </a>
       <a class="nav-item" href="/usuarios.html">
         <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>Usuarios
       </a>
@@ -527,7 +535,10 @@ td{padding:9px 13px;vertical-align:middle}
   if (el('envLabel')) el('envLabel').textContent = window.location.hostname === 'localhost' ? 'DESARROLLO' : 'PRODUCCIÓN';
 
   // Show admin section only for nivel >= 4
-  if (el('adminSection')) el('adminSection').style.display = usuario.nivel >= 4 ? 'block' : 'none';
+  if (el('adminSection')) // Junta siempre visible; usuarios/sync solo para admins
+      if (usuario.nivel < 4) {
+        document.querySelectorAll('#adminSection .nav-item:not(#btn-junta)').forEach(el => el.style.display = 'none');
+      }
 
   // Store globally for use in page scripts
   window._usuario = usuario;
@@ -1502,6 +1513,17 @@ async function init() {
 }
 
 init();
+</script>
+<script>
+(function() {
+  var btn = document.getElementById('btn-junta');
+  if (btn) btn.addEventListener('click', function(e) {
+    e.preventDefault();
+    var token = localStorage.getItem('token') || '';
+    var usuario = localStorage.getItem('usuario') || '';
+    window.open('/presentacion.html?token=' + encodeURIComponent(token) + '&usuario=' + btoa(usuario), '_blank');
+  });
+})();
 </script>
 </body>
 </html>

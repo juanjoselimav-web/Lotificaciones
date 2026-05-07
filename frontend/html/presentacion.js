@@ -485,15 +485,17 @@ async function loadCartera() {
     setText('carMoraTasa', `Tasa ${fmtPct(k.tasa_mora)} · vencida 31+ días`);
     // Aging breakout mini cards
     const agingRanges = [
-      { label:'31–60 días',  val: k.mora_31_60  || 0, color:'var(--amber)' },
-      { label:'61–90 días',  val: k.mora_61_90  || 0, color:'#f59e0b' },
-      { label:'91–180 días', val: k.mora_91_180 || 0, color:'#dc2626' },
-      { label:'+180 días',   val: k.mora_180_mas|| 0, color:'#7f1d1d' },
+      { label:'0-30 días',   sub:'mes actual',   val: k.mora_0_30   || k.aging_0_30   || 0, color:'var(--dorado)' },
+      { label:'31-60 días',  sub:'mes anterior', val: k.mora_31_60  || k.aging_31_60  || 0, color:'var(--amber)' },
+      { label:'61-90 días',  sub:'mes -2',       val: k.mora_61_90  || k.aging_61_90  || 0, color:'#dc2626' },
+      { label:'91-180 días', sub:'meses -3 a -6',val: k.mora_91_180 || k.aging_91_180 || 0, color:'#7f1d1d' },
+      { label:'+180 días',   sub:'histórico',    val: k.mora_180_mas|| k.aging_180_mas|| 0, color:'#450a0a' },
     ];
     setHTML('carMoraAging', agingRanges.map(r => `
-      <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:8px;padding:14px 18px;border-left:4px solid ${r.color}">
-        <div style="font-size:10px;font-weight:700;letter-spacing:.15em;text-transform:uppercase;color:var(--muted);margin-bottom:8px">${r.label}</div>
-        <div style="font-size:22px;font-weight:700;color:${r.color}">${fmtQM(r.val)}</div>
+      <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:8px;padding:10px 14px;border-left:4px solid ${r.color}">
+        <div style="font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin-bottom:2px">${r.label}</div>
+        <div style="font-size:10px;color:var(--muted);margin-bottom:6px">${r.sub}</div>
+        <div style="font-size:18px;font-weight:700;color:${r.color}">${fmtQM(r.val)}</div>
       </div>`).join(''));
   }
 
@@ -904,8 +906,8 @@ function drawProyeccion(data) {
     const w = bw * 0.7;
     const yCap = H - pad.b - capH;
     const yInt = yCap - intH;
-    const dt = new Date(d.mes);
-    const lbl = MESES[dt.getMonth()+1].slice(0,3);
+    const mesStr = String(d.mes).substring(0,7); const [y,m] = mesStr.split('-');
+    const lbl = MESES[parseInt(m)].slice(0,3);
     return `
       <rect x="${x}" y="${yInt}" width="${w}" height="${intH}" fill="var(--purple)" rx="3 3 0 0"/>
       <rect x="${x}" y="${yCap}" width="${w}" height="${capH}" fill="var(--blue)"/>

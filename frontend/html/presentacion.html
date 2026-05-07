@@ -655,7 +655,7 @@ html,body{height:100%;background:var(--bg);font-family:'Montserrat',sans-serif;c
           <div class="kpi-card red"><div class="kpi-label">Clientes vencidos</div><div class="kpi-value red" id="carVencidos">—</div><div class="kpi-sub" id="carPctVenc">—</div></div>
         </div>
         <!-- Aging detail row for mora breakout -->
-        <div id="carMoraAging" style="margin-top:18px;display:grid;grid-template-columns:repeat(4,1fr);gap:12px"></div>
+        <div id="carMoraAging" style="margin-top:14px;display:grid;grid-template-columns:repeat(5,1fr);gap:10px"></div>
       </div>
       <div class="slide-footer"><span>Cartera · Consolidado</span><span class="meta-period" data-period></span></div>
     </section>
@@ -729,6 +729,12 @@ html,body{height:100%;background:var(--bg);font-family:'Montserrat',sans-serif;c
         </div>
         <div class="callout"><div class="label">Lectura</div><div class="text" id="desLectura">—</div></div>
       </div>
+      <div style="margin-top:16px;overflow-y:auto;max-height:200px">
+          <table class="exec-table" style="font-size:11px">
+            <thead><tr><th>Sociedad</th><th>Cliente</th><th>Lote</th><th>Fecha</th><th class="right">Capital pagado</th><th class="right">Reintegrado</th><th class="right">Retenido</th></tr></thead>
+            <tbody id="desTbody"><tr><td colspan="7" style="text-align:center;padding:20px;color:var(--muted)">—</td></tr></tbody>
+          </table>
+        </div>
       <div class="slide-footer"><span>Cartera · Desistimientos</span><span class="meta-period" data-period></span></div>
     </section>
 
