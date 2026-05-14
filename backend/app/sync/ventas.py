@@ -749,7 +749,7 @@ async def get_por_vendedor(
         ORDER BY ventas_brutas DESC
     """), params).fetchall()
 
-   # Get desistimientos by vendor+empresa - deduplicated by no_orden_venta+lote
+    # Get desistimientos by vendor+empresa - deduplicated by no_orden_venta+lote
     desist = db.execute(text(f"""
         SELECT asesor_venta AS vendedor, empresa, COUNT(*) AS desistimientos
         FROM (
@@ -795,6 +795,7 @@ async def get_por_vendedor(
         # Normalizar vendedor para evitar errores con NULL
         vend = (row.get("vendedor") or "").strip() or "Sin asesor"
         row["vendedor"] = vend
+        # Lookup desistimientos by (vendedor, empresa) for correct project attribution
         empresa_d = _PROY_EMP.get(row.get("proyecto"), "")
         d = _desist_by_proy.get((vend, empresa_d), 0)
         row["desistimientos"] = d

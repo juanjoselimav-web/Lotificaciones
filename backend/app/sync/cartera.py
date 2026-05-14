@@ -511,6 +511,7 @@ async def get_alertas(
         "alertas": alertas
     }
 
+
 @router.get("/morosos")
 async def get_morosos(
     dias_min: int = Query(61),
@@ -550,6 +551,8 @@ async def get_morosos(
         "dias_min": dias_min,
         "clientes": [dict(r._mapping) for r in rows]
     }
+
+
 @router.get("/desistimientos")
 async def get_desistimientos(
     empresa: Optional[str] = Query(None),

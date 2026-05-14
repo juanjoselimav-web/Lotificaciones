@@ -1,7 +1,11 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 from typing import Optional
+import io
+import openpyxl
+from openpyxl.styles import Font, PatternFill, Alignment
 
 from app.database import get_db
 from app.core.security import get_current_user
@@ -265,6 +269,114 @@ async def get_lotes(
         "pages": -(-total // page_size),
         "stats": stats_dict
     }
+
+
+
+
+@router.get("/lotes/exportar")
+async def exportar_lotes(
+    proyecto_id: Optional[int] = Query(None),
+    estatus: Optional[str] = Query(None),
+    manzana: Optional[str] = Query(None),
+    buscar: Optional[str] = Query(None),
+    forma_pago: Optional[str] = Query(None),
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user)
+):
+    """Exporta lotes a Excel con los mismos filtros de la vista."""
+    proyectos_ids = get_proyectos_permitidos(current_user, db)
+    if not proyectos_ids:
+        raise HTTPException(status_code=403, detail="Sin acceso")
+
+    ids_str = ",".join(str(i) for i in proyectos_ids)
+    conditions = [f"l.proyecto_id IN ({ids_str})"]
+    params = {}
+
+    if proyecto_id:
+        if proyecto_id not in proyectos_ids:
+            raise HTTPException(status_code=403, detail="Sin acceso a ese proyecto")
+        conditions.append("l.proyecto_id = :proyecto_id")
+        params["proyecto_id"] = proyecto_id
+    if manzana:
+        conditions.append("l.manzana ILIKE :manzana")
+        params["manzana"] = f"%{manzana}%"
+    if buscar:
+        conditions.append("(l.card_name ILIKE :buscar OR l.unidad_key ILIKE :buscar OR l.manzana ILIKE :buscar)")
+        params["buscar"] = f"%{buscar}%"
+    if estatus:
+        conditions.append("l.estatus = :estatus")
+        params["estatus"] = estatus
+    if forma_pago:
+        conditions.append("l.forma_pago = :forma_pago")
+        params["forma_pago"] = forma_pago
+
+    where = " AND ".join(conditions)
+    rows = db.execute(text(f"""
+        SELECT p.nombre_proyecto, p.nombre_sociedad,
+               l.unidad_key, l.manzana, l.estatus,
+               l.metraje_inventario, l.precio_final,
+               l.forma_pago, l.plazo, l.plazo_raw,
+               l.card_name AS cliente, l.vendedor,
+               l.fecha_venta, l.fecha_solicitud_pcv,
+               l.status_promesa_compraventa,
+               l.pagado_capital, l.pendiente_capital,
+               l.total_intereses, l.saldo_cliente
+        FROM lotes l
+        JOIN proyectos p ON p.id = l.proyecto_id
+        WHERE {where}
+        ORDER BY p.nombre_proyecto, l.manzana, l.unidad_key
+    """), params).fetchall()
+
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "Inventario Lotes"
+
+    headers = ["Proyecto","Sociedad","Lote","Manzana","Estatus","M²","Precio Final",
+               "Forma Pago","Plazo","Tipo Plazo","Cliente","Asesor",
+               "Fecha Venta","Fecha PCV","Status PCV",
+               "Pagado Capital","Pendiente Capital","Intereses","Saldo Cliente"]
+
+    header_fill = PatternFill(start_color="1e3a5f", end_color="1e3a5f", fill_type="solid")
+    header_font = Font(color="FFFFFF", bold=True, size=10)
+
+    for col, h in enumerate(headers, 1):
+        cell = ws.cell(row=1, column=col, value=h)
+        cell.fill = header_fill
+        cell.font = header_font
+        cell.alignment = Alignment(horizontal="center")
+
+    for row_idx, r in enumerate(rows, 2):
+        vals = [
+            r.nombre_proyecto, r.nombre_sociedad,
+            r.unidad_key, r.manzana, r.estatus,
+            float(r.metraje_inventario) if r.metraje_inventario else None,
+            float(r.precio_final) if r.precio_final else None,
+            r.forma_pago, r.plazo, r.plazo_raw,
+            r.cliente, r.vendedor,
+            r.fecha_venta, r.fecha_solicitud_pcv, r.status_promesa_compraventa,
+            float(r.pagado_capital) if r.pagado_capital else 0,
+            float(r.pendiente_capital) if r.pendiente_capital else 0,
+            float(r.total_intereses) if r.total_intereses else 0,
+            float(r.saldo_cliente) if r.saldo_cliente else 0,
+        ]
+        for col, v in enumerate(vals, 1):
+            ws.cell(row=row_idx, column=col, value=v)
+
+    # Auto width
+    for col in ws.columns:
+        max_len = max((len(str(cell.value or "")) for cell in col), default=10)
+        ws.column_dimensions[col[0].column_letter].width = min(max_len + 2, 40)
+
+    buf = io.BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+
+    filename = "inventario_lotes.xlsx"
+    return StreamingResponse(
+        buf,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f"attachment; filename={filename}"}
+    )
 
 
 @router.get("/lotes/{lote_id}")

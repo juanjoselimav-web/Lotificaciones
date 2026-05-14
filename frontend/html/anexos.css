@@ -1,0 +1,166 @@
+/* ═══════════════════════════════════════════════════════════════
+   RV4 — Estilos para módulo de Anexos
+   Hereda variables del theme principal (--azul-marino, --dorado, etc.)
+   ═══════════════════════════════════════════════════════════════ */
+
+/* ── Botón "volver al índice" ─────────────────────────── */
+.ax-back {
+  position: absolute; top: 32px; left: 120px;
+  background: transparent; border: 1.5px solid var(--border);
+  color: var(--text-soft); padding: 8px 16px; border-radius: 4px;
+  font-size: 12px; font-weight: 600; letter-spacing: .1em; text-transform: uppercase;
+  cursor: pointer; transition: all .18s ease; z-index: 5;
+}
+.ax-back:hover { border-color: var(--dorado); color: var(--dorado); }
+
+/* ── Header de ficha (con logo) ─────────────────────── */
+.ax-header { align-items: center; }
+.ax-header-right { display:flex; align-items:center; gap:24px; }
+.ax-logo-wrap {
+  width: 108px; height: 108px; border-radius: 50%;
+  background: #fff; border: 2px solid rgba(212,168,0,0.35);
+  box-shadow: 0 4px 18px rgba(0,0,0,.25);
+  display: flex; align-items: center; justify-content: center; overflow: hidden;
+  flex-shrink: 0;
+}
+.ax-logo-wrap img { width: 86%; height: 86%; object-fit: contain; }
+.ax-logo-fallback {
+  font-size: 32px; font-weight: 800; color: var(--azul-marino);
+  letter-spacing: -.02em;
+}
+
+/* ── Grid del índice de anexos ──────────────────────── */
+.ax-grid {
+  display: grid; grid-template-columns: repeat(3, 1fr);
+  gap: 18px; margin-top: 12px;
+}
+.ax-card {
+  display: flex; align-items: center; gap: 16px;
+  padding: 18px 20px; background: var(--bg-card);
+  border: 1px solid var(--border); border-radius: 8px;
+  cursor: pointer; transition: all .2s ease;
+  position: relative; overflow: hidden;
+}
+.ax-card::before {
+  content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 3px;
+  background: var(--dorado); opacity: 0; transition: opacity .2s ease;
+}
+.ax-card:hover {
+  border-color: var(--dorado); transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(0,0,0,.18);
+}
+.ax-card:hover::before { opacity: 1; }
+.ax-card-logo {
+  width: 56px; height: 56px; border-radius: 50%; background: #fff;
+  border: 1.5px solid var(--border-strong);
+  display: flex; align-items: center; justify-content: center; overflow: hidden; flex-shrink: 0;
+}
+.ax-card-logo img { width: 84%; height: 84%; object-fit: contain; }
+.ax-card-body { flex: 1; min-width: 0; }
+.ax-card-name { font-size: 16px; font-weight: 700; color: var(--text); line-height: 1.2; margin-bottom: 4px; }
+.ax-card-sociedad { font-size: 12px; color: var(--text-soft); font-weight: 500; }
+.ax-card-num {
+  font-size: 11px; font-weight: 700; color: var(--dorado);
+  letter-spacing: .15em; opacity: .8;
+}
+
+/* ── Cuatro cuadrantes ──────────────────────────────── */
+.ax-quadrants {
+  display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr;
+  gap: 16px; margin-top: 16px;
+  height: calc(100% - 280px); min-height: 540px;
+}
+.ax-q {
+  background: var(--bg-card); border: 1px solid var(--border);
+  border-radius: 8px; padding: 18px 20px;
+  display: flex; flex-direction: column; gap: 12px;
+}
+.ax-q-head {
+  display: flex; justify-content: space-between; align-items: center;
+  padding-bottom: 10px; border-bottom: 1px solid var(--border);
+}
+.ax-q-title { font-size: 15px; font-weight: 700; color: var(--text); }
+.ax-q-pill {
+  font-size: 10px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase;
+  padding: 4px 10px; border-radius: 3px;
+}
+.ax-q-pill.blue  { background: rgba(27,58,107,.18); color: var(--azul-claro, #4a78b8); border: 1px solid rgba(27,58,107,.35); }
+.ax-q-pill.amber { background: rgba(212,168,0,.16); color: var(--dorado); border: 1px solid rgba(212,168,0,.4); }
+
+.ax-q-body { flex: 1; display: flex; flex-direction: column; gap: 10px; }
+
+/* ── Métricas dentro de cuadrante ────────────────────── */
+.ax-metric-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.ax-metric {
+  display: flex; flex-direction: column; gap: 2px;
+  padding: 8px 6px; background: rgba(255,255,255,.02);
+  border-radius: 4px; text-align: center;
+}
+.ax-metric-v { font-size: 22px; font-weight: 800; color: var(--text); line-height: 1; letter-spacing: -.01em; }
+.ax-metric-v.green  { color: var(--green, #2c7a4e); }
+.ax-metric-v.blue   { color: #4a78b8; }
+.ax-metric-v.red    { color: #b94a4a; }
+.ax-metric-v.amber  { color: var(--dorado); }
+.ax-metric-v.dorado { color: var(--dorado); }
+.ax-metric-l { font-size: 10px; color: var(--text-soft); font-weight: 600; text-transform: uppercase; letter-spacing: .08em; margin-top: 4px; }
+
+/* ── Barra de absorción ─────────────────────────────── */
+.ax-bar-block { display: flex; flex-direction: column; gap: 6px; }
+.ax-bar-label { display: flex; justify-content: space-between; font-size: 11px; color: var(--text-soft); font-weight: 600; text-transform: uppercase; letter-spacing: .08em; }
+.ax-bar-label strong { color: var(--dorado); font-size: 13px; }
+.ax-bar { height: 8px; background: rgba(255,255,255,.05); border-radius: 4px; overflow: hidden; }
+.ax-bar-fill { height: 100%; background: linear-gradient(90deg, var(--dorado), #e8c454); border-radius: 4px; }
+
+/* ── Mini-bars de mezcla financiera ─────────────────── */
+.ax-mini-mezcla { display: flex; flex-direction: column; gap: 5px; }
+.ax-mini-bar-row { display: grid; grid-template-columns: 110px 1fr 40px; align-items: center; gap: 8px; font-size: 11px; }
+.ax-mini-bar-lbl { color: var(--text-soft); font-weight: 600; display: flex; align-items: center; gap: 6px; }
+.ax-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+.ax-mini-bar { height: 6px; background: rgba(255,255,255,.05); border-radius: 3px; overflow: hidden; }
+.ax-mini-bar > div { height: 100%; border-radius: 3px; }
+.ax-mini-bar-v { font-size: 11px; font-weight: 700; color: var(--text); text-align: right; }
+
+/* ── Filas tipo aging ───────────────────────────────── */
+.ax-mini-aging { display: flex; flex-direction: column; gap: 4px; }
+.ax-mini-aging .ax-row {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 5px 0; border-bottom: 1px dashed var(--border);
+  font-size: 12px;
+}
+.ax-mini-aging .ax-row:last-child { border-bottom: none; }
+.ax-mini-aging .ax-row span { color: var(--text-soft); }
+.ax-mini-aging .ax-row strong { font-weight: 700; color: var(--text); }
+.ax-mini-aging .ax-row strong.blue   { color: #4a78b8; }
+.ax-mini-aging .ax-row strong.purple { color: #8a6fbf; }
+.ax-mini-aging .ax-row strong.red    { color: #b94a4a; }
+.ax-mini-aging .ax-row strong.dorado { color: var(--dorado); }
+
+.ax-foot {
+  font-size: 11px; color: var(--text-soft); padding-top: 8px;
+  border-top: 1px dashed var(--border); margin-top: auto;
+}
+.ax-foot strong { color: var(--text); font-weight: 700; }
+
+/* ── Lectura ejecutiva ──────────────────────────────── */
+.ax-lectura {
+  margin-top: 18px; padding: 14px 22px;
+  background: linear-gradient(90deg, rgba(212,168,0,.08), rgba(212,168,0,0));
+  border-left: 3px solid var(--dorado);
+  display: flex; gap: 16px; align-items: baseline; border-radius: 0 4px 4px 0;
+}
+.ax-lectura-label {
+  font-size: 11px; font-weight: 700; color: var(--dorado);
+  letter-spacing: .15em; text-transform: uppercase; flex-shrink: 0;
+}
+.ax-lectura-text { font-size: 14px; color: var(--text); line-height: 1.4; }
+
+/* ── Estados ────────────────────────────────────────── */
+.ax-skel {
+  height: 80px; background: linear-gradient(90deg, rgba(255,255,255,.03), rgba(255,255,255,.06), rgba(255,255,255,.03));
+  background-size: 200% 100%; animation: axShimmer 1.4s infinite; border-radius: 4px;
+}
+@keyframes axShimmer { 0%{background-position:200% 0} 100%{background-position:-200% 0} }
+.ax-empty {
+  padding: 16px; text-align: center; color: var(--text-soft);
+  font-size: 12px; font-style: italic; opacity: .7;
+}

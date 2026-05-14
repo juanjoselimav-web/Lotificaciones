@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="es">
 <head>
 <meta charset="UTF-8">
@@ -187,17 +187,19 @@ td{padding:9px 13px;vertical-align:middle;white-space:nowrap}
         <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>
         Flujos de Efectivo
       </a>
+      <a class="nav-item" href="/proyecciones.html">
+        <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>Proyecciones
+      </a>
     </div>
+    <div class="nav-section">
+      <span class="nav-label">Junta Directiva</span>
+      <a class="nav-item" href="/jd.html">
+        <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><rect x="2" y="4" width="20" height="14" rx="2"/><line x1="8" y1="20" x2="16" y2="20"/><line x1="12" y1="18" x2="12" y2="20"/></svg>Junta Directiva
+      </a>
+    </div>
+
     <div class="nav-section" id="adminSection">
       <span class="nav-label">Administración</span>
-      <a class="nav-item" id="btn-junta" href="/presentacion.html"
-         style="background:rgba(212,168,0,0.15);color:#FFCA08;">
-        <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-          <rect x="2" y="4" width="20" height="14" rx="2"/>
-          <line x1="8" y1="20" x2="16" y2="20"/>
-          <line x1="12" y1="18" x2="12" y2="20"/>
-        </svg>Junta Directiva
-      </a>
       <a class="nav-item" href="/usuarios.html">
         <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>Usuarios
       </a>
@@ -256,6 +258,7 @@ td{padding:9px 13px;vertical-align:middle;white-space:nowrap}
         </select>
       </div>
       <button class="btn-clear" onclick="clearFilters()">✕ Limpiar</button>
+      <button class="btn-clear" onclick="exportarExcel()" style="border-color:var(--verde);color:var(--verde)">⬇ Excel</button>
     </div>
 
     <div class="stats-row">
@@ -335,54 +338,6 @@ td{padding:9px 13px;vertical-align:middle;white-space:nowrap}
   window._token = token;
 })();
 
-// ── AUTO-LOGOUT POR INACTIVIDAD (2 minutos) ──────────────────
-(function() {
-  var TIMEOUT_MS = 2 * 60 * 1000;
-  var WARNING_MS = 30 * 1000;
-  var timer, warningTimer, cdInterval;
-
-  function resetTimer() {
-    clearTimeout(timer); clearTimeout(warningTimer); clearInterval(cdInterval);
-    hideWarning();
-    warningTimer = setTimeout(showWarning, TIMEOUT_MS - WARNING_MS);
-    timer = setTimeout(function() {
-      hideWarning();
-      localStorage.clear();
-      window.location.href = '/index.html?timeout=1';
-    }, TIMEOUT_MS);
-  }
-
-  function showWarning() {
-    var w = document.getElementById('_inactiveWarning');
-    if (!w) {
-      w = document.createElement('div');
-      w.id = '_inactiveWarning';
-      w.style.cssText = 'position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:#1B3A6B;color:#fff;padding:12px 20px;border-radius:8px;font-family:Montserrat,sans-serif;font-size:12px;font-weight:600;z-index:9999;box-shadow:0 4px 20px rgba(0,0,0,.3);display:flex;align-items:center;gap:12px;border-left:4px solid #D4A800';
-      document.body.appendChild(w);
-    }
-    var secs = 30;
-    w.innerHTML = '⚠ Sesión cerrará en <strong id="_cd">' + secs + '</strong> seg &nbsp;<button onclick="window.resetTimer()" style="background:#D4A800;color:#1B3A6B;border:none;padding:4px 10px;border-radius:4px;font-family:Montserrat,sans-serif;font-size:11px;font-weight:700;cursor:pointer">Continuar</button>';
-    w.style.display = 'flex';
-    cdInterval = setInterval(function() {
-      secs--;
-      var el = document.getElementById('_cd');
-      if (el) el.textContent = secs;
-      if (secs <= 0) clearInterval(cdInterval);
-    }, 1000);
-  }
-
-  function hideWarning() {
-    var w = document.getElementById('_inactiveWarning');
-    if (w) w.style.display = 'none';
-  }
-
-  ['mousemove','mousedown','keydown','touchstart','scroll','click'].forEach(function(e) {
-    document.addEventListener(e, resetTimer, {passive:true});
-  });
-
-  resetTimer();
-  window.resetTimer = resetTimer;
-})();
 
 const API='';
 
@@ -562,6 +517,29 @@ function applyFilters(){
 function debounceSearch(){
   clearTimeout(searchTimer);
   searchTimer=setTimeout(()=>{S.buscar=document.getElementById('searchInput').value;S.page=1;loadLotes();},400);
+}
+
+function exportarExcel(){
+  const pid = S.proyectoId ? `&proyecto_id=${S.proyectoId}` : '';
+  const est = document.getElementById('filterEstatus')?.value || '';
+  const mza = document.getElementById('filterManzana')?.value || '';
+  const bsc = document.getElementById('filterBuscar')?.value || '';
+  const fp  = document.getElementById('filterFormaPago')?.value || '';
+  let q = '/api/inventario/lotes/exportar?_=1';
+  if(pid) q += pid;
+  if(est) q += `&estatus=${encodeURIComponent(est)}`;
+  if(mza) q += `&manzana=${encodeURIComponent(mza)}`;
+  if(bsc) q += `&buscar=${encodeURIComponent(bsc)}`;
+  if(fp)  q += `&forma_pago=${encodeURIComponent(fp)}`;
+  const token = localStorage.getItem('token');
+  fetch(q, {headers:{'Authorization':'Bearer '+token}})
+    .then(r => r.blob())
+    .then(blob => {
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = 'inventario_lotes.xlsx';
+      a.click(); URL.revokeObjectURL(url);
+    });
 }
 
 function clearFilters(){

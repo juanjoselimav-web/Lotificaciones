@@ -173,7 +173,7 @@ def safe_upsert(db: Session, proyecto_id: int, unidad_key: str, data: dict) -> s
                     status_promesa_compraventa=:status_promesa_compraventa,
                     card_code=:card_code, card_name=:card_name,
                     telefono_cliente=:telefono_cliente, vendedor=:vendedor,
-                    forma_pago=:forma_pago, plazo=:plazo,
+                    forma_pago=:forma_pago, plazo=:plazo, plazo_raw=:plazo_raw,
                     fecha_venta=:fecha_venta, fecha_inicial_cobro=:fecha_inicial_cobro,
                     fecha_final_cobro=:fecha_final_cobro, fecha_solicitud_pcv=:fecha_solicitud_pcv,
                     pagado_capital=:pagado_capital, pagado_interes=:pagado_interes,
@@ -192,7 +192,7 @@ def safe_upsert(db: Session, proyecto_id: int, unidad_key: str, data: dict) -> s
                     precio_base_m2, precio_esquina, es_esquina,
                     estatus, estatus_raw, status_promesa_compraventa,
                     card_code, card_name, telefono_cliente, vendedor,
-                    forma_pago, plazo, fecha_venta, fecha_inicial_cobro, fecha_final_cobro,
+                    forma_pago, plazo, plazo_raw, fecha_venta, fecha_inicial_cobro, fecha_final_cobro,
                     fecha_solicitud_pcv, pagado_capital, pagado_interes,
                     pendiente_capital, pendiente_interes, cuotas_pagadas, cuotas_pendientes,
                     saldo_cliente, total_intereses, fuente
@@ -203,7 +203,7 @@ def safe_upsert(db: Session, proyecto_id: int, unidad_key: str, data: dict) -> s
                     :precio_base_m2, :precio_esquina, :es_esquina,
                     :estatus, :estatus_raw, :status_promesa_compraventa,
                     :card_code, :card_name, :telefono_cliente, :vendedor,
-                    :forma_pago, :plazo, :fecha_venta, :fecha_inicial_cobro, :fecha_final_cobro,
+                    :forma_pago, :plazo, :plazo_raw, :fecha_venta, :fecha_inicial_cobro, :fecha_final_cobro,
                     :fecha_solicitud_pcv, :pagado_capital, :pagado_interes,
                     :pendiente_capital, :pendiente_interes, :cuotas_pagadas, :cuotas_pendientes,
                     :saldo_cliente, :total_intereses, :fuente
@@ -264,6 +264,7 @@ def build_from_sbo(row, empresa_sap: str) -> dict:
         "vendedor":                   clean_str(row.get("Vendedor")),
         "forma_pago":                 clean_str(row.get("U_Formapago")),
         "plazo":                      clean_int(row.get("Plazo"), None),
+        "plazo_raw":                  clean_str(str(row.get("Plazo", "") or "").strip()) or None,
         "fecha_venta":                clean_date(row.get("Fecha de Venta")),
         "fecha_inicial_cobro":        clean_date(row.get("Fecha Inicial de Cobro")),
         "fecha_final_cobro":          clean_date(row.get("Fecha Final de Cobro")),
@@ -431,10 +432,16 @@ def sync_inventario():
                         data["precio_con_descuento"] = data["precio_final"]
                 else:
                     # No está en SBO → disponible, usar CONSBA
-                    estatus_raw = clean_str(row.get("Estatus")) or "DISPONIBLE"
-                    estatus = normalizar_estatus(estatus_raw)
-                    # Mantener estatus VENTA de CONSBA (son ventas reales históricas)
-                    # Solo marcar DISPONIBLE si el estatus es ambiguo/vacío
+                    # Para proyectos PARCIALES (Utilica, Corcolle, Gibraleón),
+                    # el SBO es la fuente de verdad de ventas.
+                    # Si no está en SBO, es DISPONIBLE sin importar CONSBA.
+                    if empresa_sap in PROYECTOS_SBO_PARCIAL.values():
+                        estatus = "DISPONIBLE"
+                        estatus_raw = "DISPONIBLE"
+                    else:
+                        # Solo CONSBA (Leofreni, Talocci, Vilet) - usar estatus CONSBA
+                        estatus_raw = clean_str(row.get("Estatus")) or "DISPONIBLE"
+                        estatus = normalizar_estatus(estatus_raw)
                     pass
 
                     precio = get_precio_consba(row)
@@ -460,6 +467,7 @@ def sync_inventario():
                         "vendedor":                   clean_str(row.get("Nombre del vendedor")),
                         "forma_pago":                 clean_str(row.get("Plan De Financiamiento ")),
                         "plazo":                      None,
+                        "plazo_raw":                  None,
                         "fecha_venta":                clean_date(row.get("Fecha de venta")),
                         "fecha_inicial_cobro":        None,
                         "fecha_final_cobro":          None,

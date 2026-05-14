@@ -1,0 +1,462 @@
+﻿<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RV4 — Junta Directiva</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --azul:#1B3A6B;--azul-lt:#2a5298;
+  --dorado:#D4A800;--dorado-lt:#F0C000;
+  --negro:#0f1117;--blanco:#ffffff;
+  --gris:#f4f5f7;--gris-lt:#fafbfc;
+  --borde:#dde1e7;--borde-lt:#eaecf0;
+  --texto:#1a1f2e;--muted:#6b7280;--sidebar-w:220px;
+  --green:#16a34a;--green-bg:#f0fdf4;--green-bd:#bbf7d0;
+  --blue:#1d4ed8;--blue-bg:#eff6ff;--blue-bd:#bfdbfe;
+  --red:#b91c1c;--red-bg:#fef2f2;--red-bd:#fecaca;
+  --amber:#b45309;--amber-bg:#fffbeb;--amber-bd:#fde68a;
+}
+body{font-family:'Montserrat',sans-serif;background:var(--gris);color:var(--texto);min-height:100vh;display:flex;font-size:13px}
+.sidebar{width:var(--sidebar-w);background:var(--azul);min-height:100vh;display:flex;flex-direction:column;position:fixed;left:0;top:0;bottom:0;z-index:100}
+.sidebar-brand{padding:18px 16px 14px;border-bottom:1px solid rgba(255,255,255,.1)}
+.brand-img{height:28px;background:#fff;border-radius:3px;padding:4px 6px;display:block}
+.brand-fallback{display:none;font-size:20px;font-weight:700;color:#fff}
+.brand-fallback span{color:var(--dorado)}
+.brand-env{font-size:9px;letter-spacing:.2em;text-transform:uppercase;color:rgba(255,255,255,.35);margin-top:5px;font-weight:600}
+.sidebar-nav{flex:1;padding:14px 0;overflow-y:auto}
+.nav-section{padding:0 10px;margin-bottom:2px}
+.nav-label{font-size:9px;letter-spacing:.2em;text-transform:uppercase;color:rgba(255,255,255,.3);padding:10px 8px 4px;display:block;font-weight:600}
+.nav-item{display:flex;align-items:center;gap:9px;padding:8px 10px;border-radius:5px;color:rgba(255,255,255,.6);font-size:12px;font-weight:500;cursor:pointer;transition:background .15s,color .15s;text-decoration:none;margin-bottom:1px}
+.nav-item:hover{background:rgba(255,255,255,.1);color:#fff}
+.nav-item.active{background:var(--dorado);color:var(--negro);font-weight:700}
+.nav-item svg{width:14px;height:14px;flex-shrink:0;opacity:.75}
+.nav-item.active svg{opacity:1}
+.sidebar-footer{padding:12px 10px;border-top:1px solid rgba(255,255,255,.1)}
+.user-pill{display:flex;align-items:center;gap:8px;padding:7px 9px;border-radius:5px;background:rgba(255,255,255,.08)}
+.user-avatar{width:27px;height:27px;border-radius:50%;background:var(--dorado);color:var(--negro);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex-shrink:0}
+.user-info{flex:1;overflow:hidden}
+.user-name{font-size:11px;color:#fff;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.user-role{font-size:9px;color:rgba(255,255,255,.35);text-transform:uppercase;letter-spacing:.1em;font-weight:600}
+.btn-logout{background:none;border:none;cursor:pointer;color:rgba(255,255,255,.3);padding:4px;transition:color .2s}
+.btn-logout:hover{color:#f87171}
+.btn-logout svg{width:13px;height:13px}
+.main{margin-left:var(--sidebar-w);flex:1;display:flex;flex-direction:column}
+.topbar{background:var(--blanco);border-bottom:1px solid var(--borde);padding:0 26px;height:54px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:50;box-shadow:0 1px 3px rgba(0,0,0,.05)}
+.breadcrumb{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted)}
+.breadcrumb a{color:var(--azul);text-decoration:none;font-weight:500}
+.content{padding:24px 26px;flex:1}
+.page-title{font-size:20px;font-weight:700;color:var(--azul);margin-bottom:4px}
+.page-sub{font-size:13px;color:var(--muted);margin-bottom:24px}
+
+/* Cards */
+.card{background:var(--blanco);border:1px solid var(--borde);border-radius:10px;margin-bottom:20px;overflow:hidden}
+.card-header{padding:14px 20px;border-bottom:1px solid var(--borde);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px}
+.card-title{font-size:13px;font-weight:700;color:var(--azul);text-transform:uppercase;letter-spacing:.06em}
+.card-body{padding:16px 20px}
+
+/* Buttons */
+.btn{display:inline-flex;align-items:center;gap:6px;padding:8px 16px;border-radius:6px;font-size:12px;font-weight:600;font-family:inherit;cursor:pointer;border:none;transition:.15s}
+.btn-primary{background:var(--dorado);color:#000}
+.btn-primary:hover{background:var(--dorado-lt)}
+.btn-secondary{background:var(--gris);color:var(--texto);border:1px solid var(--borde)}
+.btn-secondary:hover{background:var(--gris-lt)}
+.btn-green{background:var(--green);color:#fff}
+.btn-green:hover{opacity:.85}
+.btn-red{background:var(--red-bg);color:var(--red);border:1px solid var(--red-bd)}
+.btn-sm{padding:5px 10px;font-size:11px}
+.btn-jd{background:var(--azul);color:#fff;padding:12px 24px;font-size:14px;border-radius:8px;font-weight:700}
+.btn-jd:hover{background:var(--azul-lt)}
+.btn-jd svg{width:18px;height:18px}
+
+/* Period selector */
+select{background:var(--blanco);border:1px solid var(--borde);color:var(--texto);border-radius:6px;padding:6px 10px;font-size:12px;font-family:inherit;cursor:pointer}
+
+/* Minutas table */
+.min-table{width:100%;border-collapse:collapse}
+.min-table th{background:var(--azul);color:#fff;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;padding:9px 12px;text-align:left}
+.min-table td{border-bottom:1px solid var(--borde-lt);padding:0}
+.min-table td input{width:100%;border:none;background:transparent;color:var(--texto);font-family:inherit;font-size:12px;padding:9px 12px;outline:none}
+.min-table td input:focus{background:var(--blue-bg)}
+.min-table td input::placeholder{color:var(--muted)}
+.del-btn{background:none;border:none;cursor:pointer;color:var(--red);font-size:14px;padding:4px 8px;display:flex;align-items:center;justify-content:center}
+.min-table td.act-col{width:44px;text-align:center}
+.empty-row td{padding:24px;text-align:center;color:var(--muted)}
+
+/* Historial */
+.hist-item{display:flex;justify-content:space-between;align-items:center;padding:12px 16px;border-bottom:1px solid var(--borde-lt);cursor:pointer;transition:.1s}
+.hist-item:hover{background:var(--gris)}
+.hist-item:last-child{border-bottom:none}
+.hist-name{font-weight:600;font-size:13px;color:var(--texto)}
+.hist-meta{font-size:11px;color:var(--muted);margin-top:2px}
+.pill{display:inline-flex;align-items:center;padding:2px 8px;border-radius:12px;font-size:11px;font-weight:600}
+.pill-green{background:var(--green-bg);color:var(--green)}
+.pill-amber{background:var(--amber-bg);color:var(--amber)}
+.pill-blue{background:var(--blue-bg);color:var(--blue)}
+
+/* Toast */
+.toast{position:fixed;bottom:24px;right:24px;padding:12px 20px;border-radius:8px;font-size:13px;font-weight:600;color:#fff;z-index:2000;display:none;box-shadow:0 4px 20px rgba(0,0,0,.15);animation:toastIn .2s}
+@keyframes toastIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+
+.stat-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-bottom:0}
+.stat-card{background:var(--gris);border:1px solid var(--borde);border-radius:8px;padding:16px;text-align:center}
+.stat-val{font-size:24px;font-weight:700;color:var(--azul)}
+.stat-label{font-size:11px;color:var(--muted);margin-top:4px;font-weight:600;text-transform:uppercase}
+</style>
+</head>
+<body>
+
+<!-- ═══ SIDEBAR ═══ -->
+<aside class="sidebar">
+  <div class="sidebar-brand">
+    <img class="brand-img" src="logo_rv4.png" alt="RV4" onerror="this.style.display='none';document.getElementById('bf').style.display='block'">
+    <div class="brand-fallback" id="bf">RV<span>4</span></div>
+    <div class="brand-env" id="envLabel">—</div>
+  </div>
+  <nav class="sidebar-nav">
+    <div class="nav-section">
+      <span class="nav-label">Ejecutivo</span>
+      <a class="nav-item" href="/dashboard.html">
+        <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>Dashboard
+      </a>
+    </div>
+    <div class="nav-section">
+      <span class="nav-label">Operativo</span>
+      <a class="nav-item" href="/inventario.html">
+        <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9,22 9,12 15,12 15,22"/></svg>Inventario
+      </a>
+      <a class="nav-item" href="/cartera.html">
+        <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>Cartera
+      </a>
+      <a class="nav-item" href="/ventas.html">
+        <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>Ventas
+      </a>
+    </div>
+    <div class="nav-section">
+      <span class="nav-label">Financiero</span>
+      <a class="nav-item" href="/flujos.html">
+        <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>Flujos de Efectivo
+      </a>
+      <a class="nav-item" href="/proyecciones.html">
+        <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>Proyecciones
+      </a>
+    </div>
+    <div class="nav-section">
+      <span class="nav-label">Junta Directiva</span>
+      <a class="nav-item active" href="/jd.html">
+        <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><rect x="2" y="4" width="20" height="14" rx="2"/><line x1="8" y1="20" x2="16" y2="20"/><line x1="12" y1="18" x2="12" y2="20"/></svg>Junta Directiva
+      </a>
+    </div>
+
+    <div class="nav-section" id="adminSection">
+      <span class="nav-label">Administración</span>
+      <a class="nav-item" href="/usuarios.html">
+        <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>Usuarios
+      </a>
+      <a class="nav-item" href="/sync-logs.html">
+        <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 102.13-9.36L1 10"/></svg>Sincronización
+      </a>
+    </div>
+  </nav>
+  <div class="sidebar-footer">
+    <div class="user-pill">
+      <div class="user-avatar" id="userAvatar">A</div>
+      <div class="user-info">
+        <div class="user-name" id="userName">—</div>
+        <div class="user-role" id="userRole">—</div>
+      </div>
+      <button class="btn-logout" onclick="logout()">
+        <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+      </button>
+    </div>
+  </div>
+</aside>
+
+<!-- ═══ MAIN ═══ -->
+<main class="main">
+  <div class="topbar">
+    <div class="breadcrumb">
+      <a href="/dashboard.html">Dashboard</a>
+      <svg width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
+      <span>Junta Directiva</span>
+    </div>
+    <div style="display:flex;align-items:center;gap:12px">
+      <select id="selMes">
+        <option value="1">Enero</option><option value="2">Febrero</option>
+        <option value="3">Marzo</option><option value="4">Abril</option>
+        <option value="5">Mayo</option><option value="6">Junio</option>
+        <option value="7">Julio</option><option value="8">Agosto</option>
+        <option value="9">Septiembre</option><option value="10">Octubre</option>
+        <option value="11">Noviembre</option><option value="12">Diciembre</option>
+      </select>
+      <select id="selAnio"></select>
+    </div>
+  </div>
+
+  <div class="content">
+    <div class="page-title">Junta Directiva</div>
+    <div class="page-sub">Gestión de minutas, presentaciones y acuerdos por período.</div>
+
+    <!-- Acciones rápidas -->
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title">Presentación JD</span>
+      </div>
+      <div class="card-body" style="display:flex;align-items:center;gap:16px;flex-wrap:wrap">
+        <button class="btn btn-jd" onclick="abrirPresentacion()">
+          <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><rect x="2" y="4" width="20" height="14" rx="2"/><line x1="8" y1="20" x2="16" y2="20"/><line x1="12" y1="18" x2="12" y2="20"/></svg>
+          Abrir Presentación JD
+        </button>
+        <button class="btn btn-primary" onclick="guardarSnapshotHistorial()">
+          <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" style="width:14px;height:14px"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+          Guardar snapshot del período
+        </button>
+        <span id="lastSnapLabel" style="font-size:12px;color:var(--muted)"></span>
+      </div>
+    </div>
+
+    <!-- Minuta de Reunión -->
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title">📋 Minuta de Reunión — <span id="periodoLabel">—</span></span>
+        <div style="display:flex;gap:8px;align-items:center">
+          <span id="lastModLabel" style="font-size:11px;color:var(--muted)"></span>
+          <button class="btn btn-green btn-sm" onclick="agregarFila()">+ Agregar fila</button>
+          <button class="btn btn-secondary btn-sm" onclick="guardarMinuta()">💾 Guardar</button>
+          <button class="btn btn-red btn-sm" onclick="limpiarMinuta()">🗑 Limpiar</button>
+        </div>
+      </div>
+      <div class="card-body" style="padding:0">
+        <table class="min-table">
+          <thead>
+            <tr>
+              <th style="width:35%">Acuerdo / Tema</th>
+              <th style="width:18%">Responsable</th>
+              <th style="width:35%">Observación</th>
+              <th style="width:10%">Fecha</th>
+              <th style="width:44px"></th>
+            </tr>
+          </thead>
+          <tbody id="minutasTbody">
+            <tr class="empty-row"><td colspan="5">Sin acuerdos. Presioná "+ Agregar fila" para comenzar.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Historial de Presentaciones -->
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title">📁 Historial de Presentaciones JD</span>
+        <button class="btn btn-secondary btn-sm" onclick="renderHistorial()">🔄</button>
+      </div>
+      <div id="historialSnaps">
+        <div style="padding:20px;text-align:center;color:var(--muted);font-size:13px">Sin presentaciones guardadas aún.</div>
+      </div>
+    </div>
+
+  </div>
+</main>
+
+<div id="toastEl" class="toast"></div>
+
+<script>
+// ── ACCESS CONTROL ──────────────────────────────────
+(function() {
+  var token = localStorage.getItem('token');
+  var usuario = JSON.parse(localStorage.getItem('usuario') || 'null');
+  if (!token || !usuario) { window.location.href = '/index.html'; return; }
+  var el = function(id){return document.getElementById(id);};
+  if(el('userName')) el('userName').textContent = usuario.nombre||'—';
+  if(el('userRole')) el('userRole').textContent = (usuario.rol||'').replace(/_/g,' ');
+  if(el('userAvatar')) el('userAvatar').textContent = (usuario.nombre||'A')[0].toUpperCase();
+  if(el('envLabel')) el('envLabel').textContent = location.hostname==='localhost'?'DESARROLLO':'PRODUCCIÓN';
+  window._token = token; window._usuario = usuario;
+})();
+function logout(){localStorage.clear();location.href='/index.html';}
+
+// ── CONSTANTS ─────────────────────────────────────
+const MESES = ['','Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+const MKEY  = (a, m) => `rv4_minutas_${a}_${String(m).padStart(2,'0')}`;
+const SKEY  = (a, m) => `rv4_snaps_${a}_${String(m).padStart(2,'0')}`;
+let rows = [];
+
+// ── PERIOD SETUP ─────────────────────────────────
+const now = new Date();
+let curMes = now.getMonth() + 1, curAnio = now.getFullYear();
+
+function initYears(){
+  const sel = document.getElementById('selAnio');
+  for(let y = curAnio+1; y >= 2023; y--){
+    const o = document.createElement('option');
+    o.value = y; o.textContent = y;
+    if(y === curAnio) o.selected = true;
+    sel.appendChild(o);
+  }
+}
+function getPeriodo(){
+  return {
+    mes: Number(document.getElementById('selMes').value),
+    anio: Number(document.getElementById('selAnio').value)
+  };
+}
+function onPeriodoChange(){
+  const {mes,anio} = getPeriodo();
+  curMes = mes; curAnio = anio;
+  document.getElementById('periodoLabel').textContent = MESES[mes]+' '+anio;
+  cargarMinuta();
+  renderHistorial();
+}
+
+// ── MINUTAS ─────────────────────────────────────
+function renderRows(items){
+  const tbody = document.getElementById('minutasTbody');
+  if(!items||!items.length){
+    tbody.innerHTML='<tr class="empty-row"><td colspan="5">Sin acuerdos. Presioná "+ Agregar fila".</td></tr>';
+    return;
+  }
+  tbody.innerHTML = items.map((item,i) => `
+    <tr data-idx="${i}">
+      <td><input type="text" placeholder="Acuerdo o tema…" value="${esc(item.tema||'')}" oninput="rows[${i}].tema=this.value"></td>
+      <td><input type="text" placeholder="Responsable" value="${esc(item.responsable||'')}" oninput="rows[${i}].responsable=this.value"></td>
+      <td><input type="text" placeholder="Observación / estado" value="${esc(item.observacion||'')}" oninput="rows[${i}].observacion=this.value"></td>
+      <td><input type="date" value="${item.fecha||''}" oninput="rows[${i}].fecha=this.value"></td>
+      <td class="act-col"><button class="del-btn" onclick="eliminarFila(${i})" title="Eliminar">✕</button></td>
+    </tr>`).join('');
+}
+function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;');}
+function agregarFila(){
+  document.querySelector('#minutasTbody .empty-row')?.remove();
+  rows.push({tema:'',responsable:'',observacion:'',fecha:''});
+  renderRows(rows);
+  const inputs = document.querySelectorAll('#minutasTbody tr:last-child input');
+  if(inputs[0]) inputs[0].focus();
+}
+function eliminarFila(i){ rows.splice(i,1); renderRows(rows); }
+function cargarMinuta(){
+  const {mes,anio} = getPeriodo();
+  try{
+    const d = JSON.parse(localStorage.getItem(MKEY(anio,mes))||'null');
+    if(d){ rows=d.items||[]; document.getElementById('lastModLabel').textContent='Modificado: '+d.lastMod||''; }
+    else { rows=[]; document.getElementById('lastModLabel').textContent=''; }
+  }catch(e){rows=[];}
+  renderRows(rows);
+}
+function guardarMinuta(){
+  const {mes,anio} = getPeriodo();
+  // Sync from DOM
+  document.querySelectorAll('#minutasTbody tr[data-idx]').forEach(tr=>{
+    const i=Number(tr.dataset.idx), inputs=tr.querySelectorAll('input');
+    if(rows[i]){rows[i].tema=inputs[0]?.value||'';rows[i].responsable=inputs[1]?.value||'';rows[i].observacion=inputs[2]?.value||'';rows[i].fecha=inputs[3]?.value||'';}
+  });
+  const filtered = rows.filter(r=>r.tema||r.responsable||r.observacion);
+  const lastMod = new Date().toLocaleString('es-GT');
+  localStorage.setItem(MKEY(anio,mes), JSON.stringify({items:filtered,lastMod,mes,anio}));
+  document.getElementById('lastModLabel').textContent='Modificado: '+lastMod;
+  toast(`✓ Minuta de ${MESES[mes]} ${anio} guardada (${filtered.length} acuerdos)`,'green');
+}
+function limpiarMinuta(){
+  if(!confirm('¿Limpiar todos los acuerdos de este período?')) return;
+  const {mes,anio}=getPeriodo();
+  localStorage.removeItem(MKEY(anio,mes));
+  rows=[];renderRows(rows);document.getElementById('lastModLabel').textContent='';
+  toast('Minuta limpiada','amber');
+}
+
+// ── PRESENTATION ─────────────────────────────────
+function abrirPresentacion(){
+  const {mes,anio}=getPeriodo();
+  window.open(`/presentacion.html?mes=${mes}&anio=${anio}`,'_blank');
+}
+
+// ── SNAPSHOTS / HISTORY ──────────────────────────
+function guardarSnapshotHistorial(){
+  const {mes,anio}=getPeriodo();
+  const key=SKEY(anio,mes);
+  const fecha=new Date().toLocaleString('es-GT');
+  try{
+    let snaps=JSON.parse(localStorage.getItem(key)||'[]');
+    // Limit to last 5 per period
+    if(snaps.length>=5) snaps.shift();
+    snaps.push({fecha,mes,anio,label:`${MESES[mes]} ${anio} — guardado ${fecha}`});
+    localStorage.setItem(key,JSON.stringify(snaps));
+    document.getElementById('lastSnapLabel').textContent=`Último snapshot: ${fecha}`;
+    toast(`Snapshot guardado: ${MESES[mes]} ${anio}`,'green');
+    renderHistorial();
+  }catch(e){toast('Error: '+e.message,'red');}
+}
+
+function renderHistorial(){
+  const container=document.getElementById('historialSnaps');
+  const all=[];
+  for(let k in localStorage){
+    if(k.startsWith('rv4_snaps_')){
+      try{
+        const snaps=JSON.parse(localStorage.getItem(k)||'[]');
+        snaps.forEach(s=>all.push(s));
+      }catch(e){}
+    }
+  }
+  all.sort((a,b)=>b.fecha.localeCompare(a.fecha));
+  if(!all.length){
+    container.innerHTML='<div style="padding:20px;text-align:center;color:var(--muted);font-size:13px">Sin presentaciones guardadas. Usá el botón "Guardar snapshot" para registrar una versión.</div>';
+    return;
+  }
+  container.innerHTML=all.map((s,i)=>`
+    <div class="hist-item">
+      <div>
+        <div class="hist-name">Presentación JD — ${MESES[s.mes]||s.mes} ${s.anio}</div>
+        <div class="hist-meta">Guardado el ${s.fecha}</div>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center">
+        <span class="pill pill-blue">Período ${MESES[s.mes]||s.mes}</span>
+        <button class="btn btn-secondary btn-sm" onclick="descargarVersionHtml(${s.mes},${s.anio},'${s.fecha}')">⬇ HTML</button>
+        <button class="btn btn-red btn-sm" onclick="borrarSnap(${i})">🗑</button>
+      </div>
+    </div>`).join('');
+}
+
+function descargarVersionHtml(mes,anio,fecha){
+  // Opens presentation in new tab so user can download from there
+  const win=window.open(`/presentacion.html?mes=${mes}&anio=${anio}#snapshot`,'_blank');
+  toast(`Abrí la presentación en la nueva pestaña y usá Descargar → HTML`,'amber');
+}
+
+function borrarSnap(idx){
+  if(!confirm('¿Eliminar este snapshot del historial?')) return;
+  const all=[];
+  for(let k in localStorage){ if(k.startsWith('rv4_snaps_')){ try{JSON.parse(localStorage.getItem(k)||'[]').forEach((s,i)=>all.push({k,i,s}));}catch(e){}} }
+  all.sort((a,b)=>b.s.fecha.localeCompare(a.s.fecha));
+  if(all[idx]){
+    const entry=all[idx];
+    const snaps=JSON.parse(localStorage.getItem(entry.k)||'[]');
+    snaps.splice(entry.i,1);
+    if(snaps.length) localStorage.setItem(entry.k,JSON.stringify(snaps));
+    else localStorage.removeItem(entry.k);
+    renderHistorial();
+    toast('Snapshot eliminado','amber');
+  }
+}
+
+function toast(msg,type){
+  const t=document.getElementById('toastEl');
+  t.textContent=msg;
+  t.style.background=type==='green'?'#16a34a':type==='amber'?'#d97706':'#b91c1c';
+  t.style.display='block';
+  clearTimeout(window._toast);
+  window._toast=setTimeout(()=>t.style.display='none',3500);
+}
+
+// ── INIT ──────────────────────────────────────────
+initYears();
+document.getElementById('selMes').value = curMes;
+document.getElementById('selAnio').value = curAnio;
+document.getElementById('selMes').addEventListener('change',onPeriodoChange);
+document.getElementById('selAnio').addEventListener('change',onPeriodoChange);
+onPeriodoChange();
+</script>
+</body>
+</html>

@@ -10,7 +10,7 @@ import os
 
 from app.database import check_db_connection
 from app.core.config import get_settings
-from app.routers import auth, inventario, sync, cartera, ventas, api_publica, flujos, api_i360, router_reportes
+from app.routers import auth, inventario, sync, cartera, ventas, api_publica, flujos, api_i360, router_reportes, proyecciones
 from app.sync.sync_inventario import sync_inventario
 from app.sync.sync_cartera import sync_cartera
 from app.sync.sync_flujos import sincronizar_flujos
@@ -159,6 +159,7 @@ app.include_router(api_publica.router)
 app.include_router(flujos.router)
 app.include_router(api_i360.router)
 app.include_router(router_reportes.router)
+app.include_router(proyecciones.router)
 
 
 @app.get("/api/health")

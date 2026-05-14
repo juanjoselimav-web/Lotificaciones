@@ -1,0 +1,516 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>RV4 — Proyecciones al Cierre</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --azul:#1B3A6B;--azul-lt:#2a5298;--dorado:#D4A800;--dorado-lt:#F0C000;
+  --negro:#0f1117;--blanco:#ffffff;--gris:#f4f5f7;--gris-lt:#fafbfc;
+  --borde:#dde1e7;--borde-lt:#eaecf0;--texto:#1a1f2e;--muted:#6b7280;
+  --sidebar-w:220px;
+  --green:#16a34a;--green-bg:#f0fdf4;--green-bd:#bbf7d0;
+  --blue:#1d4ed8;--blue-bg:#eff6ff;--blue-bd:#bfdbfe;
+  --red:#b91c1c;--red-bg:#fef2f2;--red-bd:#fecaca;
+  --amber:#b45309;--amber-bg:#fffbeb;--amber-bd:#fde68a;
+}
+body{font-family:'Montserrat',sans-serif;background:var(--gris);color:var(--texto);min-height:100vh;display:flex;font-size:13px}
+
+/* SIDEBAR */
+.sidebar{width:var(--sidebar-w);background:var(--azul);min-height:100vh;display:flex;flex-direction:column;position:fixed;left:0;top:0;bottom:0;z-index:100}
+.sidebar-brand{padding:18px 16px 14px;border-bottom:1px solid rgba(255,255,255,.1)}
+.brand-img{height:28px;background:#fff;border-radius:3px;padding:4px 6px;display:block}
+.brand-fallback{display:none;font-size:20px;font-weight:700;color:#fff}
+.brand-fallback span{color:var(--dorado)}
+.brand-env{font-size:9px;letter-spacing:.2em;text-transform:uppercase;color:rgba(255,255,255,.35);margin-top:5px;font-weight:600}
+.sidebar-nav{flex:1;padding:14px 0;overflow-y:auto}
+.nav-section{padding:0 10px;margin-bottom:2px}
+.nav-label{font-size:9px;letter-spacing:.2em;text-transform:uppercase;color:rgba(255,255,255,.3);padding:10px 8px 4px;display:block;font-weight:600}
+.nav-item{display:flex;align-items:center;gap:9px;padding:8px 10px;border-radius:5px;color:rgba(255,255,255,.6);font-size:12px;font-weight:500;cursor:pointer;transition:background .15s,color .15s;text-decoration:none;margin-bottom:1px}
+.nav-item:hover{background:rgba(255,255,255,.1);color:#fff}
+.nav-item.active{background:var(--dorado);color:var(--negro);font-weight:700}
+.nav-item svg{width:14px;height:14px;flex-shrink:0;opacity:.75}
+.nav-item.active svg{opacity:1}
+.sidebar-footer{padding:12px 10px;border-top:1px solid rgba(255,255,255,.1)}
+.user-pill{display:flex;align-items:center;gap:8px;padding:7px 9px;border-radius:5px;background:rgba(255,255,255,.08)}
+.user-avatar{width:27px;height:27px;border-radius:50%;background:var(--dorado);color:var(--negro);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex-shrink:0}
+.user-info{flex:1;overflow:hidden}
+.user-name{font-size:11px;color:#fff;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.user-role{font-size:9px;color:rgba(255,255,255,.35);text-transform:uppercase;letter-spacing:.1em;font-weight:600}
+.btn-logout{background:none;border:none;cursor:pointer;color:rgba(255,255,255,.3);padding:4px;transition:color .2s}
+.btn-logout:hover{color:#f87171}
+.btn-logout svg{width:13px;height:13px}
+
+/* MAIN */
+.main{margin-left:var(--sidebar-w);flex:1;display:flex;flex-direction:column;min-height:100vh}
+.topbar{background:var(--blanco);border-bottom:1px solid var(--borde);padding:0 26px;height:54px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:50;box-shadow:0 1px 3px rgba(0,0,0,.05)}
+.breadcrumb{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted)}
+.breadcrumb a{color:var(--azul);text-decoration:none;font-weight:500}
+.content{padding:24px 26px;flex:1}
+.page-title{font-size:20px;font-weight:700;color:var(--azul);margin-bottom:4px}
+.page-sub{font-size:12px;color:var(--muted);margin-bottom:20px}
+
+/* SELECTOR */
+.proj-selector{background:var(--blanco);border:1px solid var(--borde);border-radius:10px;padding:14px 20px;margin-bottom:20px;display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+.proj-selector label{font-size:11px;font-weight:700;color:var(--azul);text-transform:uppercase;letter-spacing:.06em}
+.proj-selector select{padding:7px 12px;border:1px solid var(--borde);border-radius:6px;font-family:inherit;font-size:13px;font-weight:600;color:var(--texto);background:var(--blanco);cursor:pointer;min-width:260px}
+.proj-meta{font-size:11px;color:var(--muted);margin-left:auto}
+#savedBadge{display:none;background:var(--green-bg);border:1px solid var(--green-bd);color:var(--green);padding:3px 10px;border-radius:12px;font-size:11px;font-weight:600}
+
+/* CARDS */
+.card{background:var(--blanco);border:1px solid var(--borde);border-radius:10px;margin-bottom:16px;overflow:hidden}
+.card-header{padding:13px 20px;border-bottom:1px solid var(--borde);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px}
+.card-title{font-size:12px;font-weight:700;color:var(--azul);text-transform:uppercase;letter-spacing:.07em;display:flex;align-items:center;gap:8px}
+.card-body{padding:16px 20px}
+.sec-num{display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:50%;background:var(--azul);color:#fff;font-size:11px;font-weight:700;flex-shrink:0}
+
+/* SUPUESTOS */
+.sup-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:14px;margin-bottom:14px}
+.sup-field{display:flex;flex-direction:column;gap:5px}
+.sup-field label{font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.1em}
+.sup-field input{padding:7px 10px;border:1px solid var(--borde);border-radius:6px;font-family:inherit;font-size:13px;font-weight:600;color:var(--texto)}
+.sup-field input:focus{outline:none;border-color:var(--azul)}
+
+/* KPI */
+.kpi-row{display:flex;gap:12px;flex-wrap:wrap}
+.kpi{background:var(--gris);border:1px solid var(--borde);border-radius:8px;padding:12px 16px;flex:1;min-width:130px}
+.kpi-val{font-size:18px;font-weight:700;color:var(--azul);white-space:nowrap}
+.kpi-lbl{font-size:10px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.07em;margin-top:3px}
+.kpi-sub{font-size:10px;color:var(--muted);margin-top:2px}
+.kpi.green .kpi-val{color:var(--green)}
+.kpi.amber .kpi-val{color:var(--amber)}
+.kpi.red   .kpi-val{color:var(--red)}
+
+/* TABLA PLAZOS */
+.plazos-table{width:100%;border-collapse:collapse;font-size:12px}
+.plazos-table th{background:var(--azul);color:#fff;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;padding:9px 10px;text-align:left}
+.plazos-table td{border-bottom:1px solid var(--borde-lt);padding:0}
+.plazos-table td input{width:100%;border:none;background:transparent;font-family:inherit;font-size:12px;font-weight:500;padding:8px 10px;outline:none;color:var(--texto)}
+.plazos-table td input:focus{background:var(--blue-bg)}
+.plazos-table td input[type="number"]{text-align:right}
+.del-btn{background:none;border:none;cursor:pointer;color:var(--red);padding:4px 8px;font-size:14px}
+.plazos-footer{background:var(--azul);color:#fff;font-weight:700;font-size:12px;padding:8px 12px;display:flex;gap:24px;align-items:center}
+
+/* EGRESOS OP */
+.egr-seccion{margin-bottom:16px}
+.egr-label{font-size:12px;font-weight:700;color:var(--azul);margin-bottom:8px}
+.egr-bars{display:flex;flex-direction:column;gap:6px}
+.egr-bar-row{display:flex;align-items:center;gap:10px}
+.egr-bar-lbl{font-size:11px;width:80px;flex-shrink:0;color:var(--muted)}
+.egr-bar-wrap{flex:1;height:12px;background:var(--borde);border-radius:6px;overflow:hidden}
+.egr-bar{height:100%;border-radius:6px;transition:width .4s}
+.egr-val{font-size:12px;font-weight:600;width:200px;text-align:right}
+.egr-total-row{display:flex;gap:20px;flex-wrap:wrap;background:var(--gris);border-top:2px solid var(--azul);padding:12px 16px;border-radius:0 0 8px 8px;font-size:12px}
+
+/* PRÉSTAMO */
+.prest-header{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:12px}
+.prest-kpis{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:12px}
+.badge-info{background:var(--blue-bg);color:var(--blue);border:1px solid var(--blue-bd);padding:3px 10px;border-radius:12px;font-size:11px;font-weight:600}
+.amort-toggle{cursor:pointer;color:var(--blue);font-size:11px;font-weight:600;display:inline-flex;align-items:center;gap:5px;background:none;border:none;font-family:inherit;padding:4px 0;margin-bottom:8px}
+.amort-table-wrap{display:none;border:1px solid var(--borde);border-radius:6px;overflow:hidden;max-height:300px;overflow-y:auto}
+.amort-table-wrap.open{display:block}
+.amort-table{width:100%;border-collapse:collapse;font-size:11px}
+.amort-table th{background:#1e3a5f;color:#fff;padding:7px 10px;text-align:right;font-size:10px;font-weight:700;text-transform:uppercase;position:sticky;top:0}
+.amort-table th:first-child{text-align:left}
+.amort-table td{padding:6px 10px;border-bottom:1px solid var(--borde-lt);text-align:right}
+
+/* ALERTA PICO */
+.pico-alert{display:none;background:var(--red-bg);border:2px solid var(--red-bd);border-radius:10px;padding:14px 18px;margin-bottom:16px}
+.pico-alert.show{display:flex;align-items:center;gap:12px}
+.pico-icon{font-size:26px;flex-shrink:0}
+.pico-body .title{font-size:13px;font-weight:700;color:var(--red)}
+.pico-body .sub{font-size:11px;color:var(--red);margin-top:2px}
+
+/* RESUMEN FLUJO */
+.resumen-table{width:100%;border-collapse:collapse;margin-bottom:16px}
+.resumen-table td{padding:9px 14px;border-bottom:1px solid var(--borde-lt);font-size:13px}
+.resumen-table td:first-child{font-weight:600}
+.resumen-table td:last-child{text-align:right;font-weight:700}
+.resumen-table tr.ing td{color:var(--green)}
+.resumen-table tr.egr td:last-child{color:var(--red)}
+.resumen-table tr.total-final td{background:var(--azul);color:#fff;font-size:15px;font-weight:800}
+
+/* INDICADORES */
+.ind-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:14px;margin-top:14px}
+.ind-card{border:2px solid var(--borde);border-radius:10px;padding:18px 20px;text-align:center}
+.ind-val{font-size:26px;font-weight:800;line-height:1}
+.ind-lbl{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:var(--muted);margin-top:6px}
+.ind-sub{font-size:11px;color:var(--muted);margin-top:4px}
+.ind-card.green{border-color:var(--green-bd);background:var(--green-bg)}
+.ind-card.green .ind-val{color:var(--green)}
+.ind-card.red{border-color:var(--red-bd);background:var(--red-bg)}
+.ind-card.red .ind-val{color:var(--red)}
+.ind-card.amber{border-color:var(--amber-bd);background:var(--amber-bg)}
+.ind-card.amber .ind-val{color:var(--amber)}
+.ind-card.blue{border-color:var(--blue-bd);background:var(--blue-bg)}
+.ind-card.blue .ind-val{color:var(--blue)}
+
+/* FLUJO ANUAL */
+.flujo-table-wrap{overflow-x:auto;margin-top:14px}
+.flujo-table{width:100%;border-collapse:collapse;font-size:12px;min-width:700px}
+.flujo-table th{background:var(--azul);color:#fff;padding:9px 10px;text-align:right;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em}
+.flujo-table th:first-child{text-align:left}
+.flujo-table td{padding:8px 10px;border-bottom:1px solid var(--borde-lt);text-align:right}
+.flujo-table td:first-child{text-align:left;font-weight:700;color:var(--azul)}
+.flujo-table tr.neg td{background:var(--red-bg);color:var(--red)}
+.flujo-table tr.neg td:first-child{color:var(--red)}
+.flujo-table tr.total-row td{background:var(--azul);color:#fff;font-weight:700}
+
+/* BOTONES */
+.btn{display:inline-flex;align-items:center;gap:6px;padding:8px 16px;border-radius:6px;font-size:12px;font-weight:600;font-family:inherit;cursor:pointer;border:none;transition:.15s}
+.btn-primary{background:var(--dorado);color:#000}
+.btn-primary:hover{background:var(--dorado-lt)}
+.btn-secondary{background:var(--gris);color:var(--texto);border:1px solid var(--borde)}
+.btn-secondary:hover{background:var(--borde)}
+.btn-green{background:var(--green);color:#fff}
+.btn-green:hover{opacity:.85}
+.btn-blue{background:var(--blue);color:#fff}
+.btn-sm{padding:5px 10px;font-size:11px}
+
+/* TOAST */
+.toast{position:fixed;bottom:24px;right:24px;padding:12px 20px;border-radius:8px;font-size:13px;font-weight:600;color:#fff;z-index:2000;display:none;box-shadow:0 4px 20px rgba(0,0,0,.2)}
+@keyframes toastIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+.toast.show{display:block;animation:toastIn .2s}
+
+select{background:var(--blanco);border:1px solid var(--borde);color:var(--texto);border-radius:6px;padding:6px 10px;font-size:12px;font-family:inherit;cursor:pointer}
+</style>
+</head>
+<body>
+
+<!-- SIDEBAR -->
+<aside class="sidebar">
+  <div class="sidebar-brand">
+    <img class="brand-img" src="logo_rv4.png" alt="RV4" onerror="this.style.display='none';document.getElementById('bf').style.display='block'">
+    <div class="brand-fallback" id="bf">RV<span>4</span></div>
+    <div class="brand-env" id="envLabel">—</div>
+  </div>
+  <nav class="sidebar-nav">
+    <div class="nav-section">
+      <span class="nav-label">Ejecutivo</span>
+      <a class="nav-item" href="/dashboard.html">
+        <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>Dashboard
+      </a>
+    </div>
+    <div class="nav-section">
+      <span class="nav-label">Operativo</span>
+      <a class="nav-item" href="/inventario.html">
+        <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9,22 9,12 15,12 15,22"/></svg>Inventario
+      </a>
+      <a class="nav-item" href="/cartera.html">
+        <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>Cartera
+      </a>
+      <a class="nav-item" href="/ventas.html">
+        <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>Ventas
+      </a>
+    </div>
+    <div class="nav-section">
+      <span class="nav-label">Financiero</span>
+      <a class="nav-item" href="/flujos.html">
+        <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>Flujos de Efectivo
+      </a>
+      <a class="nav-item active" href="/proyecciones.html">
+        <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>Proyecciones
+      </a>
+    </div>
+    <div class="nav-section">
+      <span class="nav-label">Junta Directiva</span>
+      <a class="nav-item" href="/jd.html">
+        <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><rect x="2" y="4" width="20" height="14" rx="2"/><line x1="8" y1="20" x2="16" y2="20"/><line x1="12" y1="18" x2="12" y2="20"/></svg>Junta Directiva
+      </a>
+    </div>
+    <div class="nav-section" id="adminSection">
+      <span class="nav-label">Administración</span>
+      <a class="nav-item" href="/usuarios.html">
+        <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>Usuarios
+      </a>
+      <a class="nav-item" href="/sync-logs.html">
+        <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 102.13-9.36L1 10"/></svg>Sincronización
+      </a>
+    </div>
+  </nav>
+  <div class="sidebar-footer">
+    <div class="user-pill">
+      <div class="user-avatar" id="userAvatar">A</div>
+      <div class="user-info">
+        <div class="user-name" id="userName">—</div>
+        <div class="user-role" id="userRole">—</div>
+      </div>
+      <button class="btn-logout" onclick="logout()">
+        <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+      </button>
+    </div>
+  </div>
+</aside>
+
+<!-- MAIN -->
+<main class="main">
+  <div class="topbar">
+    <div class="breadcrumb">
+      <a href="/dashboard.html">Dashboard</a>
+      <svg width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
+      <span>Proyecciones al Cierre</span>
+    </div>
+    <div style="display:flex;align-items:center;gap:10px">
+      <button class="btn btn-secondary btn-sm" onclick="cargarFlujo()" id="btnCalc" style="display:none">
+        <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" style="width:13px;height:13px"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/></svg>Calcular flujo
+      </button>
+      <button class="btn btn-primary" onclick="guardarTodo()" id="btnGuardar" style="display:none">
+        <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" style="width:13px;height:13px"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/></svg>Guardar cambios
+      </button>
+    </div>
+  </div>
+
+  <div class="content">
+    <div class="page-title">Proyecciones al Cierre del Proyecto</div>
+    <div class="page-sub">Flujo proyectado total · Datos reales + supuestos editables por proyecto</div>
+
+    <!-- Selector -->
+    <div class="proj-selector">
+      <label>Proyecto</label>
+      <select id="selProyecto" onchange="onProyectoChange();document.getElementById('btnGuardar').style.display='inline-flex';document.getElementById('btnCalc').style.display='inline-flex'">
+        <option value="">— Seleccione un proyecto —</option>
+      </select>
+      <span id="savedBadge">✓ Guardado</span>
+      <span class="proj-meta" id="projMeta"></span>
+    </div>
+
+    <div id="mainContent" style="display:none">
+
+      <!-- PICO ALERTA -->
+      <div class="pico-alert" id="picoAlert">
+        <div class="pico-icon">⚠️</div>
+        <div class="pico-body">
+          <div class="title" id="picoTitle">Pico de necesidad financiera detectado</div>
+          <div class="sub" id="picoSub"></div>
+        </div>
+      </div>
+
+      <!-- SUPUESTOS GENERALES -->
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title">⚙ Supuestos Generales del Proyecto</span>
+        </div>
+        <div class="card-body">
+          <div class="sup-grid">
+            <div class="sup-field">
+              <label>Horizonte del proyecto (años)</label>
+              <input type="number" id="inpAnos" placeholder="ej. 5" min="1" max="30">
+              <span style="font-size:10px;color:var(--muted)">Para distribución anual y TIR/VAN</span>
+            </div>
+            <div class="sup-field">
+              <label>Tasa descuento VAN (%)</label>
+              <input type="number" id="inpDesc" placeholder="ej. 12" min="0" max="100" step="0.5">
+            </div>
+            <div class="sup-field">
+              <label>% ISR sobre ingresos totales</label>
+              <input type="number" id="inpISR" placeholder="ej. 5" min="0" max="100" step="0.5">
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 1. INGRESOS -->
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title"><span class="sec-num">1</span> Ingresos del Proyecto</span>
+        </div>
+        <div class="card-body">
+          <!-- Reales -->
+          <div style="margin-bottom:20px">
+            <div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:10px">Ingresos Reales — Saldo Pendiente de Cartera</div>
+            <div class="kpi-row">
+              <div class="kpi">
+                <div class="kpi-val" id="ingRealSaldo">—</div>
+                <div class="kpi-lbl">Saldo pendiente total</div>
+                <div class="kpi-sub" id="ingRealContratos">—</div>
+              </div>
+              <div class="kpi green">
+                <div class="kpi-val" id="ingRealCapital" style="font-size:14px">—</div>
+                <div class="kpi-lbl">Capital pendiente</div>
+              </div>
+              <div class="kpi amber">
+                <div class="kpi-val" id="ingRealInteres" style="font-size:14px">—</div>
+                <div class="kpi-lbl">Intereses pendientes</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Proyectados por plazo -->
+          <div>
+            <!-- KPIs ingresos proyectados -->
+            <div class="kpi-row" style="margin-bottom:14px">
+              <div class="kpi green">
+                <div class="kpi-val" id="kpiProyTotal">—</div>
+                <div class="kpi-lbl">Total ingresos proyectados</div>
+              </div>
+              <div class="kpi">
+                <div class="kpi-val" id="kpiProyCapital" style="font-size:14px">—</div>
+                <div class="kpi-lbl">Capital proyectado</div>
+              </div>
+              <div class="kpi amber">
+                <div class="kpi-val" id="kpiProyInteres" style="font-size:14px">—</div>
+                <div class="kpi-lbl">Intereses proyectados</div>
+              </div>
+              <div class="kpi">
+                <div class="kpi-val" id="kpiProyUnid" style="font-size:14px">—</div>
+                <div class="kpi-lbl">Unidades proyectadas</div>
+                <div class="kpi-sub" id="ingDisponibles"></div>
+              </div>
+            </div>
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;flex-wrap:wrap;gap:8px">
+              <div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.08em">
+                Tabla de plazos de venta
+              </div>
+              <div style="display:flex;gap:8px">
+                <button class="btn btn-blue btn-sm" onclick="calcularPlazos()">
+                  <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" style="width:12px;height:12px"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/></svg>
+                  Calcular fechas
+                </button>
+                <button class="btn btn-green btn-sm" onclick="agregarPlazo()">+ Agregar plazo</button>
+              </div>
+            </div>
+            <div style="font-size:11px;color:var(--muted);margin-bottom:8px">
+              💡 Llenás plazo, unidades/mes, ticket e interés. Ponés la fecha inicio de cada plazo y presionás <strong>Calcular fechas</strong> para distribuir automáticamente.
+            </div>
+            <div style="overflow-x:auto">
+              <table class="plazos-table">
+                <thead>
+                  <tr>
+                    <th>Plazo</th>
+                    <th style="text-align:right">Unid/mes</th>
+                    <th style="text-align:right">Ticket Q</th>
+                    <th style="text-align:right">% Int. anual</th>
+                    <th>Inicio</th>
+                    <th>Fin</th>
+                    <th style="text-align:right">Unid.Proy.</th>
+                    <th style="text-align:right">Total Q</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody id="tbPlazos">
+                  <tr><td colspan="9" style="text-align:center;padding:16px;color:var(--muted)">Agregá al menos un plazo de venta.</td></tr>
+                </tbody>
+              </table>
+            </div>
+            <div class="plazos-footer">
+              <span>Total proyectado: <span id="totalIngProy">—</span></span>
+              <span>Unidades: <span id="totalUnidProy">—</span></span>
+              <span id="diffUnidades" style="margin-left:auto"></span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 2. EGRESOS OPERATIVOS -->
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title"><span class="sec-num">2</span> Egresos Operativos — Presupuesto vs Ejecutado</span>
+          <button class="btn btn-secondary btn-sm" onclick="cargarEgresosOp()">↻ Actualizar</button>
+        </div>
+        <div class="card-body">
+          <div id="egresosOpContainer" style="color:var(--muted);font-size:12px">Cargando...</div>
+        </div>
+      </div>
+
+      <!-- 3. EGRESOS FINANCIEROS -->
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title"><span class="sec-num">3</span> Egresos Financieros</span>
+        </div>
+        <div class="card-body">
+          <div style="font-size:11px;font-weight:700;color:var(--azul);text-transform:uppercase;letter-spacing:.08em;margin-bottom:12px">Préstamo Bancario</div>
+          <div id="prestamoBancarioContainer" style="color:var(--muted);font-size:12px">Cargando...</div>
+          <div style="font-size:11px;font-weight:700;color:var(--azul);text-transform:uppercase;letter-spacing:.08em;margin-top:20px;margin-bottom:12px">Intercompany</div>
+          <div id="intercompanyContainer" style="color:var(--muted);font-size:12px">Cargando...</div>
+        </div>
+      </div>
+
+      <!-- 4. TIERRA Y DIVIDENDOS -->
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title"><span class="sec-num">4</span> Pagos de Tierra / Devolución de Capital</span>
+        </div>
+        <div class="card-body">
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:24px;flex-wrap:wrap">
+            <div>
+              <div style="font-size:11px;font-weight:700;color:var(--azul);text-transform:uppercase;letter-spacing:.08em;margin-bottom:10px">🏡 Tierra</div>
+              <div id="tierraContainer">Cargando...</div>
+            </div>
+            <div>
+              <div style="font-size:11px;font-weight:700;color:var(--azul);text-transform:uppercase;letter-spacing:.08em;margin-bottom:10px">💰 Dividendos / Devolución Capital</div>
+              <div id="dividendosContainer">Cargando...</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 5. ISR -->
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title"><span class="sec-num">5</span> ISR — Impuesto Sobre la Renta</span>
+        </div>
+        <div class="card-body" style="display:flex;align-items:center;gap:24px;flex-wrap:wrap">
+          <div style="font-size:12px;color:var(--muted)">ISR = % definido × Total ingresos (real + proyectado)</div>
+          <div style="font-size:11px;color:var(--muted)">Configurá el % en "Supuestos Generales" arriba.</div>
+        </div>
+      </div>
+
+      <!-- FLUJO AL CIERRE -->
+      <div class="card" style="border-color:var(--azul);border-width:2px">
+        <div class="card-header" style="background:var(--azul)">
+          <span class="card-title" style="color:#fff;font-size:13px">⬤ FLUJO PROYECTADO AL CIERRE DEL PROYECTO</span>
+          <button class="btn btn-secondary btn-sm" onclick="cargarFlujo()">Recalcular</button>
+        </div>
+        <div class="card-body">
+          <table class="resumen-table">
+            <tr class="ing"><td>✚ Ingresos Reales (saldo pendiente cartera)</td><td id="rsFlujoIngReal">—</td></tr>
+            <tr class="ing"><td>✚ Ingresos Proyectados (lotes disponibles)</td><td id="rsFlujoIngProy">—</td></tr>
+            <tr style="border-top:2px solid var(--azul)"><td style="font-weight:800;color:var(--azul)">= Total Ingresos</td><td id="rsFlujoIngTotal" style="color:var(--azul);font-size:15px;font-weight:800">—</td></tr>
+            <tr class="egr"><td>✖ Egresos Operativos (pendiente por ejecutar)</td><td id="rsFlujoEgrOp">—</td></tr>
+            <tr class="egr"><td>✖ IVA Neto (débito − crédito)</td><td id="rsFlujoIVA">—</td></tr>
+            <tr class="egr"><td>✖ Egresos Financieros (préstamo + intercompany)</td><td id="rsFlujoFinanc">—</td></tr>
+            <tr class="egr"><td>✖ ISR</td><td id="rsFlujoISR">—</td></tr>
+            <tr class="egr"><td>✖ Tierra / Dividendos pendientes</td><td id="rsFlujoTierra">—</td></tr>
+            <tr class="total-final"><td>≡ FLUJO NETO PROYECTADO AL CIERRE</td><td id="rsFlujoNeto">—</td></tr>
+          </table>
+
+          <div class="ind-grid">
+            <div class="ind-card blue"><div class="ind-val" id="indTIR">—</div><div class="ind-lbl">TIR</div><div class="ind-sub">Tasa interna de retorno</div></div>
+            <div class="ind-card blue"><div class="ind-val" id="indVAN">—</div><div class="ind-lbl">VAN</div><div class="ind-sub">Valor actual neto</div></div>
+            <div class="ind-card green"><div class="ind-val" id="indMargen">—</div><div class="ind-lbl">Margen Neto</div><div class="ind-sub">Sobre ingresos totales</div></div>
+            <div class="ind-card amber"><div class="ind-val" id="indPE">—</div><div class="ind-lbl">Punto de Equilibrio</div><div class="ind-sub">Lotes mínimos a vender</div></div>
+          </div>
+
+          <div style="margin-top:20px">
+            <div style="font-size:12px;font-weight:700;color:var(--azul);text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px">Distribución Anual del Flujo</div>
+            <div style="font-size:11px;color:var(--muted);margin-bottom:10px">Filas en rojo = año con flujo negativo (necesidad de financiamiento).</div>
+            <div class="flujo-table-wrap">
+              <table class="flujo-table">
+                <thead>
+                  <tr>
+                    <th>Año</th><th>Ingresos</th><th>Egr.Op.</th><th>IVA</th>
+                    <th>Egr.Fin.</th><th>ISR</th><th>Tierra/Div.</th>
+                    <th>Flujo Neto</th><th>Acumulado</th>
+                  </tr>
+                </thead>
+                <tbody id="flujoAnualTbody">
+                  <tr><td colspan="9" style="text-align:center;padding:20px;color:var(--muted)">Guardá los supuestos y hacé clic en "Calcular flujo".</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div><!-- /mainContent -->
+  </div>
+</main>
+
+<div id="toastEl" class="toast"></div>
+<script src="/proyecciones.js"></script>
+</body>
+</html>

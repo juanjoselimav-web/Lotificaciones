@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="es">
 <head>
 <meta charset="UTF-8">
@@ -169,17 +169,19 @@ td{padding:9px 13px;vertical-align:middle}
         <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>
         Flujos de Efectivo
       </a>
+      <a class="nav-item" href="/proyecciones.html">
+        <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>Proyecciones
+      </a>
     </div>
+    <div class="nav-section">
+      <span class="nav-label">Junta Directiva</span>
+      <a class="nav-item" href="/jd.html">
+        <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><rect x="2" y="4" width="20" height="14" rx="2"/><line x1="8" y1="20" x2="16" y2="20"/><line x1="12" y1="18" x2="12" y2="20"/></svg>Junta Directiva
+      </a>
+    </div>
+
     <div class="nav-section" id="adminSection">
       <span class="nav-label">Administración</span>
-      <a class="nav-item" id="btn-junta" href="/presentacion.html"
-         style="background:rgba(212,168,0,0.15);color:#FFCA08;">
-        <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-          <rect x="2" y="4" width="20" height="14" rx="2"/>
-          <line x1="8" y1="20" x2="16" y2="20"/>
-          <line x1="12" y1="18" x2="12" y2="20"/>
-        </svg>Junta Directiva
-      </a>
       <a class="nav-item" href="/usuarios.html">
         <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>Usuarios
       </a>
@@ -301,6 +303,22 @@ td{padding:9px 13px;vertical-align:middle}
             <th>Contado</th><th>Sin Int.</th><th>Con Int.</th>
           </tr></thead>
           <tbody id="vendedorBody"><tr><td colspan="12" class="empty">Cargando...</td></tr></tbody>
+        </table>
+      </div>
+
+      <!-- Tabla Ventas Sin Asesor -->
+      <div class="table-wrap" style="margin-top:16px">
+        <div class="section-header">
+          <div class="section-title" style="color:#d97706">⚠ Ventas Sin Asesor Asignado</div>
+          <div style="font-size:11px;color:var(--muted)" id="sinAsesorCount">—</div>
+        </div>
+        <table>
+          <thead><tr>
+            <th>Lote</th><th>Proyecto</th><th>Cliente</th>
+            <th>Fecha Venta</th><th>Precio</th><th>Forma Pago</th>
+            <th>Plazo</th><th>Status PCV</th>
+          </tr></thead>
+          <tbody id="sinAsesorBody"><tr><td colspan="8" class="empty">Cargando...</td></tr></tbody>
         </table>
       </div>
     </div>
@@ -546,54 +564,6 @@ td{padding:9px 13px;vertical-align:middle}
   window._token = token;
 })();
 
-// ── AUTO-LOGOUT POR INACTIVIDAD (2 minutos) ──────────────────
-(function() {
-  var TIMEOUT_MS = 2 * 60 * 1000;
-  var WARNING_MS = 30 * 1000;
-  var timer, warningTimer, cdInterval;
-
-  function resetTimer() {
-    clearTimeout(timer); clearTimeout(warningTimer); clearInterval(cdInterval);
-    hideWarning();
-    warningTimer = setTimeout(showWarning, TIMEOUT_MS - WARNING_MS);
-    timer = setTimeout(function() {
-      hideWarning();
-      localStorage.clear();
-      window.location.href = '/index.html?timeout=1';
-    }, TIMEOUT_MS);
-  }
-
-  function showWarning() {
-    var w = document.getElementById('_inactiveWarning');
-    if (!w) {
-      w = document.createElement('div');
-      w.id = '_inactiveWarning';
-      w.style.cssText = 'position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:#1B3A6B;color:#fff;padding:12px 20px;border-radius:8px;font-family:Montserrat,sans-serif;font-size:12px;font-weight:600;z-index:9999;box-shadow:0 4px 20px rgba(0,0,0,.3);display:flex;align-items:center;gap:12px;border-left:4px solid #D4A800';
-      document.body.appendChild(w);
-    }
-    var secs = 30;
-    w.innerHTML = '⚠ Sesión cerrará en <strong id="_cd">' + secs + '</strong> seg &nbsp;<button onclick="window.resetTimer()" style="background:#D4A800;color:#1B3A6B;border:none;padding:4px 10px;border-radius:4px;font-family:Montserrat,sans-serif;font-size:11px;font-weight:700;cursor:pointer">Continuar</button>';
-    w.style.display = 'flex';
-    cdInterval = setInterval(function() {
-      secs--;
-      var el = document.getElementById('_cd');
-      if (el) el.textContent = secs;
-      if (secs <= 0) clearInterval(cdInterval);
-    }, 1000);
-  }
-
-  function hideWarning() {
-    var w = document.getElementById('_inactiveWarning');
-    if (w) w.style.display = 'none';
-  }
-
-  ['mousemove','mousedown','keydown','touchstart','scroll','click'].forEach(function(e) {
-    document.addEventListener(e, resetTimer, {passive:true});
-  });
-
-  resetTimer();
-  window.resetTimer = resetTimer;
-})();
 
 var token = window._token;
 var usuario = window._usuario;
@@ -671,7 +641,9 @@ async function loadResumen() {
 
 function renderKPIs(k) {
   document.getElementById('kBrutas').textContent = fmtNum(k.ventas_brutas);
-  document.getElementById('kBrutasSub').innerHTML = `${fmtQ(k.valor_bruto)}${k.sin_vendedor > 0 ? ` <span style="color:var(--amber);font-weight:600">· ${k.sin_vendedor} sin asesor</span>` : ''}`;
+  document.getElementById('kBrutasSub').innerHTML = fmtQ(k.valor_bruto) +
+    (k.sin_vendedor > 0 ? ' <span style="color:var(--amber);font-weight:600">· ' + k.sin_vendedor + ' sin asesor</span>' : '') +
+    (k.canjes_bloqueados > 0 ? ' <span style="color:#7c3aed;font-weight:600">· ' + k.canjes_bloqueados + ' canje/bloq.</span>' : '');
   document.getElementById('kNetas').textContent = fmtNum(k.ventas_netas);
   document.getElementById('kNetasSub').innerHTML = `<span class="${k.tasa_desistimiento > 20 ? 'red' : 'green'}">Tasa desist: ${k.tasa_desistimiento}%</span>`;
   document.getElementById('kDesist').textContent = fmtNum(k.desistimientos);
@@ -809,6 +781,34 @@ async function loadVendedorTable() {
     <td>${fmtQ(totValor)}</td>
     <td colspan="5"></td>
   </tr>`;
+
+  // Cargar tabla de sin asesor al lado
+  loadSinAsesor();
+}
+
+// ── SIN ASESOR ─────────────────────────────────────────────────
+async function loadSinAsesor() {
+  const data = await api('/api/ventas/sin-asesor' + buildQ()).catch(() => null);
+  const tbody = document.getElementById('sinAsesorBody');
+  const count = document.getElementById('sinAsesorCount');
+  if (!tbody) return;
+  if (!data || !data.length) {
+    tbody.innerHTML = '<tr><td colspan="8" class="empty">Sin casos en el período</td></tr>';
+    if (count) count.textContent = '0 ventas';
+    return;
+  }
+  if (count) count.textContent = data.length + ' ventas — requieren asignación de asesor';
+  tbody.innerHTML = data.map(r => `
+    <tr>
+      <td style="font-weight:600">${r.unidad_key || r.manzana || '—'}</td>
+      <td style="font-size:11px">${r.nombre_proyecto || '—'}</td>
+      <td style="font-size:11px">${r.cliente || '—'}</td>
+      <td style="font-size:11px">${r.fecha_venta ? r.fecha_venta.slice(0,10) : '—'}</td>
+      <td style="font-variant-numeric:tabular-nums">${fmtQ(r.precio_final || 0)}</td>
+      <td style="font-size:10px;color:var(--muted)">${r.forma_pago || '—'}</td>
+      <td style="text-align:center;font-size:11px">${r.plazo_raw || r.plazo || '—'}</td>
+      <td style="font-size:10px;color:var(--muted)">${r.status_promesa_compraventa || '—'}</td>
+    </tr>`).join('');
 }
 
 // ── METAS ──────────────────────────────────────────────────────
@@ -1237,6 +1237,127 @@ async function drillPlazo(plazo, formaPago) {
   showDrill('Crédito ' + fpLabel + ' — ' + plazo + ' meses', data.total + ' lotes | Q ' + Number(data.valor_total).toLocaleString('es-GT',{maximumFractionDigits:0}) + ' capital', data.lotes, data.valor_total, data.intereses_total);
 }
 
+// ── RENDER REVISION ──────────────────────────────────────────
+function renderRevision(data) {
+  var container = document.getElementById('revisionContent');
+  if (!container) return;
+  var badge = document.getElementById('revisionBadge');
+  if (!data || !data.length) {
+    container.innerHTML = '<div style="padding:40px;text-align:center;color:var(--muted)">Sin registros pendientes de revisión ✓</div>';
+    if (badge) { badge.textContent = '0'; badge.className = 'tab-badge green'; }
+    return;
+  }
+  if (badge) { badge.textContent = data.length; badge.className = 'tab-badge amber'; }
+  var issueColor = function(issue) {
+    if (!issue) return 'var(--muted)';
+    if (issue.includes('Sin código')) return '#dc2626';
+    if (issue.includes('sin asesor')) return '#d97706';
+    if (issue.includes('Canje')) return '#7c3aed';
+    return 'var(--muted)';
+  };
+  var issueIcon = function(issue) {
+    if (!issue) return '●';
+    if (issue.includes('Sin código')) return '🔴';
+    if (issue.includes('sin asesor')) return '⚠';
+    if (issue.includes('Canje')) return '🔵';
+    return '●';
+  };
+  container.innerHTML = '<div class="table-wrap"><table>' +
+    '<thead><tr><th>Tipo</th><th>Lote / Manzana</th><th>Proyecto</th><th>Cliente</th><th>Vendedor</th><th>Fecha Venta</th><th>Precio Final</th><th>Observación</th></tr></thead>' +
+    '<tbody>' + data.map(function(r) {
+      var issue = r.issue || r.observacion || '—';
+      return '<tr>' +
+        '<td style="font-size:11px;font-weight:600;color:' + issueColor(issue) + '">' + issueIcon(issue) + ' ' + issue + '</td>' +
+        '<td style="font-weight:600">' + (r.unidad_key || r.manzana || '—') + '</td>' +
+        '<td>' + (r.nombre_proyecto || '—') + '</td>' +
+        '<td style="font-size:11px">' + (r.cliente || '—') + '</td>' +
+        '<td style="font-size:11px;color:' + ((!r.vendedor || r.vendedor.includes('Ningún')) ? '#d97706' : 'inherit') + '">' + (r.vendedor || '—') + '</td>' +
+        '<td>' + (r.fecha_venta ? r.fecha_venta.slice(0,10) : '—') + '</td>' +
+        '<td class="right">' + (r.precio_final ? 'Q ' + Number(r.precio_final).toLocaleString('es-GT',{maximumFractionDigits:0}) : '—') + '</td>' +
+        '<td style="font-size:10px;color:var(--muted)">' + issue + '</td>' +
+      '</tr>';
+    }).join('') + '</tbody></table></div>';
+}
+
+// ── RENDER PCV KPIs ───────────────────────────────────────────
+function renderPCVKpis(kpis) {
+  var set = function(id, val) { var el = document.getElementById(id); if (el) el.textContent = val; };
+  var total = kpis.total_ventas || 0;
+  var con = kpis.con_pcv || 0;
+  var sin = kpis.sin_pcv || 0;
+  var pct = total > 0 ? Math.round(con / total * 100) : 0;
+  set('pcvPct', pct + '%');
+  set('pcvPctSub', con + ' de ' + total + ' ventas');
+  set('pcvCon', con);
+  set('pcvSin', sin);
+  // Sumar 31-90 + +90 = total > 30 días
+  var sinMas30 = (kpis.sin_pcv_31_90 || 0) + (kpis.sin_pcv_mas90 || 0);
+  set('pcvSinSub', sinMas30 > 0 ? sinMas30 + ' con +30 días' : '—');
+  set('pcvSin2026', kpis.sin_pcv_año || 0);
+  set('pcvSin2026Sub', '—');
+  set('pcvDias', kpis.dias_prom_gestion ? Math.round(kpis.dias_prom_gestion) + 'd' : '—');
+  // Aging cards usando los campos correctos del backend
+  set('pcvAge1', kpis.sin_pcv_0_15 || 0);
+  set('pcvAge2', kpis.sin_pcv_16_30 || 0);
+  set('pcvAge3', kpis.sin_pcv_31_90 || 0);
+  set('pcvAge4', kpis.sin_pcv_mas90 || 0);
+  // Badge
+  var badge = document.getElementById('pcvBadge');
+  if (badge && sin > 0) { badge.textContent = sin; badge.style.display = ''; }
+}
+
+// ── RENDER PCV POR VENDEDOR ──────────────────────────────────
+function renderPCVPorVendedor(data) {
+  var tbody = document.getElementById('pcvVendedorBody');
+  if (!tbody) return;
+  if (!data || !data.length) {
+    tbody.innerHTML = '<tr><td colspan="8" class="empty">Sin datos por vendedor</td></tr>';
+    return;
+  }
+  tbody.innerHTML = data.map(function(r) {
+    var pct = r.total_ventas > 0 ? Math.round((r.con_pcv||0) / r.total_ventas * 100) : 0;
+    return '<tr>' +
+      '<td>' + (r.vendedor||'—') + '</td>' +
+      '<td>' + (r.equipo||'—') + '</td>' +
+      '<td class="right">' + (r.total_ventas||0) + '</td>' +
+      '<td class="right" style="color:var(--green)">' + (r.con_pcv||0) + '</td>' +
+      '<td class="right" style="color:var(--red)">' + (r.sin_pcv||0) + '</td>' +
+      '<td class="right">' + pct + '%</td>' +
+      '<td class="right">' + (r.dias_promedio ? Math.round(r.dias_promedio)+'d' : '—') + '</td>' +
+      '<td class="right">' + (r.sin_pcv_mas30||0) + '</td>' +
+    '</tr>';
+  }).join('');
+}
+
+// ── RENDER PCV PENDIENTES ─────────────────────────────────────
+function renderPCVPendientes(data) {
+  var tbody = document.getElementById('pcvPendientesBody');
+  if (!tbody) return;
+  if (!data || !data.length) {
+    tbody.innerHTML = '<tr><td colspan="10" class="empty">Sin pendientes de PCV</td></tr>';
+    return;
+  }
+  tbody.innerHTML = data.map(function(r) {
+    var dias = r.dias_sin_pcv || 0;
+    var riesgo = dias > 90 ? '<span style="color:#7f1d1d;font-weight:700">🚨 Crítico</span>'
+               : dias > 30 ? '<span style="color:var(--red);font-weight:700">🔴 Urgente</span>'
+               : dias > 15 ? '<span style="color:#d97706;font-weight:700">⚠ Atención</span>'
+               : '<span style="color:var(--muted)">● Reciente</span>';
+    return '<tr>' +
+      '<td>' + riesgo + '</td>' +
+      '<td>' + (r.unidad_key || r.lote || '—') + '</td>' +
+      '<td>' + (r.cliente || '—') + '</td>' +
+      '<td>' + (r.nombre_proyecto || '—') + '</td>' +
+      '<td>' + (r.vendedor || '—') + '</td>' +
+      '<td>' + (r.equipo || '—') + '</td>' +
+      '<td>' + (r.fecha_venta ? r.fecha_venta.slice(0,10) : '—') + '</td>' +
+      '<td style="font-weight:700;color:' + (dias>30?'var(--red)':'var(--texto)') + '">' + dias + 'd</td>' +
+      '<td>' + (r.status_pcv || r.estatus_pcv || '—') + '</td>' +
+      '<td class="right">' + (r.precio_final ? 'Q ' + Number(r.precio_final).toLocaleString('es-GT',{maximumFractionDigits:0}) : '—') + '</td>' +
+    '</tr>';
+  }).join('');
+}
+
 // ── REVISION (incluye inconsistencias) ───────────────────────
 async function loadRevision() {
   try {
@@ -1244,7 +1365,8 @@ async function loadRevision() {
       api('/api/ventas/registros-revision').catch(()=>null),
     ]);
     if (!revision) {
-      document.getElementById('tabRevisionContent') && (document.getElementById('tabRevisionContent').innerHTML = '<div style="padding:40px;text-align:center;color:var(--muted)">Sin datos de revisión disponibles</div>');
+      var container = document.getElementById('revisionContent');
+      if (container) container.innerHTML = '<div style="padding:40px;text-align:center;color:var(--muted)">Sin datos de revisión disponibles</div>';
       return;
     }
     renderRevision(revision);
@@ -1278,28 +1400,31 @@ async function guardarTodos() {
   btn.textContent = 'Guardando...'; btn.disabled = true;
   
   var selects = document.querySelectorAll('.vend-select');
-  var promises = [];
+  var items = [];
   selects.forEach(function(sel) {
     var id = sel.getAttribute('data-id');
     var equipo = sel.value;
-    if (id) {
-      promises.push(
-        fetch('/api/ventas/vendedores/' + id + '?equipo=' + encodeURIComponent(equipo), {
-          method: 'PUT',
-          headers: {'Authorization': 'Bearer ' + token}
-        })
-      );
-    }
+    if (id) items.push({ id, equipo });
   });
   
-  if (promises.length === 0) {
+  if (items.length === 0) {
     btn.textContent = 'Sin cambios'; btn.disabled = false;
     return;
   }
   
-  var results = await Promise.all(promises);
-  var allOk = results.every(function(r){ return r.ok; });
-  btn.textContent = allOk ? '✓ ' + promises.length + ' vendedores guardados' : '✗ Algunos fallaron';
+  // Sequential PUT requests to avoid saturating the backend
+  var failed = 0;
+  for (var i = 0; i < items.length; i++) {
+    try {
+      const r = await fetch('/api/ventas/vendedores/' + items[i].id + '?equipo=' + encodeURIComponent(items[i].equipo), {
+        method: 'PUT',
+        headers: {'Authorization': 'Bearer ' + token}
+      });
+      if (!r.ok) failed++;
+    } catch(e) { failed++; }
+  }
+  var allOk = failed === 0;
+  btn.textContent = allOk ? '✓ ' + items.length + ' vendedores guardados' : '✗ ' + failed + ' fallaron';
   btn.style.background = allOk ? 'var(--green)' : 'var(--red)';
   setTimeout(function(){
     btn.textContent = 'Guardar todos los cambios';
@@ -1314,7 +1439,9 @@ var pcvTimer;
 
 async function loadPCV() {
   try {
-    const kpis = await api('/api/ventas/pcv/kpis').catch(()=>null);
+    // KPIs filtered by año/mes/proyecto
+    const q = buildQ();
+    const kpis = await api('/api/ventas/pcv/kpis' + q).catch(()=>null);
     if (!kpis) {
       const el = document.getElementById('pcvKpisSection');
       if (el) el.innerHTML = '<div style="padding:30px;text-align:center;color:var(--muted)">Sin datos de PCV</div>';
@@ -1323,11 +1450,12 @@ async function loadPCV() {
     renderPCVKpis(kpis);
   } catch(e) { console.warn('loadPCV:', e); }
   try {
+    // Pendientes filtered by proyecto only (universe view)
     const f = getFilters();
-    const q = buildQ();
-    const pending = await api('/api/ventas/pcv/pendientes' + q).catch(()=>null);
+    const pq = f.proyecto ? '?proyecto=' + encodeURIComponent(f.proyecto) : '';
+    const pending = await api('/api/ventas/pcv/pendientes' + (pq||'?') + '&page_size=100').catch(()=>null);
     if (pending) renderPCVPendientes(pending);
-    const pv = await api('/api/ventas/pcv/por-vendedor' + q).catch(()=>null);
+    const pv = await api('/api/ventas/pcv/por-vendedor' + pq).catch(()=>null);
     if (pv) renderPCVPorVendedor(pv);
   } catch(e) { console.warn('loadPCV detail:', e); }
 }

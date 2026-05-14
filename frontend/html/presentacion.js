@@ -15,6 +15,8 @@ const state = {
   sociedad: 'EFICIENCIA URBANA',
   data: {}       // cache por endpoint
 };
+// Exponer state para módulo de Anexos (las funciones ya son globales por ser function declarations)
+window.state = state;
 
 /* ── Auth: usa el token del tablero ─────────────── */
 function getToken() {
@@ -108,41 +110,161 @@ function hideDlToast() {
   if (t) t.className = 'dl-toast';
 }
 
-async function descargarPresentacion(formato) {
-  document.getElementById('downloadMenu')?.classList.remove('open');
-  const token = getToken();
-  if (!token) { showDlToast('Sin sesión activa', true); return; }
-  showDlToast('Generando presentación… puede tardar 30-60 seg.');
+/* ── Snapshot helpers ────────────────────────────── */
+async function imgToBase64(img) {
+  return new Promise(resolve => {
+    if (!img.src || img.src.startsWith('data:')) { resolve(null); return; }
+    const canvas = document.createElement('canvas');
+    const doConvert = () => {
+      try {
+        canvas.width  = img.naturalWidth  || 64;
+        canvas.height = img.naturalHeight || 64;
+        canvas.getContext('2d').drawImage(img, 0, 0);
+        resolve(canvas.toDataURL());
+      } catch(e) { resolve(null); }
+    };
+    if (img.complete && img.naturalWidth > 0) doConvert();
+    else { img.onload = doConvert; img.onerror = () => resolve(null); }
+  });
+}
 
-  try {
-    const url = `/api/reportes/presentacion-consolidada?mes=${state.mes || new Date().getMonth()+1}&anio=${state.anio}&formato=${formato}`;
-    const r = await fetch(url, {
-      headers: { 'Authorization': `Bearer ${token}` },
-      signal: AbortSignal.timeout(120000)
-    });
-    if (!r.ok) {
-      const err = await r.json().catch(() => ({ detail: 'Error desconocido' }));
-      showDlToast('Error: ' + (err.detail || r.status), true);
-      return;
-    }
-    const blob = await r.blob();
-    const burl = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    const cd = r.headers.get('Content-Disposition') || '';
-    const fname = cd.match(/filename="([^"]+)"/)?.[1] || `Presentacion_JD_${state.anio}_${state.mes}.${formato}`;
-    a.href = burl; a.download = fname;
-    document.body.appendChild(a); a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(burl);
-    hideDlToast();
-  } catch(e) {
-    if (e.name === 'TimeoutError' || e.name === 'AbortError') {
-      showDlToast('Timeout — la presentación sigue generándose, intenta en 1 min.', true);
-    } else {
-      showDlToast('Error: ' + e.message, true);
-    }
+/* ── Snapshot helpers ─────────────────────── */
+async function embedAllImages(container) {
+  const imgs = [...container.querySelectorAll('img[src]')];
+  for (const img of imgs) {
+    const src = img.getAttribute('src');
+    if (!src || src.startsWith('data:')) continue;
+    try {
+      const res = await fetch(src);
+      if (!res.ok) continue;
+      const blob = await res.blob();
+      const b64 = await new Promise(r => {
+        const fr = new FileReader();
+        fr.onload = () => r(fr.result);
+        fr.readAsDataURL(blob);
+      });
+      img.src = b64;
+    } catch(e) {}
   }
 }
+
+async function descargarPresentacion(formato) {
+  document.getElementById('downloadMenu')?.classList.remove('open');
+  const isPDF = (formato === 'pdf');
+  showDlToast(isPDF ? 'Preparando PDF…' : 'Capturando todos los slides…');
+  await new Promise(r => setTimeout(r, 150));
+
+  try {
+    const allCSS = [...document.querySelectorAll('style')].map(s => s.textContent).join('\n');
+    const livSlides = [...document.querySelectorAll('.slide')];
+    const snapParts = [];
+    for (let i = 0; i < livSlides.length; i++) {
+      const cl = livSlides[i].cloneNode(true);
+      cl.removeAttribute('style');
+      cl.className = 'snap-slide';
+      cl.querySelectorAll('select,.download-wrap,.tb-pill').forEach(e => e.remove());
+      await embedAllImages(cl);
+      snapParts.push(cl.outerHTML);
+    }
+
+    const periodo = periodoFormal();
+    const N = snapParts.length;
+    const si = state.slide;
+
+    // Build nav bar and script (HTML mode only)
+    const navBar = isPDF ? '' : (
+      '<div class="sbar">' +
+      '<span class="stitle">JUNTA DIRECTIVA \u00b7 RV4</span>' +
+      '<div style="display:flex;align-items:center;gap:10px">' +
+      '<button class="sbtn" onclick="sP()">&#9664;</button>' +
+      '<span class="scnt" id="sc">' + (si+1) + ' / ' + N + '</span>' +
+      '<button class="sbtn" onclick="sN()">&#9654;</button>' +
+      '</div>' +
+      '<span style="font-size:11px;color:#475569">\uD83D\uDCCE ' + periodo + ' \u00b7 ' + N + ' slides</span>' +
+      '</div>' +
+      '<div class="sarr sarr-l" onclick="sP()">\u2039</div>' +
+      '<div class="sarr sarr-r" onclick="sN()">\u203a</div>'
+    );
+
+    const navJS = isPDF ? '' : (
+      '<' + 'script>' +
+      'var _i=' + si + ',_ss=document.querySelectorAll(".snap-slide");' +
+      'function sS(i){_ss.forEach(function(x){x.style.display="none";});' +
+      '_i=Math.max(0,Math.min(i,_ss.length-1));' +
+      '_ss[_i].style.display="flex";' +
+      'document.getElementById("sc").textContent=(_i+1)+" / "+_ss.length;}' +
+      'function sN(){sS(_i+1);}function sP(){sS(_i-1);}' +
+      'document.addEventListener("keydown",function(e){if(e.key==="ArrowRight"||e.key===" ")sN();else if(e.key==="ArrowLeft")sP();});' +
+      'var tx=0;' +
+      'document.addEventListener("touchstart",function(e){tx=e.touches[0].clientX;},{passive:true});' +
+      'document.addEventListener("touchend",function(e){var d=tx-e.changedTouches[0].clientX;if(Math.abs(d)>40){d>0?sN():sP();}});' +
+      'sS(' + si + ');' +
+      '</' + 'script>'
+    );
+
+    const slideCSS = isPDF
+      ? '.snap-slide{display:flex;flex-direction:column;width:100vw;min-height:100vh;overflow:hidden;background:#0d1117;page-break-after:always;page-break-inside:avoid;position:relative}.snap-slide:last-child{page-break-after:auto}'
+      : '.snap-slide{display:none;flex-direction:column;width:100vw;height:100vh;overflow:hidden;background:#0d1117;position:fixed;inset:0;padding-top:42px}';
+
+    const html = [
+      '<!DOCTYPE html>',
+      '<html lang="es">',
+      '<head>',
+      '<meta charset="UTF-8">',
+      '<title>Presentacion JD RV4 -- ' + periodo + '</title>',
+      '<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">',
+      '<style>',
+      'html,body{margin:0;padding:0;background:#0d1117;color:#e2e8f0;font-family:Montserrat,sans-serif;' + (isPDF ? '' : 'overflow:hidden;') + 'height:' + (isPDF ? 'auto' : '100%') + '}',
+      ':root{--bg:#0d1117;--bg-card:#131d2e;--bg-section:#0f172a;--text:#e2e8f0;--text-soft:#94a3b8;--muted:#475569;--border:#1e3a5f;--border-soft:#162236;--blue:#60a5fa;--dorado:#d4a017;--green:#10b981;--red:#ef4444;--amber:#f59e0b;--azul:#1B3A6B;}',
+      allCSS,
+      slideCSS,
+      '.sbar{position:fixed;top:0;left:0;right:0;z-index:9999;height:42px;background:rgba(13,17,23,.98);border-bottom:1px solid #1e3a5f;display:flex;align-items:center;justify-content:space-between;padding:0 16px;}',
+      '.stitle{font-size:11px;color:#d4a017;font-weight:700;letter-spacing:.06em}',
+      '.sbtn{background:rgba(255,255,255,.08);border:1px solid #1e3a5f;color:#94a3b8;padding:4px 14px;border-radius:5px;cursor:pointer;font-size:13px;font-family:inherit}',
+      '.sbtn:hover{background:#1e3a5f;color:#fff}',
+      '.scnt{font-size:13px;font-weight:700;color:#e2e8f0;min-width:56px;text-align:center}',
+      '.sarr{position:fixed;top:50%;transform:translateY(-50%);z-index:9998;background:rgba(13,17,23,.7);border:1px solid #1e3a5f;color:#64748b;width:32px;height:64px;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:20px}',
+      '.sarr:hover{background:#1e3a5f;color:#fff}.sarr-l{left:3px;border-radius:0 8px 8px 0}.sarr-r{right:3px;border-radius:8px 0 0 8px}',
+      '@media print{.sbar,.sarr{display:none!important}html,body{overflow:auto;height:auto}.snap-slide{display:flex!important;position:relative;page-break-after:always;width:100vw;height:100vh;padding-top:0}.snap-slide:last-child{page-break-after:auto}}',
+      '</style>',
+      '</head>',
+      '<body>',
+      navBar,
+      snapParts.join('\n'),
+      navJS,
+      '</body>',
+      '</html>'
+    ].join('\n');
+
+    const blob = new Blob([html], {type:'text/html;charset=utf-8'});
+    const url = URL.createObjectURL(blob);
+
+    if (isPDF) {
+      const win = window.open(url, '_blank');
+      if (win) {
+        win.addEventListener('load', function() { setTimeout(function() { win.print(); URL.revokeObjectURL(url); }, 1200); });
+        hideDlToast();
+      } else {
+        const a = document.createElement('a');
+        a.href = url; a.download = 'PresentacionJD_PDF_' + estado.anio + '_' + estado.mes + '.html';
+        document.body.appendChild(a); a.click(); document.body.removeChild(a);
+        showDlToast('Abrí el archivo descargado y presioná Ctrl+P para PDF', false);
+      }
+    } else {
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'PresentacionJD_RV4_' + state.anio + '_' + String(state.mes||0).padStart(2,'0') + '_' + periodo.replace(/\s+/g,'_') + '.html';
+      document.body.appendChild(a); a.click(); document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      hideDlToast();
+    }
+
+  } catch(e) {
+    showDlToast('Error: ' + e.message, true);
+    console.error('Snapshot error:', e);
+  }
+}
+
 
 /* ── Navegación ─────────────────────────────────── */
 function showSlide(idx) {
@@ -275,25 +397,42 @@ async function loadInventario() {
   // Slide 7 — Valor por proyecto (con ticket promedio)
   const byValor = [...proyectos].sort((a,b) => Number(b.valor_disponible||0) - Number(a.valor_disponible||0));
 
-  // Ensure table wrapper is scrollable
-  const valorTableWrap = document.getElementById('valorTbl')?.closest('.table-wrap') || document.getElementById('valorTbl')?.parentElement;
-  if (valorTableWrap) { valorTableWrap.style.maxHeight = '55vh'; valorTableWrap.style.overflowY = 'auto'; }
     setHTML('valorTbody', byValor.map((p, i) => {
     const pct = Number(p.porcentaje_absorcion || 0);
     const cls = pct >= 60 ? 'green' : pct >= 30 ? 'amber' : 'red';
     const disp = Number(p.disponibles || 0);
     const valDisp = Number(p.valor_disponible || 0);
     const ticket = disp > 0 ? valDisp / disp : 0;
-    return `<tr>
-      <td class="bold">${i+1}</td>
-      <td class="bold">${p.nombre_proyecto}</td>
-      <td>${p.nombre_sociedad}</td>
-      <td class="right">${fmtNum(disp)}</td>
-      <td class="right bold">${fmtQ(valDisp)}</td>
-      <td class="right" style="color:var(--dorado);font-weight:700">${fmtQ(ticket)}</td>
-      <td class="right"><span class="pill ${cls}">${fmtPct(pct)}</span></td>
+    return `<tr style="line-height:1.2">
+      <td class="bold" style="padding:8px 12px">${i+1}</td>
+      <td class="bold" style="padding:8px 12px">${p.nombre_proyecto}</td>
+      <td style="padding:8px 12px">${p.nombre_sociedad}</td>
+      <td class="right" style="padding:8px 12px">${fmtNum(disp)}</td>
+      <td class="right bold" style="padding:8px 12px">${fmtQ(valDisp)}</td>
+      <td class="right" style="padding:8px 12px;color:var(--dorado);font-weight:700">${fmtQ(ticket)}</td>
+      <td class="right" style="padding:8px 12px"><span class="pill ${cls}">${fmtPct(pct)}</span></td>
     </tr>`;
   }).join(''));
+  // Populate tendencia project filter
+  const tendSelect = document.getElementById('tendenciaProyecto');
+  if (tendSelect && proyectos.length) {
+    const opts = '<option value="">Consolidado (Todos)</option>' +
+      [...proyectos].sort((a,b) => a.nombre_proyecto.localeCompare(b.nombre_proyecto))
+        .map(p => `<option value="${p.nombre_proyecto}">${p.nombre_proyecto}</option>`).join('');
+    tendSelect.innerHTML = opts;
+  }
+}
+
+async function reloadTendencia() {
+  const proy = document.getElementById('tendenciaProyecto')?.value || '';
+  const proyParam = proy ? `&proyecto=${encodeURIComponent(proy)}` : '';
+  const tend = await apiFetch(`/api/ventas/tendencia-mensual?meses_atras=12&año=${state.anio}${state.mes > 0 ? '&mes='+state.mes : ''}${proyParam}`);
+  if (tend && tend.length) {
+    drawTendencia(tend);
+  } else {
+    const el = document.getElementById('tendenciaChart');
+    if (el) el.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:300px;color:var(--muted);font-size:14px">Sin datos de tendencia para este proyecto</div>';
+  }
 }
 
 /* ── Ventas ─────────────────────────────────────── */
@@ -304,8 +443,8 @@ async function loadVentas() {
     apiFetch(`/api/ventas/mezcla-financiera?${state.mes ? '' : 'todo_el_tiempo=false&'}año=${state.anio}&meses_atras=12`),
     apiFetch(`/api/ventas/analisis-financiero?${qs}`),
     apiFetch(`/api/ventas/por-vendedor?${qs}`),
-    apiFetch(`/api/ventas/metas?año=${state.anio}`),
-    apiFetch(`/api/ventas/tendencia-mensual?meses_atras=12${state.mes > 0 ? '&año='+state.anio+'&mes='+state.mes : ''}`)
+    apiFetch(`/api/ventas/metas?año=${state.anio}${state.mes > 0 ? '&mes='+state.mes : ''}`),
+    apiFetch(`/api/ventas/tendencia-mensual?meses_atras=12&año=${state.anio}${state.mes > 0 ? '&mes='+state.mes : ''}`)
   ]);
   state.data.ventas = { k, mezcla, fin, vend, metas, tend };
 
@@ -346,8 +485,8 @@ async function loadVentas() {
     const html = `
       <div style="display:flex;flex-direction:column;gap:12px">
         <div style="display:flex;justify-content:space-between;font-size:13px;font-weight:700;padding-bottom:8px;border-bottom:1px solid var(--border-soft)"><span>Capital total por cobrar</span><span>${fmtQ(cap_total)}</span></div>
-        <div><div style="display:flex;justify-content:space-between;font-size:12px;font-weight:600;color:var(--azul);margin-bottom:4px"><span>Capital contado</span><span>${fmtQ(fin.capital_contado||0)}</span></div>
-          <div style="height:10px;background:var(--border-soft);border-radius:4px;overflow:hidden"><div style="height:100%;background:var(--azul);width:${pctOf(fin.capital_contado||0, cap_total)}%"></div></div>
+        <div><div style="display:flex;justify-content:space-between;font-size:12px;font-weight:600;color:var(--blue);margin-bottom:4px"><span>Capital contado</span><span>${fmtQ(fin.capital_contado||0)}</span></div>
+          <div style="height:10px;background:var(--border-soft);border-radius:4px;overflow:hidden"><div style="height:100%;background:var(--blue);width:${pctOf(fin.capital_contado||0, cap_total)}%"></div></div>
         </div>
         <div><div style="display:flex;justify-content:space-between;font-size:12px;font-weight:600;color:var(--green);margin-bottom:4px"><span>Intereses x cobrar</span><span>${fmtQ(fin.intereses_cobrados)}</span></div>
           <div style="height:10px;background:var(--border-soft);border-radius:4px;overflow:hidden"><div style="height:100%;background:var(--green);width:${pctOf(fin.intereses_cobrados, fin.intereses_cobrados+fin.intereses_no_cobrados)}%"></div></div>
@@ -390,9 +529,9 @@ async function loadVentas() {
         <td class="right bold" style="color:var(--green)">${fmtNum(v.ventas_netas)}</td>
         <td class="right">${fmtQ(v.ticket_promedio)}</td>
       </tr>`).join(''));
-    // Team totals footer
+    // Team totals footer — sumas del top 10 visible
     const equipos = {};
-    vend.forEach(v => {
+    top.forEach(v => {
       const eq = v.equipo || 'Sin equipo';
       if (!equipos[eq]) equipos[eq] = { brutas:0, desist:0, netas:0, totalVal:0, count:0 };
       equipos[eq].brutas += v.ventas_brutas || 0;
@@ -421,37 +560,58 @@ async function loadVentas() {
 
   // Slide 13 — Metas
   if (metas && metas.length) {
-    setHTML('metasRows', metas.map(m => {
-      if ((m.meta_total||0) === 0) return '';
-      const pct  = Number(m.cumplimiento_pct||0);
+    setText('metasSub', state.mes > 0
+      ? `Cumplimiento de metas ${MESES[state.mes]} ${state.anio} · CONSERSA + RV4`
+      : `Cumplimiento de metas anuales ${state.anio} · CONSERSA + RV4`);
+    // Filter: skip projects with no meta; when month selected, also skip those with 0 movement
+    const filtered = metas.filter(m => {
+      if ((m.meta_total||0) === 0) return false;
+      if (state.mes > 0 && (m.ventas_total||0) === 0) return false;
+      return true;
+    });
+    const compact = filtered.length > 8;
+    setHTML('metasRows', filtered.map(m => {
+      const ventasTeam = (m.ventas_consersa||0) + (m.ventas_rv4||0);
+      const pct  = m.meta_total > 0 ? ventasTeam / m.meta_total * 100 : 0;
       const pctC = Number(m.cumplimiento_consersa_pct||0);
       const pctR = Number(m.cumplimiento_rv4_pct||0);
       const col  = pct>=80?'var(--green)':pct>=50?'var(--dorado)':'var(--red)';
       const colC = pctC>=80?'var(--green)':pctC>=50?'var(--dorado)':'var(--red)';
       const colR = pctR>=80?'var(--green)':pctR>=50?'var(--dorado)':'var(--red)';
       const vs   = m.ventas_sin_asignar||0;
-      return `<div style="background:var(--bg-card);border:1px solid var(--border);border-radius:8px;padding:12px 18px;margin-bottom:10px;display:grid;grid-template-columns:170px 1fr 130px;gap:14px;align-items:center">
-        <div style="font-size:14px;font-weight:700">${m.proyecto}</div>
+      const pad = compact ? '8px 14px' : '12px 18px';
+      const mb  = compact ? '6px' : '10px';
+      const nameSize = compact ? '12px' : '14px';
+      return `<div style="background:var(--bg-card);border:1px solid var(--border);border-radius:8px;padding:${pad};margin-bottom:${mb};display:grid;grid-template-columns:170px 1fr 130px;gap:14px;align-items:center">
+        <div style="font-size:${nameSize};font-weight:700">${m.proyecto}</div>
         <div>
           <div style="display:grid;grid-template-columns:70px 1fr 55px;gap:6px;align-items:center;margin-bottom:5px">
-            <span style="font-size:10px;color:var(--muted);font-weight:600">CONSERSA</span>
+            <span style="font-size:10px;color:var(--blue);font-weight:700">CONSERSA</span>
             <div style="height:9px;background:var(--border-soft);border-radius:3px;overflow:hidden"><div style="height:100%;background:${colC};width:${Math.min(pctC,100)}%"></div></div>
             <span style="font-size:11px;font-weight:700;color:${colC};text-align:right">${m.ventas_consersa||0}/${m.meta_consersa}</span>
           </div>
           <div style="display:grid;grid-template-columns:70px 1fr 55px;gap:6px;align-items:center">
-            <span style="font-size:10px;color:var(--muted);font-weight:600">RV4</span>
+            <span style="font-size:10px;color:var(--dorado);font-weight:700">RV4</span>
             <div style="height:9px;background:var(--border-soft);border-radius:3px;overflow:hidden"><div style="height:100%;background:${colR};width:${Math.min(pctR,100)}%"></div></div>
             <span style="font-size:11px;font-weight:700;color:${colR};text-align:right">${m.ventas_rv4||0}/${m.meta_rv4}</span>
           </div>
-          ${vs>0?`<div style="font-size:10px;color:var(--muted);margin-top:3px">Sin asignar: ${vs}</div>`:''}
+          ${vs>0?`<div style="font-size:10px;color:var(--amber);font-weight:600;margin-top:3px">⚠ Sin asignar: <strong>${vs}</strong></div>`:''}
         </div>
         <div style="text-align:right">
-          <div style="font-size:20px;font-weight:700;color:${col}">${fmtPct(pct)}</div>
-          <div style="font-size:10px;color:var(--muted)">${m.ventas_total||0}/${m.meta_total}</div>
+          <div style="font-size:${compact?'16px':'20px'};font-weight:700;color:${col}">${fmtPct(pct)}</div>
+          <div style="font-size:11px;font-weight:600;color:var(--text)">${(m.ventas_consersa||0)+(m.ventas_rv4||0)}/${m.meta_total}</div>
         </div>
       </div>`;
-    }).filter(Boolean).join(''));
+    }).join(''));
   } // end metas block
+
+  // Slide 10 — Tendencia mensual (chart)
+  if (tend && tend.length) {
+    drawTendencia(tend);
+  } else {
+    const el = document.getElementById('tendenciaChart');
+    if (el) el.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:300px;color:var(--muted);font-size:14px">Sin datos de tendencia para el período seleccionado</div>';
+  }
 } // end loadVentas
 
 async function loadDetalleFlujos() {
@@ -502,11 +662,39 @@ async function loadDetalleFlujos() {
 
 function renderDetalleFlujosTables(ingrMap, egrMap) {
   const topN = 8;
-  const ingrRows = Object.entries(ingrMap).sort((a,b)=>b[1]-a[1]).slice(0, topN);
-  const egrRows  = Object.entries(egrMap).sort((a,b)=>b[1]-a[1]).slice(0, topN);
+  // Collect all unique category keys
+  const allKeys = new Set([...Object.keys(ingrMap), ...Object.keys(egrMap)]);
+  const cleanIngr = [], cleanEgr = [];
+
+  allKeys.forEach(key => {
+    const [sec] = key.split('||');
+    const ing = ingrMap[key] || 0;
+    const egr = egrMap[key] || 0;
+    const isFinanciamiento = sec.toUpperCase().includes('FINANCIAMIENTO');
+
+    if (isFinanciamiento) {
+      // FINANCIAMIENTO: keep both sides separate (intercompany, préstamos)
+      if (ing > 0) cleanIngr.push([key, ing]);
+      if (egr > 0) cleanEgr.push([key, egr]);
+    } else if (ing > 0 && egr > 0) {
+      // Category appears in both → show only the net where it belongs
+      const neto = ing - egr;
+      if (neto > 0) cleanIngr.push([key, neto]);
+      else if (neto < 0) cleanEgr.push([key, Math.abs(neto)]);
+      // neto === 0 → don't show (traslados entre cuentas, etc.)
+    } else {
+      if (ing > 0) cleanIngr.push([key, ing]);
+      if (egr > 0) cleanEgr.push([key, egr]);
+    }
+  });
+
+  // Sort by value desc and take top N
+  const ingrRows = cleanIngr.sort((a,b) => b[1] - a[1]).slice(0, topN);
+  const egrRows  = cleanEgr.sort((a,b) => b[1] - a[1]).slice(0, topN);
+
   const toRow = ([key, val]) => {
     const [sec, cat] = key.split('||');
-    return `<tr><td style="font-size:11px;color:var(--muted)">${sec.replace('EGRESOS / ','')}</td><td>${cat}</td><td class="right bold">${fmtQ(val)}</td></tr>`;
+    return `<tr><td style="font-size:11px;color:var(--muted)">${sec.replace('EGRESOS / ','').replace('INGRESOS','OPERACIÓN')}</td><td>${cat}</td><td class="right bold">${fmtQ(val)}</td></tr>`;
   };
   setHTML('detalleIngresosTbody', ingrRows.map(toRow).join('') || '<tr><td colspan="3" style="text-align:center;color:var(--muted);padding:20px">Sin datos</td></tr>');
   setHTML('detalleEgresosTbody', egrRows.map(toRow).join('') || '<tr><td colspan="3" style="text-align:center;color:var(--muted);padding:20px">Sin datos</td></tr>');
@@ -540,21 +728,29 @@ async function loadFlujos() {
       });
     });
     const neto = totalIng - totalEgr;
+    const filas = Object.entries(secMap).map(([sec, t]) => {
+      const isFinanc = sec.toUpperCase().includes('FINANCIAMIENTO');
+      if (isFinanc) return { seccion: sec, ingreso: t.ingreso, egreso: t.egreso, neto: t.ingreso - t.egreso };
+      const netoSec = t.ingreso - t.egreso;
+      if (netoSec >= 0) return { seccion: sec, ingreso: netoSec, egreso: 0, neto: netoSec };
+      return { seccion: sec, ingreso: 0, egreso: Math.abs(netoSec), neto: netoSec };
+    });
+    const netTotalIng = filas.reduce((s,f) => s + f.ingreso, 0);
+    const netTotalEgr = filas.reduce((s,f) => s + f.egreso, 0);
     setText('flSaldoIni', fmtQM(totalIni));
-    setText('flIng', fmtQM(totalIng));
-    setText('flEgr', fmtQM(totalEgr));
+    setText('flIng', fmtQM(netTotalIng));
+    setText('flEgr', fmtQM(netTotalEgr));
     setText('flSaldoFin', fmtQM(totalFin));
     setText('flNeto', `Neto del período: ${neto>=0?'+':''}${fmtQM(neto)}`);
     setText('flujoSub', `CONSOLIDADO · ${periodoFormal()}`);
-    const filas = Object.entries(secMap).map(([sec, t]) => ({ seccion: sec, ingreso: t.ingreso, egreso: t.egreso, neto: t.ingreso - t.egreso }));
     setHTML('flujosTbody', [
       ...filas.map(f => `<tr>
         <td class="bold">${f.seccion}</td>
-        <td class="right" style="color:var(--green)">${fmtQ(f.ingreso)}</td>
-        <td class="right" style="color:var(--red)">${fmtQ(f.egreso)}</td>
+        <td class="right" style="color:var(--green)">${f.ingreso > 0 ? fmtQ(f.ingreso) : '—'}</td>
+        <td class="right" style="color:var(--red)">${f.egreso > 0 ? fmtQ(f.egreso) : '—'}</td>
         <td class="right bold" style="color:${f.neto>=0?'var(--green)':'var(--red)'}">${fmtQ(f.neto)}</td>
       </tr>`),
-      `<tr class="total"><td>TOTAL</td><td class="right">${fmtQ(totalIng)}</td><td class="right">${fmtQ(totalEgr)}</td><td class="right">${fmtQ(neto)}</td></tr>`
+      `<tr class="total"><td>TOTAL</td><td class="right">${fmtQ(netTotalIng)}</td><td class="right">${fmtQ(netTotalEgr)}</td><td class="right">${fmtQ(neto)}</td></tr>`
     ].join(''));
     return;
   }
@@ -584,19 +780,30 @@ async function loadFlujos() {
   const saldoFin = r.saldos_finales[target] || 0;
 
   let totalIng = 0, totalEgr = 0;
-  const filas = [];
+  const filasRaw = [];
   for (const sec of (r.secciones || [])) {
     const t = sec.totales[target];
     if (!t) continue;
     totalIng += t.ingreso || 0;
     totalEgr += t.egreso || 0;
-    filas.push({ seccion: sec.seccion, ingreso: t.ingreso, egreso: t.egreso, neto: t.neto });
+    filasRaw.push({ seccion: sec.seccion, ingreso: t.ingreso || 0, egreso: t.egreso || 0, neto: t.neto || (t.ingreso||0) - (t.egreso||0) });
   }
   const neto = totalIng - totalEgr;
 
+  // Apply netting (except FINANCIAMIENTO)
+  const filas = filasRaw.map(f => {
+    const isFinanc = f.seccion.toUpperCase().includes('FINANCIAMIENTO');
+    if (isFinanc) return f;
+    const n = f.ingreso - f.egreso;
+    if (n >= 0) return { ...f, ingreso: n, egreso: 0, neto: n };
+    return { ...f, ingreso: 0, egreso: Math.abs(n), neto: n };
+  });
+  const netTotalIng = filas.reduce((s,f) => s + f.ingreso, 0);
+  const netTotalEgr = filas.reduce((s,f) => s + f.egreso, 0);
+
   setText('flSaldoIni', fmtQM(saldoIni));
-  setText('flIng', fmtQM(totalIng));
-  setText('flEgr', fmtQM(totalEgr));
+  setText('flIng', fmtQM(netTotalIng));
+  setText('flEgr', fmtQM(netTotalEgr));
   setText('flSaldoFin', fmtQM(saldoFin));
   setText('flNeto', `Neto del período: ${neto >= 0 ? '+' : ''}${fmtQM(neto)}`);
   setText('flujoSub', `${socSel} · período ${target}`);
@@ -604,21 +811,84 @@ async function loadFlujos() {
   setHTML('flujosTbody', [
     ...filas.map(f => `<tr>
       <td class="bold">${f.seccion}</td>
-      <td class="right" style="color:var(--green)">${fmtQ(f.ingreso)}</td>
-      <td class="right" style="color:var(--red)">${fmtQ(f.egreso)}</td>
+      <td class="right" style="color:var(--green)">${f.ingreso > 0 ? fmtQ(f.ingreso) : '—'}</td>
+      <td class="right" style="color:var(--red)">${f.egreso > 0 ? fmtQ(f.egreso) : '—'}</td>
       <td class="right bold" style="color:${f.neto>=0?'var(--green)':'var(--red)'}">${fmtQ(f.neto)}</td>
     </tr>`),
-    `<tr class="total"><td>TOTAL</td><td class="right">${fmtQ(totalIng)}</td><td class="right">${fmtQ(totalEgr)}</td><td class="right">${fmtQ(neto)}</td></tr>`
+    `<tr class="total"><td>TOTAL</td><td class="right">${fmtQ(netTotalIng)}</td><td class="right">${fmtQ(netTotalEgr)}</td><td class="right">${fmtQ(neto)}</td></tr>`
   ].join(''));
 }
 
-/* ── PCV ────────────────────────────────────────── */
+/* ── Minutas ─────────────────────────────────────── */
+async function loadMinutas() {
+  const mes = state.mes || new Date().getMonth() + 1;
+  const anio = state.anio;
+  const mesKey = `rv4_minutas_${anio}_${String(mes).padStart(2,'0')}`;
+  setText('minutasPeriodoSub', `Minuta de reunión · ${periodoFormal()}`);
+
+  let items = [];
+  let lastMod = '';
+
+  // Read from localStorage (same key as minuta.html editor)
+  try {
+    const raw = localStorage.getItem(mesKey);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      items = parsed.items || [];
+      lastMod = parsed.lastMod || '';
+    }
+  } catch(e) {}
+
+  if (items.length) {
+    setHTML('minutasTbody', items.map((item, i) => `<tr>
+      <td style="font-weight:${i===0?700:400};padding:10px 14px">${item.tema || item.acuerdo || '—'}</td>
+      <td style="padding:10px 14px">${item.responsable || '—'}</td>
+      <td style="font-size:13px;padding:10px 14px">${item.observacion || item.observación || '—'}</td>
+      <td style="font-size:12px;padding:10px 14px;white-space:nowrap">${item.fecha || '—'}</td>
+    </tr>`).join(''));
+  } else {
+    setHTML('minutasTbody', `<tr><td colspan="4" style="text-align:center;color:var(--muted);padding:40px">Sin acuerdos registrados para ${periodoFormal()} — completá la minuta en la sección Junta Directiva del tablero</td></tr>`);
+  }
+  if (lastMod) setText('minutasLastMod', `Última modificación: ${lastMod}`);
+}
 async function loadPCV() {
+  const qs = periodParams();
   const [k, reg] = await Promise.all([
-    apiFetch('/api/ventas/pcv/kpis').catch(()=>null),
-    apiFetch('/api/ventas/registros-revision').catch(()=>null)
+    apiFetch(`/api/ventas/pcv/kpis?${qs}`).catch(()=>null),
+    apiFetch(`/api/ventas/registros-revision?${qs}`).catch(()=>null)
   ]);
-  state.data.pcv = { k, reg };
+
+  // The first registros-revision endpoint (line 195 in ventas.py) returns a FLAT ARRAY
+  // The second one (line 1052) returns {total, rojas, amarillas, issues:[]}
+  // FastAPI uses the FIRST registered route, so we get the array format.
+  // Normalize both formats into the object format the presentation expects.
+  let regData = reg;
+  if (Array.isArray(reg)) {
+    // Convert flat array → object with classified issues
+    const issues = reg.map(r => {
+      const issue = r.issue || '';
+      let nivel = 'GRIS';
+      let tipo = 'OTRO';
+      if (issue.includes('sin asesor') || issue.includes('Sin código')) { nivel = 'ROJO'; tipo = 'VENTA_SIN_ASESOR'; }
+      else if (issue.includes('Crédito con intereses') || issue.includes('intereses = 0')) { nivel = 'ROJO'; tipo = 'CON_INTERES_SIN_MONTO'; }
+      else if (issue.includes('Caso especial')) { nivel = 'GRIS'; tipo = 'CASO_ESPECIAL'; }
+      else if (issue.includes('Final Proyecto') || issue.includes('Venta Interna')) { nivel = 'AMARILLO'; tipo = 'VENTA_ESPECIAL'; }
+      return {
+        nivel, tipo,
+        mensaje: `${issue}: ${r.cliente || r.unidad_key || '—'}`,
+        detalle: `${r.nombre_proyecto || ''} | ${r.unidad_key || ''} | ${r.manzana || ''}${r.precio_final ? ' | Q ' + Number(r.precio_final).toLocaleString('es-GT') : ''}`,
+        accion: nivel === 'ROJO' ? 'Corregir en SAP' : nivel === 'AMARILLO' ? 'Revisar caso' : 'Informativo'
+      };
+    });
+    regData = {
+      total: issues.length,
+      rojas: issues.filter(i => i.nivel === 'ROJO').length,
+      amarillas: issues.filter(i => i.nivel === 'AMARILLO').length,
+      grises: issues.filter(i => i.nivel === 'GRIS').length,
+      issues
+    };
+  }
+  state.data.pcv = { k, reg: regData };
 
   if (k) {
     setText('pcvTotal', fmtNum(k.total_ventas));
@@ -633,12 +903,18 @@ async function loadPCV() {
     setText('pcv90', fmtNum(k.sin_pcv_mas90));
   }
 
-  if (reg) {
-    setText('regRojas', fmtNum(reg.rojas));
-    setText('regAmar', fmtNum(reg.amarillas));
-    setText('regGris', fmtNum(reg.grises || 0));
-    setText('regTotal', fmtNum(reg.total));
-    const top = (reg.issues || []).slice(0, 8);
+  if (regData) {
+    // Derive counts from issues array if the explicit fields are 0 or missing
+    const issues = regData.issues || [];
+    const rojas = regData.rojas || issues.filter(i => i.nivel === 'ROJO').length;
+    const amarillas = regData.amarillas || issues.filter(i => i.nivel === 'AMARILLO').length;
+    const grises = regData.grises || issues.filter(i => i.nivel === 'GRIS').length;
+    const total = regData.total || issues.length;
+    setText('regRojas', fmtNum(rojas));
+    setText('regAmar', fmtNum(amarillas));
+    setText('regGris', fmtNum(grises));
+    setText('regTotal', fmtNum(total));
+    const top = issues;
     setHTML('regTbody', top.length
       ? top.map(i => `<tr>
           <td><span class="pill ${i.nivel === 'ROJO' ? 'red' : i.nivel === 'AMARILLO' ? 'amber' : ''}">${i.nivel}</span></td>
@@ -744,17 +1020,20 @@ function drawTendencia(data) {
   }).join('');
 
   const svgContent = grid + xLabels +
-    linePath('ventas_brutas', 'var(--azul)') +
+    linePath('ventas_brutas', 'var(--blue)') +
     linePath('ventas_netas',  'var(--green)') +
     data.map((d,i) => {
       const yy = y(Number(d.desistimientos||0));
       const barH = Math.max(0, H-pad.b-yy);
       return barH > 0 ? `<rect x="${x(i)-12}" y="${yy}" width="24" height="${barH}" fill="var(--red)" opacity="0.6" rx="2"/>` : '';
     }).join('') +
-    data.map((d,i) => `
-      <text x="${x(i)}" y="${y(Number(d.ventas_brutas||0))-10}" text-anchor="middle" font-size="13" font-weight="700" fill="var(--azul)" style="font-family:Montserrat">${d.ventas_brutas||0}</text>
-      <text x="${x(i)}" y="${y(Number(d.ventas_netas||0))-10}" text-anchor="middle" font-size="12" font-weight="600" fill="var(--green)" style="font-family:Montserrat">${d.ventas_netas||0}</text>
-    `).join('');
+    data.map((d,i) => {
+      let labels = `<text x="${x(i)}" y="${y(Number(d.ventas_brutas||0))-14}" text-anchor="middle" font-size="13" font-weight="700" fill="var(--blue)" style="font-family:Montserrat">${d.ventas_brutas||0}</text>`;
+      labels += `<text x="${x(i)}" y="${y(Number(d.ventas_netas||0))+22}" text-anchor="middle" font-size="12" font-weight="600" fill="var(--green)" style="font-family:Montserrat">${d.ventas_netas||0}</text>`;
+      const des = Number(d.desistimientos||0);
+      if (des > 0) labels += `<text x="${x(i)}" y="${y(des)-6}" text-anchor="middle" font-size="11" font-weight="700" fill="var(--red)" style="font-family:Montserrat">${des}</text>`;
+      return labels;
+    }).join('');
 
   // Replace container content with a fresh SVG element
   container.innerHTML = `<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:${H}px">${svgContent}</svg>`;
@@ -1002,6 +1281,7 @@ async function loadAll() {
   // Live data
   try {
     await Promise.all([loadInventario(), loadVentas(), loadCartera(), loadFlujos(), loadDetalleFlujos(), loadPCV()]);
+    loadMinutas(); // fire-and-forget (non-critical)
     renderResumenEjecutivo();
     updateAllPeriodLabels();
     const loadEnd = Date.now();
@@ -1163,20 +1443,26 @@ async function renderVentasSlides() {
     }).join(''));
   }
 
-  if (v.tend && v.tend.length) drawTendencia(v.tend);
+  if (v.tend && v.tend.length) {
+    drawTendencia(v.tend);
+  } else {
+    const el = document.getElementById('tendenciaChart');
+    if (el) el.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:300px;color:var(--muted);font-size:14px">Sin datos de ventas para el período seleccionado</div>';
+  }
 }
 
 async function loadCartera() {
   const cqs = carteraPeriodParams();
   try {
-    const [k, aging, proy, alertas, desist] = await Promise.all([
+    const [k, aging, proy, alertas, desist, morosos] = await Promise.all([
       apiFetch(`/api/cartera/kpis?${cqs}`),
       apiFetch(`/api/cartera/aging?${cqs}`),
       apiFetch(`/api/cartera/proyeccion-mensual?meses=12&${cqs}`),
       apiFetch('/api/cartera/alertas').catch(()=>null),
-      apiFetch('/api/cartera/desistimientos?page_size=20').catch(()=>null),
+      apiFetch(`/api/cartera/desistimientos?page_size=50${state.mes>0?'&mes='+state.mes+'&año='+state.anio:''}`).catch(()=>null),
+      apiFetch('/api/cartera/morosos?dias_min=61').catch(()=>null),
     ]);
-    state.data.cartera = { k, aging, proy, alertas, desist };
+    state.data.cartera = { k, aging, proy, alertas, desist, morosos };
   } catch(e) {
     console.warn('loadCartera:', e);
     state.data.cartera = {};
@@ -1207,7 +1493,7 @@ async function renderCarteraSlides() {
     setText('desReint', fmtQM(k.desistimientos_reintegrado));
     const ret = k.desistimientos_pagado-k.desistimientos_reintegrado;
     setText('desRetencion', `Retenido por sociedad: ${fmtQM(ret)}`);
-    setText('desLectura', `Históricamente, ${fmtNum(k.desistimientos_total)} desistimientos representaron ${fmtQM(k.desistimientos_pagado)} en pagos de clientes. Se reintegró ${fmtQM(k.desistimientos_reintegrado)} y la sociedad retuvo ${fmtQM(ret)} por concepto de penalizaciones contractuales.`);
+    setText('desLectura', `En ${periodoFormal()}, ${fmtNum(k.desistimientos_total)} desistimientos representaron ${fmtQM(k.desistimientos_pagado)} en pagos de clientes. Se reintegró ${fmtQM(k.desistimientos_reintegrado)} y la sociedad retuvo ${fmtQM(ret)} por concepto de penalizaciones contractuales.`);
   }
   if (c.aging) {
     setHTML('agingTbody', c.aging.map(a=>`<tr><td class="bold">${a.rango}</td><td class="right">${fmtNum(a.cuotas)}</td><td class="right">${fmtNum(a.clientes)}</td><td class="right bold" style="color:var(--red)">${fmtQ(a.monto)}</td></tr>`).join(''));
@@ -1217,12 +1503,59 @@ async function renderCarteraSlides() {
     const monto = criticos.reduce((s,a)=>s+Number(a.monto||0),0);
     setText('agingLectura', `${fmtPct(total?monto/total*100:0)} del monto vencido (${fmtQM(monto)}) tiene más de 90 días — son los casos que requieren gestión inmediata o provisiones.`);
   }
+  // Render desistimientos detail cards (slide 18)
+  if (c.desist && c.desist.desistimientos && c.desist.desistimientos.length) {
+    const rows = c.desist.desistimientos;
+    setHTML('desCards', rows.map(d => {
+      const ret = (Number(d.pagado_capital||0)) - (Number(d.reintegrado_cliente||0));
+      const diasPlazo = d.fecha_venta && d.fecha_desistimiento
+        ? Math.round((new Date(d.fecha_desistimiento)-new Date(d.fecha_venta))/(1000*60*60*24)) : null;
+      return `<div style="background:var(--bg-card);border:1px solid var(--border);border-radius:8px;padding:14px 16px;border-left:4px solid var(--red)">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px">
+          <div style="font-size:13px;font-weight:700;color:var(--text)">${d.nombre_cliente||'—'}</div>
+          <div style="font-size:11px;font-weight:600;color:var(--red)">${d.fecha_desistimiento?String(d.fecha_desistimiento).slice(0,10):'—'}</div>
+        </div>
+        <div style="font-size:11px;color:var(--muted);margin-bottom:8px">${d.empresa||'—'} · ${d.lote||'—'}</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;font-size:11px">
+          <div><span style="color:var(--muted)">Precio</span><div style="font-weight:700;color:var(--text)">${d.precio_con_descuento?fmtQ(d.precio_con_descuento):'—'}</div></div>
+          <div><span style="color:var(--muted)">Pagado</span><div style="font-weight:700;color:var(--text)">${d.pagado_capital?fmtQ(d.pagado_capital):'—'}</div></div>
+          <div><span style="color:var(--muted)">Retenido</span><div style="font-weight:700;color:var(--amber)">${ret>0?fmtQ(ret):'Q 0'}</div></div>
+        </div>
+        ${d.motivo_desistimiento?`<div style="margin-top:8px;font-size:10px;color:var(--muted);border-top:1px solid var(--border-soft);padding-top:6px">${d.motivo_desistimiento}</div>`:''}
+      </div>`;
+    }).join(''));
+  } else {
+    setHTML('desCards', '<div style="grid-column:1/-1;text-align:center;color:var(--muted);padding:30px;font-size:14px">Sin desistimientos en el período</div>');
+  }
+
   if (c.proy && c.proy.length) drawProyeccion(c.proy);
+
+  // Morosos 61+ días (new slide)
+  if (c.morosos && c.morosos.clientes) {
+    const clientes = c.morosos.clientes;
+    const totalMonto = clientes.reduce((s,m) => s + Number(m.monto_vencido||0), 0);
+    const avgDias = clientes.length ? Math.round(clientes.reduce((s,m) => s + Number(m.dias_mora||0), 0) / clientes.length) : 0;
+    setText('morTotal', fmtNum(clientes.length));
+    setText('morMonto', fmtQM(totalMonto));
+    setText('morDiasAvg', `${avgDias}d`);
+    setHTML('morTbody', clientes.map(m => {
+      const rangoClass = (m.dias_mora||0) > 90 ? 'red' : (m.dias_mora||0) > 60 ? 'amber' : '';
+      return `<tr>
+        <td class="bold" style="max-width:220px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${m.card_name||'—'}</td>
+        <td>${m.empresa||'—'}</td>
+        <td class="right">${fmtNum(m.cuotas_vencidas)}</td>
+        <td class="right bold" style="color:var(--red)">${fmtQ(m.monto_vencido)}</td>
+        <td class="right bold">${m.dias_mora||'—'}d</td>
+        <td><span class="pill ${rangoClass}">${m.rango_mora||'—'}</span></td>
+      </tr>`;
+    }).join('') || '<tr><td colspan="6" style="text-align:center;color:var(--muted);padding:30px">Sin clientes morosos 61+ días</td></tr>');
+  }
+
   if (c.alertas) {
     setText('alRoja', fmtNum(c.alertas.rojas));
     setText('alAmar', fmtNum(c.alertas.amarillas));
     setText('alTotal', fmtNum(c.alertas.total));
-    const top = (c.alertas.alertas||[]).slice(0,8);
+    const top = (c.alertas.alertas||[]);
     setHTML('alertasTbody', top.map(a=>`<tr>
       <td><span class="pill ${a.nivel==='ROJO'?'red':'amber'}">${a.nivel}</span></td>
       <td class="bold">${humanType(a.tipo)}</td>
@@ -1287,6 +1620,7 @@ function init() {
 
   document.getElementById('flujoSociedad').addEventListener('change', e => { state.sociedad = e.target.value; if (getToken()) loadFlujos(); });
   document.getElementById('detalleFlujoSociedad')?.addEventListener('change', () => { if (getToken()) loadDetalleFlujos(); });
+  document.getElementById('tendenciaProyecto')?.addEventListener('change', () => { if (getToken()) reloadTendencia(); });
 
   // SSO from URL (?token=xxx&usuario=base64)
   const params = new URLSearchParams(window.location.search);
