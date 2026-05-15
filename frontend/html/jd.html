@@ -218,6 +218,8 @@ select{background:var(--blanco);border:1px solid var(--borde);color:var(--texto)
       </div>
     </div>
 
+
+
     <!-- Minuta de Reunión -->
     <div class="card">
       <div class="card-header">
@@ -263,7 +265,110 @@ select{background:var(--blanco);border:1px solid var(--borde);color:var(--texto)
 
 <div id="toastEl" class="toast"></div>
 
+
+  <!-- ═══ GESTIÓN DE SLIDES (solo ADMIN y tacarias) ═══ -->
+  <div id="slidesMgmtSection" style="display:none;margin:24px">
+    <div style="background:#fff;border:1px solid #dde1e7;border-radius:10px;overflow:hidden">
+      <div style="padding:13px 20px;border-bottom:1px solid #dde1e7;display:flex;align-items:center;justify-content:space-between">
+        <span style="font-size:12px;font-weight:700;color:#1B3A6B;text-transform:uppercase;letter-spacing:.07em">🎛️ Configuración de Presentación — Slides visibles</span>
+        <div style="display:flex;gap:8px">
+          <button onclick="seleccionarTodosSlides(true)" style="padding:5px 12px;background:#f4f5f7;border:1px solid #dde1e7;border-radius:6px;font-size:11px;font-weight:600;cursor:pointer">✓ Todos</button>
+          <button onclick="seleccionarTodosSlides(false)" style="padding:5px 12px;background:#f4f5f7;border:1px solid #dde1e7;border-radius:6px;font-size:11px;font-weight:600;cursor:pointer">✗ Ninguno</button>
+          <button onclick="guardarConfigSlides()" style="padding:5px 14px;background:#D4A800;color:#000;border:none;border-radius:6px;font-size:11px;font-weight:700;cursor:pointer">💾 Guardar</button>
+        </div>
+      </div>
+      <div style="padding:16px 20px">
+        <div style="font-size:12px;color:#6b7280;margin-bottom:14px">Los slides deseleccionados no aparecerán en la presentación. La agenda y numeración se actualizan automáticamente.</div>
+        <div id="slidesCheckList" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:8px"></div>
+        <div style="margin-top:12px;font-size:11px;color:#6b7280" id="slidesGuardadoInfo"></div>
+      </div>
+    </div>
+  </div>
+
 <script>
+
+  // ── Slide Management ──────────────────────────────────────────
+  const SLIDES_CATALOG = [
+    { id:'portada',      label:'01 · Portada',                      obligatorio:true },
+    { id:'agenda',       label:'02 · Agenda',                       obligatorio:true },
+    { id:'minuta',       label:'03 · Minuta' },
+    { id:'resumen',      label:'04 · Resumen Ejecutivo' },
+    { id:'div-inv',      label:'05 · Sección: Inventario' },
+    { id:'inv-consol',   label:'06 · Inventario Consolidado' },
+    { id:'absorcion',    label:'07 · Absorción por Proyecto' },
+    { id:'ventas-anio',  label:'08 · Ventas por Año (Histórico)' },
+    { id:'valor',        label:'09 · Valor disponible por Proyecto' },
+    { id:'div-ventas',   label:'10 · Sección: Ventas' },
+    { id:'ventas-res',   label:'11 · Resumen de Ventas' },
+    { id:'tendencia',    label:'12 · Tendencia Mensual' },
+    { id:'mezcla',       label:'13 · Análisis Financiero' },
+    { id:'vendedores',   label:'14 · Desempeño por Vendedor' },
+    { id:'metas',        label:'15 · Metas vs Avance' },
+    { id:'div-cartera',  label:'16 · Sección: Cartera' },
+    { id:'cartera-res',  label:'17 · Resumen de Cartera' },
+    { id:'aging',        label:'18 · Antigüedad de Saldos' },
+    { id:'morosos',      label:'19 · Clientes en Riesgo' },
+    { id:'cobros',       label:'20 · Proyección de Cobros' },
+    { id:'desist',       label:'21 · Desistimientos' },
+    { id:'alertas',      label:'22 · Alertas Cartera' },
+    { id:'div-flujos',   label:'23 · Sección: Flujos de Efectivo' },
+    { id:'flujos',       label:'24 · Flujo de Efectivo del Período' },
+    { id:'detalle',      label:'25 · Detalle de Movimientos' },
+    { id:'div-pcv',      label:'26 · Sección: PCV' },
+    { id:'pcv',          label:'27 · Cumplimiento PCV' },
+    { id:'revision',     label:'28 · Registros a Revisar' },
+    { id:'cxp',          label:'29 · Cuentas por Pagar' },
+    { id:'cxp-det',      label:'30 · Cuentas por Pagar (consolidado)' },
+    { id:'anexos',       label:'31+ · Anexos e Índice de Proyectos' },
+    { id:'cierre',       label:'Cierre',                            obligatorio:true },
+  ];
+
+  const SLIDES_ALLOWED_USERS = ['tacarias@rvcuatro.com'];
+  let slidesConfig = {};
+
+  function initSlidesMgmt() {
+    const u = JSON.parse(localStorage.getItem('usuario') || '{}');
+    const isAdmin = (u.rol||'').toUpperCase().includes('ADMIN');
+    const isAllowed = SLIDES_ALLOWED_USERS.includes(u.email||'');
+    if (!isAdmin && !isAllowed) return;
+    document.getElementById('slidesMgmtSection').style.display = 'block';
+    // Mostrar también la tarjeta de Sync CXP
+    const cxpCard = document.getElementById('cxpSyncCard');
+    if (cxpCard) cxpCard.style.display = 'block';
+    const saved = localStorage.getItem('rv4_slides_config');
+    slidesConfig = saved ? JSON.parse(saved) : {};
+    renderSlidesList();
+  }
+
+  function renderSlidesList() {
+    const c = document.getElementById('slidesCheckList');
+    if (!c) return;
+    c.innerHTML = SLIDES_CATALOG.map(s => {
+      const checked = slidesConfig[s.id] !== false;
+      return `<label style="display:flex;align-items:center;gap:8px;padding:8px 12px;background:#f4f5f7;border-radius:6px;cursor:pointer;font-size:12px;font-weight:500">
+        <input type="checkbox" value="${s.id}" ${checked?'checked':''} ${s.obligatorio?'disabled':''}
+          onchange="slidesConfig['${s.id}']=this.checked"
+          style="width:16px;height:16px;accent-color:#1B3A6B">
+        <span>${s.label}</span>
+        ${s.obligatorio?'<span style="font-size:10px;color:#9ca3af">(requerido)</span>':''}
+      </label>`;
+    }).join('');
+  }
+
+  function seleccionarTodosSlides(val) {
+    SLIDES_CATALOG.forEach(s => { if (!s.obligatorio) slidesConfig[s.id] = val; });
+    renderSlidesList();
+  }
+
+  function guardarConfigSlides() {
+    localStorage.setItem('rv4_slides_config', JSON.stringify(slidesConfig));
+    const info = document.getElementById('slidesGuardadoInfo');
+    if (info) info.textContent = `✓ Guardado el ${new Date().toLocaleString('es-GT')}. Se aplica al abrir la presentación.`;
+    // Show toast if available
+    if (typeof toast === 'function') toast('Configuración de slides guardada', 'green');
+    else alert('Configuración guardada. Abrí la presentación para ver los cambios.');
+  }
+
 // ── ACCESS CONTROL ──────────────────────────────────
 (function() {
   var token = localStorage.getItem('token');
@@ -389,6 +494,8 @@ function guardarSnapshotHistorial(){
   }catch(e){toast('Error: '+e.message,'red');}
 }
 
+// ── SYNC CXP ────────────────────────────────────
+
 function renderHistorial(){
   const container=document.getElementById('historialSnaps');
   const all=[];
@@ -457,6 +564,7 @@ document.getElementById('selAnio').value = curAnio;
 document.getElementById('selMes').addEventListener('change',onPeriodoChange);
 document.getElementById('selAnio').addEventListener('change',onPeriodoChange);
 onPeriodoChange();
+  initSlidesMgmt();
 </script>
 </body>
 </html>

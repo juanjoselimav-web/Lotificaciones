@@ -532,8 +532,9 @@ async def get_morosos(
                CURRENT_DATE - MIN(o.fecha_programada_cobro)::date AS dias_mora,
                CASE
                    WHEN CURRENT_DATE - MIN(o.fecha_programada_cobro)::date > 180 THEN '+180 días'
-                   WHEN CURRENT_DATE - MIN(o.fecha_programada_cobro)::date > 90 THEN '91-180 días'
-                   WHEN CURRENT_DATE - MIN(o.fecha_programada_cobro)::date > 60 THEN '61-90 días'
+                   WHEN CURRENT_DATE - MIN(o.fecha_programada_cobro)::date > 120 THEN '121-180 días'
+                   WHEN CURRENT_DATE - MIN(o.fecha_programada_cobro)::date > 90  THEN '91-120 días'
+                   WHEN CURRENT_DATE - MIN(o.fecha_programada_cobro)::date > 60  THEN '61-90 días'
                    ELSE '31-60 días'
                END AS rango_mora
         FROM ov_cartera o

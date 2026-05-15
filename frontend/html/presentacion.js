@@ -155,23 +155,30 @@ async function descargarPresentacion(formato) {
   await new Promise(r => setTimeout(r, 150));
 
   try {
+    // 1) LEER TEMA ACTIVO (claro/oscuro) — se replica en la descarga
+    const theme = document.documentElement.getAttribute('data-theme') || 'light';
+
+    // 2) Capturar TODO el CSS actual de la presentación
     const allCSS = [...document.querySelectorAll('style')].map(s => s.textContent).join('\n');
-    const livSlides = [...document.querySelectorAll('.slide')];
+
+    // 3) Clonar todos los slides (visibles + ocultos los excluimos)
+    const livSlides = [...document.querySelectorAll('.slide')].filter(s => !s.dataset.hidden);
     const snapParts = [];
     for (let i = 0; i < livSlides.length; i++) {
       const cl = livSlides[i].cloneNode(true);
       cl.removeAttribute('style');
       cl.className = 'snap-slide';
-      cl.querySelectorAll('select,.download-wrap,.tb-pill').forEach(e => e.remove());
+      // Quitar controles interactivos que no aplican en snapshot
+      cl.querySelectorAll('select,.download-wrap,.tb-pill,.nav-arrow').forEach(e => e.remove());
       await embedAllImages(cl);
       snapParts.push(cl.outerHTML);
     }
 
     const periodo = periodoFormal();
     const N = snapParts.length;
-    const si = state.slide;
+    const si = Math.min(state.slide || 0, N - 1);
 
-    // Build nav bar and script (HTML mode only)
+    // 4) Barra de navegación + JS — solo en modo HTML
     const navBar = isPDF ? '' : (
       '<div class="sbar">' +
       '<span class="stitle">JUNTA DIRECTIVA \u00b7 RV4</span>' +
@@ -180,7 +187,7 @@ async function descargarPresentacion(formato) {
       '<span class="scnt" id="sc">' + (si+1) + ' / ' + N + '</span>' +
       '<button class="sbtn" onclick="sN()">&#9654;</button>' +
       '</div>' +
-      '<span style="font-size:11px;color:#475569">\uD83D\uDCCE ' + periodo + ' \u00b7 ' + N + ' slides</span>' +
+      '<span class="speriod">\uD83D\uDCCE ' + periodo + ' \u00b7 ' + N + ' slides</span>' +
       '</div>' +
       '<div class="sarr sarr-l" onclick="sP()">\u2039</div>' +
       '<div class="sarr sarr-r" onclick="sN()">\u203a</div>'
@@ -202,30 +209,52 @@ async function descargarPresentacion(formato) {
       '</' + 'script>'
     );
 
+    // 5) CSS específico del modo
+    //    - HTML: slide ocupa pantalla completa con scale dinámico
+    //    - PDF:  slide FIJO 1920×1080 (16:9 landscape) para impresión a PDF
     const slideCSS = isPDF
-      ? '.snap-slide{display:flex;flex-direction:column;width:100vw;min-height:100vh;overflow:hidden;background:#0d1117;page-break-after:always;page-break-inside:avoid;position:relative}.snap-slide:last-child{page-break-after:auto}'
-      : '.snap-slide{display:none;flex-direction:column;width:100vw;height:100vh;overflow:hidden;background:#0d1117;position:fixed;inset:0;padding-top:42px}';
+      ? [
+          // Reglas @page para PDF 16:9 (1920x1080 = 20 x 11.25 inch @ 96 dpi)
+          '@page { size: 1920px 1080px landscape; margin: 0; }',
+          '@media print { html, body { width: 1920px; height: auto; overflow: visible !important; background: var(--bg) !important; } }',
+          '.snap-slide{display:flex;flex-direction:column;width:1920px;height:1080px;overflow:hidden;background:var(--bg-section);page-break-after:always;page-break-inside:avoid;position:relative;margin:0}',
+          '.snap-slide:last-child{page-break-after:auto}'
+        ].join('\n')
+      : [
+          // En HTML: slide visible es un viewport-fit; rest oculto
+          '.snap-slide{display:none;flex-direction:column;width:100vw;height:100vh;overflow:hidden;background:var(--bg-section);position:fixed;inset:0;padding-top:42px}'
+        ].join('\n');
 
+    // 6) Estilos de barra (tema-aware via variables)
+    const barCSS = isPDF ? '' : [
+      '.sbar{position:fixed;top:0;left:0;right:0;z-index:9999;height:42px;background:var(--bg-card);border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;padding:0 16px}',
+      '.stitle{font-size:11px;color:var(--dorado);font-weight:700;letter-spacing:.06em}',
+      '.speriod{font-size:11px;color:var(--text-soft)}',
+      '.sbtn{background:var(--bg-section);border:1px solid var(--border);color:var(--text);padding:4px 14px;border-radius:5px;cursor:pointer;font-size:13px;font-family:inherit}',
+      '.sbtn:hover{background:var(--dorado);color:var(--negro)}',
+      '.scnt{font-size:13px;font-weight:700;color:var(--text);min-width:56px;text-align:center}',
+      '.sarr{position:fixed;top:50%;transform:translateY(-50%);z-index:9998;background:var(--bg-card);border:1px solid var(--border);color:var(--text-soft);width:32px;height:64px;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:20px}',
+      '.sarr:hover{background:var(--dorado);color:var(--negro)}',
+      '.sarr-l{left:3px;border-radius:0 8px 8px 0}.sarr-r{right:3px;border-radius:8px 0 0 8px}',
+      '@media print{.sbar,.sarr{display:none!important}html,body{overflow:auto;height:auto}.snap-slide{display:flex!important;position:relative;page-break-after:always}.snap-slide:last-child{page-break-after:auto}}'
+    ].join('\n');
+
+    // 7) Construir el HTML final — data-theme replica el tema activo
     const html = [
       '<!DOCTYPE html>',
-      '<html lang="es">',
+      '<html lang="es" data-theme="' + theme + '">',
       '<head>',
       '<meta charset="UTF-8">',
       '<title>Presentacion JD RV4 -- ' + periodo + '</title>',
-      '<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">',
+      '<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">',
       '<style>',
-      'html,body{margin:0;padding:0;background:#0d1117;color:#e2e8f0;font-family:Montserrat,sans-serif;' + (isPDF ? '' : 'overflow:hidden;') + 'height:' + (isPDF ? 'auto' : '100%') + '}',
-      ':root{--bg:#0d1117;--bg-card:#131d2e;--bg-section:#0f172a;--text:#e2e8f0;--text-soft:#94a3b8;--muted:#475569;--border:#1e3a5f;--border-soft:#162236;--blue:#60a5fa;--dorado:#d4a017;--green:#10b981;--red:#ef4444;--amber:#f59e0b;--azul:#1B3A6B;}',
+      // Reset mínimo — NO override de variables, las heredan del allCSS original
+      'html,body{margin:0;padding:0;background:var(--bg);color:var(--text);font-family:Montserrat,sans-serif;' + (isPDF ? '' : 'overflow:hidden;') + 'height:' + (isPDF ? 'auto' : '100%') + '}',
+      '*,*::before,*::after{box-sizing:border-box}',
+      // Todas las variables (claro y oscuro) y estilos originales
       allCSS,
       slideCSS,
-      '.sbar{position:fixed;top:0;left:0;right:0;z-index:9999;height:42px;background:rgba(13,17,23,.98);border-bottom:1px solid #1e3a5f;display:flex;align-items:center;justify-content:space-between;padding:0 16px;}',
-      '.stitle{font-size:11px;color:#d4a017;font-weight:700;letter-spacing:.06em}',
-      '.sbtn{background:rgba(255,255,255,.08);border:1px solid #1e3a5f;color:#94a3b8;padding:4px 14px;border-radius:5px;cursor:pointer;font-size:13px;font-family:inherit}',
-      '.sbtn:hover{background:#1e3a5f;color:#fff}',
-      '.scnt{font-size:13px;font-weight:700;color:#e2e8f0;min-width:56px;text-align:center}',
-      '.sarr{position:fixed;top:50%;transform:translateY(-50%);z-index:9998;background:rgba(13,17,23,.7);border:1px solid #1e3a5f;color:#64748b;width:32px;height:64px;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:20px}',
-      '.sarr:hover{background:#1e3a5f;color:#fff}.sarr-l{left:3px;border-radius:0 8px 8px 0}.sarr-r{right:3px;border-radius:8px 0 0 8px}',
-      '@media print{.sbar,.sarr{display:none!important}html,body{overflow:auto;height:auto}.snap-slide{display:flex!important;position:relative;page-break-after:always;width:100vw;height:100vh;padding-top:0}.snap-slide:last-child{page-break-after:auto}}',
+      barCSS,
       '</style>',
       '</head>',
       '<body>',
@@ -240,17 +269,27 @@ async function descargarPresentacion(formato) {
     const url = URL.createObjectURL(blob);
 
     if (isPDF) {
+      // 8) PDF: abrir en pestaña nueva → window.print() automático
+      //    El navegador respetará @page size 1920x1080 landscape
       const win = window.open(url, '_blank');
       if (win) {
-        win.addEventListener('load', function() { setTimeout(function() { win.print(); URL.revokeObjectURL(url); }, 1200); });
+        win.addEventListener('load', function() {
+          setTimeout(function() {
+            try { win.print(); } catch(e) { console.warn('print failed', e); }
+            setTimeout(function() { URL.revokeObjectURL(url); }, 2000);
+          }, 1200);
+        });
         hideDlToast();
       } else {
+        // Si el popup fue bloqueado, ofrecer descarga manual
         const a = document.createElement('a');
-        a.href = url; a.download = 'PresentacionJD_PDF_' + estado.anio + '_' + estado.mes + '.html';
+        a.href = url;
+        a.download = 'PresentacionJD_PDF_' + state.anio + '_' + String(state.mes||0).padStart(2,'0') + '.html';
         document.body.appendChild(a); a.click(); document.body.removeChild(a);
-        showDlToast('Abrí el archivo descargado y presioná Ctrl+P para PDF', false);
+        showDlToast('Popup bloqueado. Abrí el HTML y presioná Ctrl+P', false);
       }
     } else {
+      // 9) HTML: descarga directa
       const a = document.createElement('a');
       a.href = url;
       a.download = 'PresentacionJD_RV4_' + state.anio + '_' + String(state.mes||0).padStart(2,'0') + '_' + periodo.replace(/\s+/g,'_') + '.html';
@@ -268,15 +307,50 @@ async function descargarPresentacion(formato) {
 
 /* ── Navegación ─────────────────────────────────── */
 function showSlide(idx) {
-  const slides = document.querySelectorAll('.slide');
+  const slides = [...document.querySelectorAll('.slide')].filter(s => !s.dataset.hidden);
   state.total = slides.length;
   if (idx < 0) idx = 0;
   if (idx >= slides.length) idx = slides.length - 1;
   state.slide = idx;
-  slides.forEach((s, i) => s.classList.toggle('active', i === idx));
+  // Hide all slides, show active
+  document.querySelectorAll('.slide').forEach(s => s.classList.remove('active'));
+  slides[idx]?.classList.add('active');
+  // Update counter
   document.getElementById('tbCount').textContent = `${idx + 1} / ${slides.length}`;
-  // post slide change for speaker notes
+  // Update all slide-num elements dynamically
+  slides.forEach((s, i) => {
+    const numEl = s.querySelector('.slide-num');
+    if (numEl) {
+      // Skip portada (index 0) and dividers
+      const label = s.dataset.screenLabel || '';
+      const isDivider = label.toLowerCase().includes('divider') || label.toLowerCase().includes('portada');
+      numEl.textContent = isDivider ? '' : `${String(i+1).padStart(2,'0')} / ${String(slides.length).padStart(2,'0')}`;
+    }
+  });
+  // Update agenda numbers based on visible sections
+  updateAgendaNumbers();
   try { window.parent.postMessage({ slideIndexChanged: idx }, '*'); } catch(e) {}
+}
+
+function updateAgendaNumbers() {
+  // Renumber agenda items based on which sections have visible slides
+  const seccionesVisibles = new Set();
+  document.querySelectorAll('.slide:not([data-hidden])').forEach(s => {
+    const sec = s.dataset.seccion;
+    if (sec) seccionesVisibles.add(sec);
+  });
+  let num = 1;
+  document.querySelectorAll('.agenda-item[data-agenda-seccion]').forEach(item => {
+    const sec = item.dataset.agendaSeccion;
+    if (seccionesVisibles.has(sec)) {
+      item.style.display = '';
+      const numEl = item.querySelector('.agenda-n');
+      if (numEl) numEl.textContent = String(num).padStart(2,'0');
+      num++;
+    } else {
+      item.style.display = 'none';
+    }
+  });
 }
 function nextSlide() { showSlide(state.slide + 1); }
 function prevSlide() { showSlide(state.slide - 1); }
@@ -413,12 +487,35 @@ async function loadInventario() {
       <td class="right" style="padding:8px 12px"><span class="pill ${cls}">${fmtPct(pct)}</span></td>
     </tr>`;
   }).join(''));
-  // Populate tendencia project filter
+  // Populate tendencia project filter — format: "Sociedad — Proyecto" using known mapping
   const tendSelect = document.getElementById('tendenciaProyecto');
   if (tendSelect && proyectos.length) {
+    // Mapping of known proyecto names to display labels
+    const PROYECTO_LABEL_MAP = {
+      'Hacienda Jumay':              'Eficiencia Urbana — Hacienda Jumay',
+      'La Ceiba':                    'Servicios Generales — La Ceiba',
+      'Hacienda el Sol':             'Rossio — Hacienda el Sol',
+      'Oasis Zacapa':                'Frugalex — Oasis Zacapa',
+      'Cañadas de Jalapa':           'Ottavia — Cañadas de Jalapa',
+      'Condado Jutiapa':             'Utilica — Condado Jutiapa',
+      'Club Campestre Jumay':        'Tezzoli — Club Campestre Jumay',
+      'Club del Bosque':             'Urbiva — Club del Bosque',
+      'Club Residencial Progreso':   'Garbatella — Club Residencial El Progreso',
+      'Arboleda Santa Elena':        'Capipos — Arboleda Santa Elena',
+      'Hacienda Santa Lucia':        'Ovest — Hacienda Santa Lucia',
+      'Hacienda El Cafetal Fase I':  'Corcolle — Hacienda El Cafetal Fase I',
+      'Hacienda El Cafetal Fase III':'Gibraleón — Hacienda El Cafetal Fase III',
+    };
     const opts = '<option value="">Consolidado (Todos)</option>' +
       [...proyectos].sort((a,b) => a.nombre_proyecto.localeCompare(b.nombre_proyecto))
-        .map(p => `<option value="${p.nombre_proyecto}">${p.nombre_proyecto}</option>`).join('');
+        .map(p => {
+          const nombre = p.nombre_proyecto || '';
+          // Try exact match, then partial, then fallback to sociedad field
+          let label = PROYECTO_LABEL_MAP[nombre];
+          if (!label && p.sociedad) label = `${p.sociedad} — ${nombre}`;
+          if (!label) label = nombre;
+          return `<option value="${nombre}">${label}</option>`;
+        }).join('');
     tendSelect.innerHTML = opts;
   }
 }
@@ -626,35 +723,46 @@ async function loadDetalleFlujos() {
     ));
     results.forEach(r => {
       if (!r || !r.periodos) return;
-      let tgt = r.periodos[r.periodos.length - 1];
+      let tgtPeriodos;
       if (state.mes > 0) {
         const cand = `${state.anio}-${String(state.mes).padStart(2,'0')}`;
-        if (r.periodos.includes(cand)) tgt = cand;
+        tgtPeriodos = r.periodos.includes(cand) ? [cand] : [r.periodos[r.periodos.length-1]];
+      } else {
+        tgtPeriodos = r.periodos.filter(p => p.startsWith(String(state.anio)));
+        if (!tgtPeriodos.length) tgtPeriodos = [r.periodos[r.periodos.length-1]];
       }
       (r.secciones || []).forEach(sec => {
         (sec.categorias || []).forEach(cat => {
-          const cv = cat.montos?.[tgt];
-          if (cv?.ingreso > 0) ingrMapC[`${sec.seccion}||${cat.categoria}`] = (ingrMapC[`${sec.seccion}||${cat.categoria}`]||0) + cv.ingreso;
-          if (cv?.egreso  > 0) egrMapC[`${sec.seccion}||${cat.categoria}`]  = (egrMapC[`${sec.seccion}||${cat.categoria}`]||0)  + cv.egreso;
+          for (const tgt of tgtPeriodos) {
+            const cv = cat.montos?.[tgt];
+            if (cv?.ingreso > 0) ingrMapC[`${sec.seccion}||${cat.categoria}`] = (ingrMapC[`${sec.seccion}||${cat.categoria}`]||0) + cv.ingreso;
+            if (cv?.egreso  > 0) egrMapC[`${sec.seccion}||${cat.categoria}`]  = (egrMapC[`${sec.seccion}||${cat.categoria}`]||0)  + cv.egreso;
+          }
         });
       });
     });
     renderDetalleFlujosTables(ingrMapC, egrMapC);
     return;
   }
+  // Always use mes granularity to correctly accumulate year totals
   const r = await apiFetch(`/api/flujos/resumen?sociedad=${encodeURIComponent(soc)}&granularidad=mes`);
     if (!r || !r.periodos) return;
-    let target = r.periodos[r.periodos.length - 1];
+    let tgtPeriodos;
     if (state.mes > 0) {
-      const candidate = `${state.anio}-${String(state.mes).padStart(2,'0')}`;
-      if (r.periodos.includes(candidate)) target = candidate;
+      const cand = `${state.anio}-${String(state.mes).padStart(2,'0')}`;
+      tgtPeriodos = r.periodos.includes(cand) ? [cand] : [r.periodos[r.periodos.length-1]];
+    } else {
+      tgtPeriodos = r.periodos.filter(p => p.startsWith(String(state.anio)));
+      if (!tgtPeriodos.length) tgtPeriodos = [r.periodos[r.periodos.length-1]];
     }
     const ingrMap = {}, egrMap = {};
     (r.secciones || []).forEach(sec => {
       (sec.categorias || []).forEach(cat => {
-        const cv = cat.montos?.[target];
-        if (cv?.ingreso > 0) ingrMap[`${sec.seccion}||${cat.categoria}`] = (ingrMap[`${sec.seccion}||${cat.categoria}`] || 0) + (cv.ingreso || 0);
-        if (cv?.egreso  > 0) egrMap[`${sec.seccion}||${cat.categoria}`]  = (egrMap[`${sec.seccion}||${cat.categoria}`]  || 0) + (cv.egreso  || 0);
+        for (const target of tgtPeriodos) {
+          const cv = cat.montos?.[target];
+          if (cv?.ingreso > 0) ingrMap[`${sec.seccion}||${cat.categoria}`] = (ingrMap[`${sec.seccion}||${cat.categoria}`] || 0) + (cv.ingreso || 0);
+          if (cv?.egreso  > 0) egrMap[`${sec.seccion}||${cat.categoria}`]  = (egrMap[`${sec.seccion}||${cat.categoria}`]  || 0) + (cv.egreso  || 0);
+        }
       });
     });
     renderDetalleFlujosTables(ingrMap, egrMap);
@@ -710,21 +818,29 @@ async function loadFlujos() {
     const results = await Promise.all(sociedades.map(s => apiFetch(`/api/flujos/resumen?sociedad=${encodeURIComponent(s)}&granularidad=mes`)));
     results.forEach(r => {
       if (!r || !r.periodos) return;
-      let target = r.periodos[r.periodos.length - 1];
+      let targetPeriodos;
       if (state.mes > 0) {
-        const candidate = `${state.anio}-${String(state.mes).padStart(2,'0')}`;
-        if (r.periodos.includes(candidate)) target = candidate;
+        const cand = `${state.anio}-${String(state.mes).padStart(2,'0')}`;
+        targetPeriodos = r.periodos.includes(cand) ? [cand] : [r.periodos[r.periodos.length-1]];
+      } else {
+        // All months of the selected year
+        targetPeriodos = r.periodos.filter(p => p.startsWith(String(state.anio)));
+        if (!targetPeriodos.length) targetPeriodos = [r.periodos[r.periodos.length-1]];
       }
-      totalIni += r.saldos_iniciales[target] || 0;
-      totalFin += r.saldos_finales[target] || 0;
+      const firstT = targetPeriodos[0];
+      const lastT  = targetPeriodos[targetPeriodos.length-1];
+      totalIni += r.saldos_iniciales[firstT] || 0;
+      totalFin += r.saldos_finales[lastT]    || 0;
       (r.secciones || []).forEach(sec => {
-        const t = sec.totales[target];
-        if (!t) return;
-        totalIng += t.ingreso || 0;
-        totalEgr += t.egreso  || 0;
-        if (!secMap[sec.seccion]) secMap[sec.seccion] = { ingreso:0, egreso:0 };
-        secMap[sec.seccion].ingreso += t.ingreso || 0;
-        secMap[sec.seccion].egreso  += t.egreso  || 0;
+        for (const tp of targetPeriodos) {
+          const t = sec.totales[tp];
+          if (!t) continue;
+          totalIng += t.ingreso || 0;
+          totalEgr += t.egreso  || 0;
+          if (!secMap[sec.seccion]) secMap[sec.seccion] = { ingreso:0, egreso:0 };
+          secMap[sec.seccion].ingreso += t.ingreso || 0;
+          secMap[sec.seccion].egreso  += t.egreso  || 0;
+        }
       });
     });
     const neto = totalIng - totalEgr;
@@ -755,6 +871,7 @@ async function loadFlujos() {
     return;
   }
 
+  // Always use mes granularity to correctly accumulate year totals
   const r = await apiFetch(`/api/flujos/resumen?sociedad=${encodeURIComponent(socSel)}&granularidad=mes`);
   state.data.flujos = r;
 
@@ -765,29 +882,42 @@ async function loadFlujos() {
     return;
   }
 
-  // Filtra al período seleccionado o el más reciente disponible
   const periodos = r.periodos;
-  let target = periodos[periodos.length - 1];
+
+  // For "Todo el año": accumulate ALL months of the selected year
+  // For specific month: use that month only
+  let targetPeriodos;
   if (state.mes > 0) {
     const candidate = `${state.anio}-${String(state.mes).padStart(2,'0')}`;
-    if (periodos.includes(candidate)) target = candidate;
+    targetPeriodos = periodos.includes(candidate) ? [candidate] : [periodos[periodos.length - 1]];
   } else {
-    const yearMonths = periodos.filter(p => p.startsWith(String(state.anio)));
-    if (yearMonths.length) target = yearMonths[yearMonths.length - 1];
+    // All months of selected year
+    targetPeriodos = periodos.filter(p => p.startsWith(String(state.anio)));
+    if (!targetPeriodos.length) targetPeriodos = [periodos[periodos.length - 1]];
   }
 
-  const saldoIni = r.saldos_iniciales[target] || 0;
-  const saldoFin = r.saldos_finales[target] || 0;
+  // Saldo inicial = from first month of the selection
+  const firstTarget = targetPeriodos[0];
+  const lastTarget  = targetPeriodos[targetPeriodos.length - 1];
+  const saldoIni = r.saldos_iniciales[firstTarget] || 0;
+  const saldoFin = r.saldos_finales[lastTarget] || 0;
 
   let totalIng = 0, totalEgr = 0;
-  const filasRaw = [];
+  const secAccum = {}; // accumulate across all targetPeriodos
   for (const sec of (r.secciones || [])) {
-    const t = sec.totales[target];
-    if (!t) continue;
-    totalIng += t.ingreso || 0;
-    totalEgr += t.egreso || 0;
-    filasRaw.push({ seccion: sec.seccion, ingreso: t.ingreso || 0, egreso: t.egreso || 0, neto: t.neto || (t.ingreso||0) - (t.egreso||0) });
+    for (const tp of targetPeriodos) {
+      const t = sec.totales[tp];
+      if (!t) continue;
+      totalIng += t.ingreso || 0;
+      totalEgr += t.egreso  || 0;
+      if (!secAccum[sec.seccion]) secAccum[sec.seccion] = { ingreso:0, egreso:0 };
+      secAccum[sec.seccion].ingreso += t.ingreso || 0;
+      secAccum[sec.seccion].egreso  += t.egreso  || 0;
+    }
   }
+  const filasRaw = Object.entries(secAccum).map(([seccion, t]) => ({
+    seccion, ingreso: t.ingreso, egreso: t.egreso, neto: t.ingreso - t.egreso
+  }));
   const neto = totalIng - totalEgr;
 
   // Apply netting (except FINANCIAMIENTO)
@@ -806,7 +936,9 @@ async function loadFlujos() {
   setText('flEgr', fmtQM(netTotalEgr));
   setText('flSaldoFin', fmtQM(saldoFin));
   setText('flNeto', `Neto del período: ${neto >= 0 ? '+' : ''}${fmtQM(neto)}`);
-  setText('flujoSub', `${socSel} · período ${target}`);
+  const hoyStr = new Date().toLocaleDateString('es-GT', {day:'2-digit', month:'short', year:'numeric'});
+  const periodoLabel = state.mes > 0 ? lastTarget : `${state.anio} · a ${hoyStr}`;
+  setText('flujoSub', `${socSel} · ${periodoLabel}`);
 
   setHTML('flujosTbody', [
     ...filas.map(f => `<tr>
@@ -895,7 +1027,7 @@ async function loadPCV() {
     setText('pcvCon', fmtNum(k.con_pcv));
     setText('pcvPct', `${fmtPct(k.pct_cumplimiento)} de cumplimiento`);
     setText('pcvSin', fmtNum(k.sin_pcv));
-    setText('pcvSin2026', `${fmtNum(k.sin_pcv_2026)} en ${state.anio} · ${fmtPct(k.pct_sin_pcv_2026)}`);
+    setText('pcvSin2026', `${fmtNum(k.sin_pcv_2026)} en ${state.anio} · ${fmtPct(k.pct_sin_pcv_2026)} de las ventas del período`);
     setText('pcvDias', `${Number(k.dias_prom_gestion||0).toFixed(0)}`);
     setText('pcv0', fmtNum(k.sin_pcv_0_15));
     setText('pcv15', fmtNum(k.sin_pcv_16_30));
@@ -947,7 +1079,7 @@ function renderResumenEjecutivo() {
   setText('rsmMoraMonto', fmtQM(car.mora_total));
   setText('rsmCobro30', fmtQM(car.cobro_30d));
   setText('rsmSinPCV', fmtNum(pcv.sin_pcv));
-  setText('rsmPCVPct', `${fmtPct(100 - (pcv.pct_cumplimiento||0))} de las ventas`);
+  setText('rsmPCVPct', `${fmtPct(100 - (pcv.pct_cumplimiento||0))} de las ventas del período`);
   setText('resumenSub', `Consolidado de las ${state.data.inventario?.proyectos?.length || 13} sociedades · ${periodoFormal()}`);
 }
 
@@ -1177,7 +1309,7 @@ function loadDemoData() {
         { rango:'1-30 días',  cuotas:240, clientes:120, monto:5400000 },
         { rango:'31-60 días', cuotas:180, clientes:88,  monto:4200000 },
         { rango:'61-90 días', cuotas:140, clientes:72,  monto:3800000 },
-        { rango:'91-180 días',cuotas:165, clientes:80,  monto:5600000 },
+        { rango:'91-120 días',cuotas:165, clientes:80,  monto:5600000 },
         { rango:'+180 días',  cuotas:280, clientes:115, monto:5500000 }
       ],
       proy: Array.from({length:12},(_,i)=>{
@@ -1257,6 +1389,9 @@ function updateAllPeriodLabels() {
 }
 
 async function loadAll() {
+  // Mark current version to detect stale responses
+  const myVersion = ++window._loadAllVersion;
+  const isStale = () => myVersion !== window._loadAllVersion;
   window._loadStart = Date.now();
   setStatus('loading', 'Cargando datos… (puede tardar 5-15 segundos)');
   const token = getToken();
@@ -1274,6 +1409,8 @@ async function loadAll() {
     // detalle flujos - skip in demo mode (no data)
     await renderPCVSlides();
     renderResumenEjecutivo();
+    renderVentasAnio();
+    renderCXP();
     updateAllPeriodLabels();
     return;
   }
@@ -1283,6 +1420,8 @@ async function loadAll() {
     await Promise.all([loadInventario(), loadVentas(), loadCartera(), loadFlujos(), loadDetalleFlujos(), loadPCV()]);
     loadMinutas(); // fire-and-forget (non-critical)
     renderResumenEjecutivo();
+    renderVentasAnio();
+    renderCXP();
     updateAllPeriodLabels();
     const loadEnd = Date.now();
     setStatus('ok', `Datos en vivo · ${periodoFormal()}`);
@@ -1496,12 +1635,34 @@ async function renderCarteraSlides() {
     setText('desLectura', `En ${periodoFormal()}, ${fmtNum(k.desistimientos_total)} desistimientos representaron ${fmtQM(k.desistimientos_pagado)} en pagos de clientes. Se reintegró ${fmtQM(k.desistimientos_reintegrado)} y la sociedad retuvo ${fmtQM(ret)} por concepto de penalizaciones contractuales.`);
   }
   if (c.aging) {
-    setHTML('agingTbody', c.aging.map(a=>`<tr><td class="bold">${a.rango}</td><td class="right">${fmtNum(a.cuotas)}</td><td class="right">${fmtNum(a.clientes)}</td><td class="right bold" style="color:var(--red)">${fmtQ(a.monto)}</td></tr>`).join(''));
+    const agingTotal = c.aging.reduce((s,a)=>s+Number(a.monto||0),0);
+    const agingRows = c.aging.map(a=>{
+      const es0_30 = a.rango && a.rango.includes('0-30');
+      const pct = agingTotal > 0 ? (Number(a.monto||0)/agingTotal*100).toFixed(1)+'%' : '—';
+      const color = es0_30 ? 'var(--green)' : 'var(--red)';
+      return `<tr><td class="bold">${a.rango}</td><td class="right">${fmtNum(a.cuotas)}</td><td class="right">${fmtNum(a.clientes)}</td><td class="right bold" style="color:${color}">${fmtQ(a.monto)}</td><td class="right" style="color:${color}">${pct}</td></tr>`;
+    });
+    const agingTotCuotas = c.aging.reduce((s,a)=>s+(Number(a.cuotas)||0),0);
+    const agingTotClientes = c.aging.reduce((s,a)=>s+(Number(a.clientes)||0),0);
+    agingRows.push(`<tr style="background:var(--bg-section);font-weight:700"><td class="bold">TOTAL</td><td class="right">${fmtNum(agingTotCuotas)}</td><td class="right">${fmtNum(agingTotClientes)}</td><td class="right bold" style="color:var(--amber)">${fmtQ(agingTotal)}</td><td class="right" style="color:var(--amber)">100%</td></tr>`);
+    setHTML('agingTbody', agingRows.join(''));
     drawAging(c.aging);
     const total = c.aging.reduce((s,a)=>s+Number(a.monto||0),0);
-    const criticos = c.aging.filter(a=>a.rango.includes('+180')||a.rango.includes('91-180'));
+    // Rangos con más de 60 días — usar rangos REALES (61-90 días, 91-120 días)
+    const criticos = c.aging.filter(a => a.rango && (
+      a.rango.includes('61-90') ||
+      a.rango.includes('91-120') ||
+      a.rango.includes('+120') ||
+      a.rango.includes('>120')
+    ));
     const monto = criticos.reduce((s,a)=>s+Number(a.monto||0),0);
-    setText('agingLectura', `${fmtPct(total?monto/total*100:0)} del monto vencido (${fmtQM(monto)}) tiene más de 90 días — son los casos que requieren gestión inmediata o provisiones.`);
+    const pctCritico = agingTotal > 0 ? (monto/agingTotal*100) : 0;
+    // Conteo de clientes en los rangos críticos (no de filas, de clientes únicos en esos rangos)
+    const clientesCriticos = criticos.reduce((s,a)=>s+Number(a.clientes||0),0);
+    const lectura = pctCritico > 0
+      ? `${fmtPct(pctCritico)} del monto vencido (${fmtQM(monto)}) tiene más de 60 días de mora, afectando a ${fmtNum(clientesCriticos)} clientes — ${pctCritico > 30 ? 'requieren gestión inmediata o provisión.' : 'monitorear evolución y reforzar gestión de cobranza.'}`
+      : `Sin clientes en rango crítico de mora (>60 días). Cartera bajo control.`;
+    setText('agingLectura', lectura);
   }
   // Render desistimientos detail cards (slide 18)
   if (c.desist && c.desist.desistimientos && c.desist.desistimientos.length) {
@@ -1546,7 +1707,7 @@ async function renderCarteraSlides() {
         <td class="right">${fmtNum(m.cuotas_vencidas)}</td>
         <td class="right bold" style="color:var(--red)">${fmtQ(m.monto_vencido)}</td>
         <td class="right bold">${m.dias_mora||'—'}d</td>
-        <td><span class="pill ${rangoClass}">${m.rango_mora||'—'}</span></td>
+        <td><span class="pill ${rangoClass}">${(m.rango_mora||'—').replace('91-180 días','91-120 días')}</span></td>
       </tr>`;
     }).join('') || '<tr><td colspan="6" style="text-align:center;color:var(--muted);padding:30px">Sin clientes morosos 61+ días</td></tr>');
   }
@@ -1574,7 +1735,7 @@ async function renderPCVSlides() {
     setText('pcvCon', fmtNum(k.con_pcv));
     setText('pcvPct', `${fmtPct(k.pct_cumplimiento)} de cumplimiento`);
     setText('pcvSin', fmtNum(k.sin_pcv));
-    setText('pcvSin2026', `${fmtNum(k.sin_pcv_2026)} en ${state.anio} · ${fmtPct(k.pct_sin_pcv_2026)}`);
+    setText('pcvSin2026', `${fmtNum(k.sin_pcv_2026)} en ${state.anio} · ${fmtPct(k.pct_sin_pcv_2026)} de las ventas del período`);
     setText('pcvDias', `${Number(k.dias_prom_gestion||0).toFixed(0)}`);
     setText('pcv0', fmtNum(k.sin_pcv_0_15));
     setText('pcv15', fmtNum(k.sin_pcv_16_30));
@@ -1596,6 +1757,187 @@ async function renderPCVSlides() {
   }
 }
 
+
+/* ── Ventas por Año (histórico) ───────────────────────── */
+async function renderVentasAnio() {
+  const container = document.getElementById('ventasAnioContainer');
+  if (!container) return;
+  container.innerHTML = '<div style="color:var(--muted);text-align:center;padding:30px">Cargando...</div>';
+  try {
+    const data = await apiFetch('/api/ventas/historico-anios');
+    if (!data || !data.anios || !data.anios.length) {
+      container.innerHTML = '<div style="color:var(--muted);text-align:center;padding:40px">Sin datos históricos</div>';
+      return;
+    }
+    const years     = data.anios.map(r => r.anio).sort();
+    const yearTotals = {};
+    data.anios.forEach(r => { yearTotals[r.anio] = r.brutas || 0; });
+    const totalBrutas = data.anios.reduce((s,r)=>s+(r.brutas||0), 0);
+    const PMAP = {"Hacienda Jumay": "Eficiencia Urbana — Hacienda Jumay", "La Ceiba": "Servicios Generales — La Ceiba", "Hacienda el Sol": "Rossio — Hacienda el Sol", "Oasis Zacapa": "Frugalex — Oasis Zacapa", "Cañadas de Jalapa": "Ottavia — Cañadas de Jalapa", "Condado Jutiapa": "Utilica — Condado Jutiapa", "Club Campestre Jumay": "Tezzoli — Club Campestre Jumay", "Club del Bosque": "Urbiva — Club del Bosque", "Club Residencial Progreso": "Garbatella — Club Residencial El Progreso", "Arboleda Santa Elena": "Capipos — Arboleda Santa Elena", "Hacienda Santa Lucia": "Ovest — Hacienda Santa Lucia", "Hacienda El Cafetal Fase I": "Corcolle — Hacienda El Cafetal Fase I", "Hacienda El Cafetal Fase III": "Gibraleón — Hacienda El Cafetal Fase III"};
+    const proyInv   = window.state?.data?.inventario?.proyectos || [];
+    const colsHTML  = years.map(y => `<th class="right" style="color:var(--dorado)">${y}</th>`).join('');
+    const rowsHTML  = proyInv
+      .filter(p => (p.vendidos||0) > 0)
+      .sort((a,b) => (b.vendidos||0) - (a.vendidos||0))
+      .map(p => {
+        const pn   = p.nombre_proyecto || '—';
+        const disp = PMAP[pn] || (p.sociedad ? `${p.sociedad} — ${pn}` : pn);
+        return `<tr>
+          <td style="padding:6px 12px;font-weight:600;font-size:12px">${disp}</td>
+          ${years.map(() => '<td class="right" style="font-size:11px;color:var(--muted)">—</td>').join('')}
+          <td class="right bold" style="color:var(--dorado);font-size:12px">${p.vendidos||0}</td>
+        </tr>`;
+      }).join('');
+    container.innerHTML = `
+      <div style="overflow:auto;max-height:calc(100% - 36px)">
+        <table class="exec-table" style="font-size:12px;width:100%">
+          <thead><tr>
+            <th style="min-width:220px">Sociedad / Proyecto</th>${colsHTML}
+            <th class="right" style="color:var(--dorado)">Total vendido</th>
+          </tr></thead>
+          <tbody>${rowsHTML}</tbody>
+          <tfoot><tr style="background:var(--bg-section);font-weight:700">
+            <td style="padding:8px 12px">Total por año</td>
+            ${years.map(y=>`<td class="right" style="color:var(--dorado)">${yearTotals[y]||'—'}</td>`).join('')}
+            <td class="right" style="color:var(--dorado)">${totalBrutas}</td>
+          </tr></tfoot>
+        </table>
+      </div>
+      <div style="font-size:10px;color:var(--muted);padding:4px 8px;margin-top:4px;border-top:1px dashed var(--border)">
+        Total vendido por proyecto: dato acumulado del inventario · Totales anuales: datos reales de ventas SAP
+      </div>`;
+  } catch(e) {
+    if (container) container.innerHTML = `<div style="color:var(--muted);text-align:center;padding:40px">Error: ${e.message}</div>`;
+  }
+}
+
+
+
+
+
+/* ── CXP Cuentas por Pagar — datos embebidos del Excel ── */
+const CXP_DATA = [{"EMPRESA": "CAPIPOS", "Nº documento": 1000030, "Código de proveedor": "PL-00025", "Nombre de acreedor": "ARQUITECTURA SIETE, SOCIEDAD ANÓNIMA", "No.Ref.del acreedor": "214598E1-953829669", "Fecha de vencimiento": "2026-05-20", "Importe": 25000.0, "Comentarios": "214598E1-38DA-4925-935A-8BDA2E62C212 | Procesado por RV4 APAgent | TKT 00627"}, {"EMPRESA": "CAPIPOS", "Nº documento": 1000029, "Código de proveedor": "PL-00018", "Nombre de acreedor": "DESARROLLOS STEL, SOCIEDAD ANÓNIMA", "No.Ref.del acreedor": "FC-3DD2FC41-1919305297", "Fecha de vencimiento": "2026-04-29", "Importe": 1645.0, "Comentarios": "Servicios prestados del mes de marzo 2026"}, {"EMPRESA": "CAPIPOS", "Nº documento": 1000031, "Código de proveedor": "PL-00018", "Nombre de acreedor": "DESARROLLOS STEL, SOCIEDAD ANÓNIMA", "No.Ref.del acreedor": "FC-7365DD1C-2869116991", "Fecha de vencimiento": "2026-05-15", "Importe": 1645.0, "Comentarios": "Servicios prestados del mes de abril del año 2026."}, {"EMPRESA": "CAPIPOS", "Nº documento": 1000022, "Código de proveedor": "PL-00023", "Nombre de acreedor": "INVERSIONES SALISBURY, SOCIEDAD ANONIMA", "No.Ref.del acreedor": "FC-6E34C6A7-2905882657", "Fecha de vencimiento": "2026-03-11", "Importe": 16652.16, "Comentarios": "Concreto calle de acceso"}, {"EMPRESA": "CAPIPOS", "Nº documento": 1000023, "Código de proveedor": "PL-00023", "Nombre de acreedor": "INVERSIONES SALISBURY, SOCIEDAD ANONIMA", "No.Ref.del acreedor": "FC-7D98559C-3031715781", "Fecha de vencimiento": "2026-03-11", "Importe": 32004.56, "Comentarios": "Concreto calle de acceso"}, {"EMPRESA": "SERVICIOS GENERALES CCC", "Nº documento": 939, "Código de proveedor": "PL-00082", "Nombre de acreedor": "DESARROLLOS STEL, SOCIEDAD ANÓNIMA", "No.Ref.del acreedor": "FC-22B38302-1096896317", "Fecha de vencimiento": "2026-04-29", "Importe": 10717.0, "Comentarios": "Servicios prestados del mes de marzo 2026"}, {"EMPRESA": "SERVICIOS GENERALES CCC", "Nº documento": 955, "Código de proveedor": "PL-00082", "Nombre de acreedor": "DESARROLLOS STEL, SOCIEDAD ANÓNIMA", "No.Ref.del acreedor": "FC-20092132-402411075", "Fecha de vencimiento": "2026-05-08", "Importe": 14077.0, "Comentarios": "Servicios prestados mes de abril 2026"}, {"EMPRESA": "SERVICIOS GENERALES CCC", "Nº documento": 951, "Código de proveedor": "PL-00145", "Nombre de acreedor": "DISTRIBUIDORA DE ELECTRICIDAD DE ORIENTE SOCIEDAD ANONIMA", "No.Ref.del acreedor": "FC-916C83CF-1362643732", "Fecha de vencimiento": "2026-05-15", "Importe": 3308.02, "Comentarios": "MES DE ABRIL RECIBO DE LUZ NIS: 7245296"}, {"EMPRESA": "SERVICIOS GENERALES CCC", "Nº documento": 953, "Código de proveedor": "PL-00145", "Nombre de acreedor": "DISTRIBUIDORA DE ELECTRICIDAD DE ORIENTE SOCIEDAD ANONIMA", "No.Ref.del acreedor": "FC-F53A2EC3-1482903022", "Fecha de vencimiento": "2026-05-15", "Importe": 56.24, "Comentarios": "MES DE ABRIL RECIBO DE LUZ NIS: 7194167"}, {"EMPRESA": "SERVICIOS GENERALES CCC", "Nº documento": 954, "Código de proveedor": "PL-00145", "Nombre de acreedor": "DISTRIBUIDORA DE ELECTRICIDAD DE ORIENTE SOCIEDAD ANONIMA", "No.Ref.del acreedor": "FC-95CC4D9C-582960706", "Fecha de vencimiento": "2026-05-15", "Importe": 815.0, "Comentarios": "MES DE ABRIL Recibo de luz NIS: 7189639"}, {"EMPRESA": "SERVICIOS GENERALES CCC", "Nº documento": 160, "Código de proveedor": "PL-00035", "Nombre de acreedor": "FUERZA ELITE SEGURIDAD, SOCIEDAD ANONIMA", "No.Ref.del acreedor": "FC-EAF44428-1433225018", "Fecha de vencimiento": "2024-02-28", "Importe": 8502.68, "Comentarios": "seguridad del poryecto Basado en Solicitud de compra 42. Basado en Pedidos 39."}, {"EMPRESA": "SERVICIOS GENERALES CCC", "Nº documento": 175, "Código de proveedor": "PL-00035", "Nombre de acreedor": "FUERZA ELITE SEGURIDAD, SOCIEDAD ANONIMA", "No.Ref.del acreedor": "FC-F9A00F75-3910485807", "Fecha de vencimiento": "2024-03-06", "Importe": 8502.68, "Comentarios": "Seguridad de 11 de febrero al 10 de marzo 2023 Basado en Solicitud de compra 56. Basado en Pedidos 53."}, {"EMPRESA": "SERVICIOS GENERALES CCC", "Nº documento": 2, "Código de proveedor": "PL-00002", "Nombre de acreedor": "GRUPO A&C CONSTRUCTORES", "No.Ref.del acreedor": "FC-439DCAC1-2945076703", "Fecha de vencimiento": "2023-07-21", "Importe": 28660.71, "Comentarios": "Limpieza de calles Condado la Ceiba"}, {"EMPRESA": "SERVICIOS GENERALES CCC", "Nº documento": 259, "Código de proveedor": "PL-00002", "Nombre de acreedor": "GRUPO A&C CONSTRUCTORES", "No.Ref.del acreedor": "FC-DBD64039-4039132626", "Fecha de vencimiento": "2024-06-12", "Importe": 31001.79, "Comentarios": "200 horas de renta de retroexcavadora a Q315.00 con 3 horas minimas"}, {"EMPRESA": "SERVICIOS GENERALES CCC", "Nº documento": 310, "Código de proveedor": "PL-00002", "Nombre de acreedor": "GRUPO A&C CONSTRUCTORES", "No.Ref.del acreedor": "FC-7638DFA3-4225975200", "Fecha de vencimiento": "2024-07-24", "Importe": 3189.94, "Comentarios": "10.6 Horas de renta de retroexcavadora"}, {"EMPRESA": "SERVICIOS GENERALES CCC", "Nº documento": 311, "Código de proveedor": "PL-00002", "Nombre de acreedor": "GRUPO A&C CONSTRUCTORES", "No.Ref.del acreedor": "FC-5E1937E3-3463859669", "Fecha de vencimiento": "2024-07-24", "Importe": 21352.23, "Comentarios": "44.7 horas de renta de Patrol o Moto NIveladora"}, {"EMPRESA": "SERVICIOS GENERALES CCC", "Nº documento": 541, "Código de proveedor": "PL-00002", "Nombre de acreedor": "GRUPO A&C CONSTRUCTORES", "No.Ref.del acreedor": "FC-8D26F12B-3517137266", "Fecha de vencimiento": "2025-03-26", "Importe": 56850.0, "Comentarios": "Venta de cabezal"}, {"EMPRESA": "SERVICIOS GENERALES CCC", "Nº documento": 894, "Código de proveedor": "PL-00005", "Nombre de acreedor": "GRUPO CONSERSA, S.A.", "No.Ref.del acreedor": "FC-8153FAE3-3986180897", "Fecha de vencimiento": "2026-02-11", "Importe": 9240.0, "Comentarios": "Servicios administrativos del mes de febrero 2025"}, {"EMPRESA": "SERVICIOS GENERALES CCC", "Nº documento": 932, "Código de proveedor": "PL-00005", "Nombre de acreedor": "GRUPO CONSERSA, S.A.", "No.Ref.del acreedor": "FC-AED9D547-2880783487", "Fecha de vencimiento": "2026-04-10", "Importe": 37030.0, "Comentarios": "Fee comercial mes de marzo al mes de julio 2025"}, {"EMPRESA": "SERVICIOS GENERALES CCC", "Nº documento": 657, "Código de proveedor": "PL-00063", "Nombre de acreedor": "GRUPO MOBIUS, SOCIEDAD ANONIMA", "No.Ref.del acreedor": "FC-992A6AC8-2782087358", "Fecha de vencimiento": "2025-07-02", "Importe": 13350.0, "Comentarios": "Tapaderas y rejillas para 3RA CALLE, estas tapaderas y rejillas"}, {"EMPRESA": "SERVICIOS GENERALES CCC", "Nº documento": 849, "Código de proveedor": "PL-00063", "Nombre de acreedor": "GRUPO MOBIUS, SOCIEDAD ANONIMA", "No.Ref.del acreedor": "FC-4E2615A3-3959769782", "Fecha de vencimiento": "2026-01-07", "Importe": 1200.0, "Comentarios": "1 Flete"}, {"EMPRESA": "SERVICIOS GENERALES CCC", "Nº documento": 848, "Código de proveedor": "PL-00063", "Nombre de acreedor": "GRUPO MOBIUS, SOCIEDAD ANONIMA", "No.Ref.del acreedor": "FC-32B3D8A6-2787199185", "Fecha de vencimiento": "2026-01-14", "Importe": 10600.0, "Comentarios": "8 Tapaderas prefabricadas y 4 Rejillas prefaricadas"}, {"EMPRESA": "SERVICIOS GENERALES CCC", "Nº documento": 703, "Código de proveedor": "PL-00106", "Nombre de acreedor": "JOSÉ ABELARDO ESTRADA CISNEROS", "No.Ref.del acreedor": "FC-7191D5A9-1131695209", "Fecha de vencimiento": "2025-08-06", "Importe": 3553.93, "Comentarios": "12mts de arena y 12 mts de piedrin"}, {"EMPRESA": "SERVICIOS GENERALES CCC", "Nº documento": 733, "Código de proveedor": "PL-00106", "Nombre de acreedor": "JOSÉ ABELARDO ESTRADA CISNEROS", "No.Ref.del acreedor": "FC-9A17B8BD-3668527436", "Fecha de vencimiento": "2025-08-20", "Importe": 7107.86, "Comentarios": "24m3 de arena y 24m3 de piedrin"}, {"EMPRESA": "SERVICIOS GENERALES CCC", "Nº documento": 741, "Código de proveedor": "PL-00106", "Nombre de acreedor": "JOSÉ ABELARDO ESTRADA CISNEROS", "No.Ref.del acreedor": "FC-D9287277-1287605117", "Fecha de vencimiento": "2025-08-27", "Importe": 3553.93, "Comentarios": "12m3 de arena y 12m3 de piedrin"}, {"EMPRESA": "SERVICIOS GENERALES CCC", "Nº documento": 757, "Código de proveedor": "PL-00106", "Nombre de acreedor": "JOSÉ ABELARDO ESTRADA CISNEROS", "No.Ref.del acreedor": "FC-4D426B34-3903800505", "Fecha de vencimiento": "2025-09-10", "Importe": 8884.82, "Comentarios": "36 MTS DE PIEDRÍN y 24 MTS DE ARENA"}, {"EMPRESA": "SERVICIOS GENERALES CCC", "Nº documento": 799, "Código de proveedor": "PL-00106", "Nombre de acreedor": "JOSÉ ABELARDO ESTRADA CISNEROS", "No.Ref.del acreedor": "FC-1959AF56-4137764594", "Fecha de vencimiento": "2025-10-13", "Importe": 3553.93, "Comentarios": "12m3 de arena u 12m3 de piedrin"}, {"EMPRESA": "SERVICIOS GENERALES CCC", "Nº documento": 809, "Código de proveedor": "PL-00106", "Nombre de acreedor": "JOSÉ ABELARDO ESTRADA CISNEROS", "No.Ref.del acreedor": "FC-8B1C793C-10634905", "Fecha de vencimiento": "2025-11-05", "Importe": 3553.93, "Comentarios": "12 MTS DE ARENA y 12 MTS DE PIEDRÍN"}, {"EMPRESA": "SERVICIOS GENERALES CCC", "Nº documento": 820, "Código de proveedor": "PL-00106", "Nombre de acreedor": "JOSÉ ABELARDO ESTRADA CISNEROS", "No.Ref.del acreedor": "FC-D619932F-1701988597", "Fecha de vencimiento": "2025-11-19", "Importe": 3553.93, "Comentarios": "12 MTS DE ARENA y 12 MTS DE PIEDRÍN"}, {"EMPRESA": "SERVICIOS GENERALES CCC", "Nº documento": 842, "Código de proveedor": "PL-00106", "Nombre de acreedor": "JOSÉ ABELARDO ESTRADA CISNEROS", "No.Ref.del acreedor": "FC-7618B262-1707427544", "Fecha de vencimiento": "2025-12-17", "Importe": 3553.93, "Comentarios": "12 MTS DE ARENA Y 12 MTS DE PIEDRÍN"}, {"EMPRESA": "SERVICIOS GENERALES CCC", "Nº documento": 774, "Código de proveedor": "PL-00147", "Nombre de acreedor": "MARCO VINICIO LAZARO MANCIO", "No.Ref.del acreedor": "FC-5C3BBBEE-2476494058", "Fecha de vencimiento": "2025-09-17", "Importe": 6152.32, "Comentarios": "Anticipo del 20% de suministro y aplicación de texura en sanarate"}, {"EMPRESA": "SERVICIOS GENERALES CCC", "Nº documento": 729, "Código de proveedor": "PL-00148", "Nombre de acreedor": "PABLO CESAR BARRERA ROJAS", "No.Ref.del acreedor": "FC-REINTEGRO-0", "Fecha de vencimiento": "2025-08-06", "Importe": 60.0, "Comentarios": "combustible para uso de proyecto."}, {"EMPRESA": "SERVICIOS GENERALES CCC", "Nº documento": 435, "Código de proveedor": "PL-00003", "Nombre de acreedor": "PHIEN SOCIEDAD ANONIMA", "No.Ref.del acreedor": "FC-F56D1EBE-2177384766", "Fecha de vencimiento": "2024-11-13", "Importe": 18515.0, "Comentarios": "Servicios administrativos de la unidad del 1 de octubre al 31 de octubre"}, {"EMPRESA": "SERVICIOS GENERALES CCC", "Nº documento": 439, "Código de proveedor": "PL-00003", "Nombre de acreedor": "PHIEN SOCIEDAD ANONIMA", "No.Ref.del acreedor": "FC-3BDD4AA6-1550861893", "Fecha de vencimiento": "2024-11-20", "Importe": 37030.0, "Comentarios": "Servicios administrativos de la unidad del 1 de noviembre al 30 de noviembre"}, {"EMPRESA": "SERVICIOS GENERALES CCC", "Nº documento": 479, "Código de proveedor": "PL-00003", "Nombre de acreedor": "PHIEN SOCIEDAD ANONIMA", "No.Ref.del acreedor": "FC-8C3A2592-2483636380", "Fecha de vencimiento": "2025-01-08", "Importe": 37030.0, "Comentarios": "Servicios administrativos de la unidad del 1 al 31 de diciembre"}, {"EMPRESA": "SERVICIOS GENERALES CCC", "Nº documento": 495, "Código de proveedor": "PL-00003", "Nombre de acreedor": "PHIEN SOCIEDAD ANONIMA", "No.Ref.del acreedor": "FC-A2FAA76D-2632600256", "Fecha de vencimiento": "2025-01-22", "Importe": 37030.0, "Comentarios": "Servicios administrativos de la unidad del 1 de enero al 31 enero"}, {"EMPRESA": "SERVICIOS GENERALES CCC", "Nº documento": 572, "Código de proveedor": "PL-00003", "Nombre de acreedor": "PHIEN SOCIEDAD ANONIMA", "No.Ref.del acreedor": "FC-BE634047-1049578695", "Fecha de vencimiento": "2025-05-14", "Importe": 37030.0, "Comentarios": "Servicios administrativos de la unidad del 1 al 30 de abril"}, {"EMPRESA": "SERVICIOS GENERALES CCC", "Nº documento": 593, "Código de proveedor": "PL-00003", "Nombre de acreedor": "PHIEN SOCIEDAD ANONIMA", "No.Ref.del acreedor": "FC-03A97DDB-2165065001", "Fecha de vencimiento": "2025-06-04", "Importe": 37030.0, "Comentarios": "Servicios administrativos de la unidad del 1 al 28 de febrero 2025"}, {"EMPRESA": "SERVICIOS GENERALES CCC", "Nº documento": 596, "Código de proveedor": "PL-00003", "Nombre de acreedor": "PHIEN SOCIEDAD ANONIMA", "No.Ref.del acreedor": "FC-298B71D7-992690696", "Fecha de vencimiento": "2025-06-04", "Importe": 37030.0, "Comentarios": "Servicios administrativos de la unidad del 1 al 31 de marzo 2025"}, {"EMPRESA": "SERVICIOS GENERALES CCC", "Nº documento": 691, "Código de proveedor": "PL-00003", "Nombre de acreedor": "PHIEN SOCIEDAD ANONIMA", "No.Ref.del acreedor": "FC-192DF4C0-1308639453", "Fecha de vencimiento": "2025-07-23", "Importe": 37030.0, "Comentarios": "Servicios Administrativos de la Unidad del 01 de junio al 30 de junio"}, {"EMPRESA": "SERVICIOS GENERALES CCC", "Nº documento": 701, "Código de proveedor": "PL-00003", "Nombre de acreedor": "PHIEN SOCIEDAD ANONIMA", "No.Ref.del acreedor": "FC-D3215511-393561042", "Fecha de vencimiento": "2025-08-13", "Importe": 21816.21, "Comentarios": "Servicios de logistica almacenamiento y distribucion de bienes del 01 de junio al 30 de junio"}, {"EMPRESA": "SERVICIOS GENERALES CCC", "Nº documento": 707, "Código de proveedor": "PL-00003", "Nombre de acreedor": "PHIEN SOCIEDAD ANONIMA", "No.Ref.del acreedor": "FC-CD5B875A-2809548045", "Fecha de vencimiento": "2025-08-20", "Importe": 37030.0, "Comentarios": "servicios administrativos del 01 al 31 de mayo 2025"}, {"EMPRESA": "SERVICIOS GENERALES CCC", "Nº documento": 739, "Código de proveedor": "PL-00003", "Nombre de acreedor": "PHIEN SOCIEDAD ANONIMA", "No.Ref.del acreedor": "FC-525870C2-1232093368", "Fecha de vencimiento": "2025-08-20", "Importe": 37030.0, "Comentarios": "Servicios de administración contable y financiera del 01 de Agosto al 31 de Agosto del 2025"}, {"EMPRESA": "SERVICIOS GENERALES CCC", "Nº documento": 734, "Código de proveedor": "PL-00003", "Nombre de acreedor": "PHIEN SOCIEDAD ANONIMA", "No.Ref.del acreedor": "FC-7C372D00-2827044648", "Fecha de vencimiento": "2025-09-10", "Importe": 37030.0, "Comentarios": "Servicios de administración contable y financiera del 01de julio al 31 de julio del 2025."}, {"EMPRESA": "SERVICIOS GENERALES CCC", "Nº documento": 775, "Código de proveedor": "PL-00003", "Nombre de acreedor": "PHIEN SOCIEDAD ANONIMA", "No.Ref.del acreedor": "FC-8D889F70-2026326731", "Fecha de vencimiento": "2025-09-17", "Importe": 15038.06, "Comentarios": "Servicios administrativos de la unidad mes de agosto"}, {"EMPRESA": "SERVICIOS GENERALES CCC", "Nº documento": 781, "Código de proveedor": "PL-00003", "Nombre de acreedor": "PHIEN SOCIEDAD ANONIMA", "No.Ref.del acreedor": "FC-DB014BAF-4293152457", "Fecha de vencimiento": "2025-09-24", "Importe": 37030.0, "Comentarios": "Fee mes de septiembre 2025"}, {"EMPRESA": "SERVICIOS GENERALES CCC", "Nº documento": 794, "Código de proveedor": "PL-00003", "Nombre de acreedor": "PHIEN SOCIEDAD ANONIMA", "No.Ref.del acreedor": "FC-BF164C2B-2140554491", "Fecha de vencimiento": "2025-10-08", "Importe": 15043.06, "Comentarios": "ENTREGA DE FORMULARIO BANRURAL SERVICIOS GENERALES CCC Y Re-Facturacion-Servicios Generales CCC Planilla Operativa"}, {"EMPRESA": "SERVICIOS GENERALES CCC", "Nº documento": 837, "Código de proveedor": "PL-00003", "Nombre de acreedor": "PHIEN SOCIEDAD ANONIMA", "No.Ref.del acreedor": "FC-7EF5C67E-3053208962", "Fecha de vencimiento": "2025-12-10", "Importe": 15345.3, "Comentarios": "Ingreso de mandato al AGP, honorarios procurador Servicios Generales, Re-Facturacion-Servicios Generales CCC Planilla Operativa"}, {"EMPRESA": "SERVICIOS GENERALES CCC", "Nº documento": 846, "Código de proveedor": "PL-00003", "Nombre de acreedor": "PHIEN SOCIEDAD ANONIMA", "No.Ref.del acreedor": "FC-B4058300-3882893401", "Fecha de vencimiento": "2025-12-10", "Importe": 15038.06, "Comentarios": "Re-Facturacion-Servicios Generales CCC Planilla Operativa"}, {"EMPRESA": "SERVICIOS GENERALES CCC", "Nº documento": 873, "Código de proveedor": "PL-00003", "Nombre de acreedor": "PHIEN SOCIEDAD ANONIMA", "No.Ref.del acreedor": "FC-1CE8313C-110053608", "Fecha de vencimiento": "2026-01-21", "Importe": 14739.56, "Comentarios": "Re-Facturacion-Servicios Generales CCC Planilla Operativa, honorarios procurador 5%, Finca 353, folio 353, libro 1E de El Progreso, Desmembración y CV de la fracción desmembrada, comision procuracion"}, {"EMPRESA": "SERVICIOS GENERALES CCC", "Nº documento": 945, "Código de proveedor": "PL-00003", "Nombre de acreedor": "PHIEN SOCIEDAD ANONIMA", "No.Ref.del acreedor": "FC-6BC702C1-2758036379", "Fecha de vencimiento": "2026-05-08", "Importe": 40932.99, "Comentarios": "honorarios procurador, Reingreso escritura CV y PLANILLA OPERATIVA"}, {"EMPRESA": "SERVICIOS GENERALES CCC", "Nº documento": 904, "Código de proveedor": "PL-00088", "Nombre de acreedor": "RODRIGUEZ, AGUILAR, CASTELLANOS, SOLARES Y ALVARADO,SOCIEDAD CIVIL", "No.Ref.del acreedor": "FC-04FAB648-1964392796", "Fecha de vencimiento": "2026-03-11", "Importe": 11103.04, "Comentarios": "PROCESO DE ESCRITURACIÓN CONDADO LA CEIBA #4"}, {"EMPRESA": "SERVICIOS GENERALES CCC", "Nº documento": 950, "Código de proveedor": "PL-00152", "Nombre de acreedor": "RONI MARROQUIN HERNANDEZ", "No.Ref.del acreedor": "FC-4BCAE81A-1862551757", "Fecha de vencimiento": "2026-05-15", "Importe": 10487.81, "Comentarios": "1 ayudantes mes de mayo"}, {"EMPRESA": "SERVICIOS GENERALES CCC", "Nº documento": 815, "Código de proveedor": "PL-00087", "Nombre de acreedor": "SELVYN FERNANDO VELÁSQUEZ MARTINES", "No.Ref.del acreedor": "FC-02931796-2232503060", "Fecha de vencimiento": "2025-11-05", "Importe": 4952.06, "Comentarios": "PRIMERA ESTIMACION AGUA POTABLE 1RA. AVENIDA CONDADO LA CEIBA SANARATE"}, {"EMPRESA": "SERVICIOS GENERALES CCC", "Nº documento": 814, "Código de proveedor": "PL-00087", "Nombre de acreedor": "SELVYN FERNANDO VELÁSQUEZ MARTINES", "No.Ref.del acreedor": "FC-65955F78-2489337314", "Fecha de vencimiento": "2025-11-12", "Importe": 9934.77, "Comentarios": "TERCERA ESTIMACION HIDROSANITARIOS SEGUNDA AVENIDA, CONDADO LA CEIBA SANARATE"}, {"EMPRESA": "SERVICIOS GENERALES CCC", "Nº documento": 816, "Código de proveedor": "PL-00087", "Nombre de acreedor": "SELVYN FERNANDO VELÁSQUEZ MARTINES", "No.Ref.del acreedor": "FC-81A8F996-287000063", "Fecha de vencimiento": "2025-11-12", "Importe": 3289.25, "Comentarios": "PRIMERA ESTIMACION AGUA POTABLE 4TA. CALLE CONDADO LA CEIBA SANARATE"}, {"EMPRESA": "SERVICIOS GENERALES CCC", "Nº documento": 943, "Código de proveedor": "PL-00087", "Nombre de acreedor": "SELVYN FERNANDO VELÁSQUEZ MARTINES", "No.Ref.del acreedor": "FC-86D5559E-3792521407", "Fecha de vencimiento": "2026-05-13", "Importe": 14535.0, "Comentarios": "Por segunda estimación de pozo de absorción en segunda calle y segunda avenida condado la Ceiba Sanarate"}, {"EMPRESA": "SERVICIOS GENERALES CCC", "Nº documento": 949, "Código de proveedor": "PL-00160", "Nombre de acreedor": "SERGIO FRANCISCO CASTILLO OVALLE", "No.Ref.del acreedor": "FC-CAJA CHICA-0", "Fecha de vencimiento": "2026-05-15", "Importe": 1800.0, "Comentarios": "Honorarios a banrural por tercera liberacion condado la ceiba 15 unidades"}, {"EMPRESA": "SERVICIOS GENERALES CCC", "Nº documento": 948, "Código de proveedor": "PL-00096", "Nombre de acreedor": "WENDY DELFINA CASTILLO DE LEÓN", "No.Ref.del acreedor": "FC-REINTEGRO-0", "Fecha de vencimiento": "2026-05-15", "Importe": 800.0, "Comentarios": "Reparación de Chapeadora completa"}, {"EMPRESA": "CORCOLLE", "Nº documento": 1000045, "Código de proveedor": "PL-00032", "Nombre de acreedor": "CABISA, SOCIEDAD ANONIMA", "No.Ref.del acreedor": "D16D3470-2223523267", "Fecha de vencimiento": "2026-05-22", "Importe": 1800.0, "Comentarios": "D16D3470-8488-472B-A362-A10752C14F7F | Procesado por RV4 APAgent | TKT 00661"}, {"EMPRESA": "CORCOLLE", "Nº documento": 1000047, "Código de proveedor": "PL-00032", "Nombre de acreedor": "CABISA, SOCIEDAD ANONIMA", "No.Ref.del acreedor": "EFB45CA-3893119580", "Fecha de vencimiento": "2026-05-22", "Importe": 1800.0, "Comentarios": "EF8D45CA-E80C-4A5C-9D36-25CC446DB070 | Procesado por RV4 APAgent | TKT 00700"}, {"EMPRESA": "CORCOLLE", "Nº documento": 1000046, "Código de proveedor": "PL-00032", "Nombre de acreedor": "CABISA, SOCIEDAD ANONIMA", "No.Ref.del acreedor": "BACE3273-227231567", "Fecha de vencimiento": "2026-05-15", "Importe": 1800.0, "Comentarios": "BACE3273-0D8B-474F-93FD-51504F158C03 | Procesado por RV4 APAgent | TKT 00662"}, {"EMPRESA": "CORCOLLE", "Nº documento": 1000044, "Código de proveedor": "PL-00029", "Nombre de acreedor": "CLARA LÍLY CASTELLANOS RIZZO", "No.Ref.del acreedor": "FPQ-57915AE9-4112271760", "Fecha de vencimiento": "2026-05-15", "Importe": 10000.0, "Comentarios": "Comision de tierra los esclavos mes de abril 2026"}, {"EMPRESA": "CORCOLLE", "Nº documento": 1000043, "Código de proveedor": "PL-00030", "Nombre de acreedor": "WENDY DELFINA CASTILLO DE LEÓN", "No.Ref.del acreedor": "FC-REINTEGRO-0", "Fecha de vencimiento": "2026-05-15", "Importe": 900.0, "Comentarios": "Pago de flete para envio de toldo y mesas al proyecto de hacienda el cafetal los esclavos"}, {"EMPRESA": "EFICIENCIA URBANA", "Nº documento": 1000355, "Código de proveedor": "PL-00101", "Nombre de acreedor": "ARTE METAL Y LONA, SOCIEDAD ANONIMA", "No.Ref.del acreedor": "FC-6AA1FA1F-1018839619", "Fecha de vencimiento": "2024-04-24", "Importe": 17400.0, "Comentarios": "2 Toldos desmontables 6x6 metros Basado en Solicitud de compra 296. Basado en Pedidos 286."}, {"EMPRESA": "EFICIENCIA URBANA", "Nº documento": 1001336, "Código de proveedor": "PL-00214", "Nombre de acreedor": "CABISA, SOCIEDAD ANONIMA", "No.Ref.del acreedor": "2D4A41AE-3375646484", "Fecha de vencimiento": "2026-05-27", "Importe": 2500.0, "Comentarios": "2D4A41AE-C934-4714-B9BD-83BD6A2C4D6B | Procesado por RV4 APAgent | TKT 00660"}, {"EMPRESA": "EFICIENCIA URBANA", "Nº documento": 1001337, "Código de proveedor": "PL-00214", "Nombre de acreedor": "CABISA, SOCIEDAD ANONIMA", "No.Ref.del acreedor": "787BFBE3-457655473", "Fecha de vencimiento": "2026-05-27", "Importe": 2500.0, "Comentarios": "787BFBE3-1B47-44B1-AF26-654E33BFF798 | Procesado por RV4 APAgent | TKT 00665"}, {"EMPRESA": "EFICIENCIA URBANA", "Nº documento": 1001328, "Código de proveedor": "PL-00212", "Nombre de acreedor": "CARLOS DAVID BARRIOS ESCOBAR COPROPIEDAD", "No.Ref.del acreedor": "FC-F1E66BF7-3515633381", "Fecha de vencimiento": "2026-04-10", "Importe": 65388.07, "Comentarios": "60% Anticipo fabricación e instalación Estructura Metálica según orden de Compra No. 1,128"}, {"EMPRESA": "EFICIENCIA URBANA", "Nº documento": 1001036, "Código de proveedor": "PL-00020", "Nombre de acreedor": "CORPORACION CONSBA, SOCIEDAD ANONIMA", "No.Ref.del acreedor": "FC-16117C9E-1965181050", "Fecha de vencimiento": "2025-06-11", "Importe": 34499.96, "Comentarios": "Servicios administrativos de la unidad del 1 de junio  al 31 de junio"}, {"EMPRESA": "EFICIENCIA URBANA", "Nº documento": 1001081, "Código de proveedor": "PL-00020", "Nombre de acreedor": "CORPORACION CONSBA, SOCIEDAD ANONIMA", "No.Ref.del acreedor": "FC-E101B8B4-1198409064", "Fecha de vencimiento": "2025-07-11", "Importe": 999.92, "Comentarios": "Servicios administrativos del mes del julio 2025"}, {"EMPRESA": "EFICIENCIA URBANA", "Nº documento": 1001115, "Código de proveedor": "PL-00020", "Nombre de acreedor": "CORPORACION CONSBA, SOCIEDAD ANONIMA", "No.Ref.del acreedor": "FC-BEABF90B-3606400731", "Fecha de vencimiento": "2025-08-13", "Importe": 68999.92, "Comentarios": "Gastos administrativos hacienda jumay mes de agosto 2025"}, {"EMPRESA": "EFICIENCIA URBANA", "Nº documento": 1001182, "Código de proveedor": "PL-00020", "Nombre de acreedor": "CORPORACION CONSBA, SOCIEDAD ANONIMA", "No.Ref.del acreedor": "FC-BDABE59C-4092938596", "Fecha de vencimiento": "2025-09-10", "Importe": 68999.92, "Comentarios": "Gastos administrativos hacienda jumay mes de septiembre 2025"}, {"EMPRESA": "EFICIENCIA URBANA", "Nº documento": 1001210, "Código de proveedor": "PL-00020", "Nombre de acreedor": "CORPORACION CONSBA, SOCIEDAD ANONIMA", "No.Ref.del acreedor": "FC-8604EA15-1187204196", "Fecha de vencimiento": "2025-10-15", "Importe": 68999.92, "Comentarios": "Gastos administrativos hacienda jumay mes de octubre 2025"}, {"EMPRESA": "EFICIENCIA URBANA", "Nº documento": 1001238, "Código de proveedor": "PL-00020", "Nombre de acreedor": "CORPORACION CONSBA, SOCIEDAD ANONIMA", "No.Ref.del acreedor": "FC-1F79EA30-2010597180", "Fecha de vencimiento": "2025-11-19", "Importe": 68999.92, "Comentarios": "Gastos administrativos hacienda jumay mes de noviembre 2025"}, {"EMPRESA": "EFICIENCIA URBANA", "Nº documento": 1001296, "Código de proveedor": "PL-00012", "Nombre de acreedor": "CORPORACION FIRST CLASS, SOCIEDAD ANONIMA", "No.Ref.del acreedor": "FC-393BFB86-3538832430", "Fecha de vencimiento": "2026-01-21", "Importe": 45850.0, "Comentarios": "630 CEMENTO 4060 PSI"}, {"EMPRESA": "EFICIENCIA URBANA", "Nº documento": 1001300, "Código de proveedor": "PL-00012", "Nombre de acreedor": "CORPORACION FIRST CLASS, SOCIEDAD ANONIMA", "No.Ref.del acreedor": "FC-774A36F1-4124921421", "Fecha de vencimiento": "2026-02-04", "Importe": 45850.0, "Comentarios": "630 Sacos de cemento + Flete"}, {"EMPRESA": "EFICIENCIA URBANA", "Nº documento": 1001339, "Código de proveedor": "PL-00129", "Nombre de acreedor": "DESARROLLOS STEL, SOCIEDAD ANÓNIMA", "No.Ref.del acreedor": "FC-EEF0C869-105794515", "Fecha de vencimiento": "2026-05-15", "Importe": 266072.95, "Comentarios": "Servicios prestados del mes de abril 2026"}, {"EMPRESA": "EFICIENCIA URBANA", "Nº documento": 1001340, "Código de proveedor": "PL-00196", "Nombre de acreedor": "EDGAR LEONEL PINTO PALOMO", "No.Ref.del acreedor": "FC-CAJA CHICA-0", "Fecha de vencimiento": "2026-05-15", "Importe": 400.0, "Comentarios": "GASOLINA PARA EQUIPOS"}, {"EMPRESA": "EFICIENCIA URBANA", "Nº documento": 1001284, "Código de proveedor": "PL-00002", "Nombre de acreedor": "GRUPO CONSERSA, S.A.", "No.Ref.del acreedor": "FC-5CAC6EE9-3972612366", "Fecha de vencimiento": "2026-01-07", "Importe": 63680.0, "Comentarios": "Servicios administrativos del mes de septiembre"}, {"EMPRESA": "EFICIENCIA URBANA", "Nº documento": 1001236, "Código de proveedor": "PL-00039", "Nombre de acreedor": "INVERSIONES IKIGAI DE GUATEMALA, SOCIEDAD ANONIMA", "No.Ref.del acreedor": "FC-AD5D2F84-3597877786", "Fecha de vencimiento": "2025-11-26", "Importe": 10522.36, "Comentarios": "Pago 24/24 venta terreno Hacienda Jumay, Jalapa mes de noviembre 2025"}, {"EMPRESA": "EFICIENCIA URBANA", "Nº documento": 1001114, "Código de proveedor": "PL-00180", "Nombre de acreedor": "INVERSIONES SALISBURY, SOCIEDAD ANONIMA", "No.Ref.del acreedor": "FC-FB9E2623-3054780418", "Fecha de vencimiento": "2025-08-13", "Importe": 20816.56, "Comentarios": "Concreto para planta de tratamiento"}, {"EMPRESA": "EFICIENCIA URBANA", "Nº documento": 1001172, "Código de proveedor": "PL-00180", "Nombre de acreedor": "INVERSIONES SALISBURY, SOCIEDAD ANONIMA", "No.Ref.del acreedor": "FC-677250CD-466898702", "Fecha de vencimiento": "2025-09-03", "Importe": 8851.85, "Comentarios": "Materiales para Planta de Tratamiento hacienda Jumay"}, {"EMPRESA": "EFICIENCIA URBANA", "Nº documento": 1001290, "Código de proveedor": "PL-00180", "Nombre de acreedor": "INVERSIONES SALISBURY, SOCIEDAD ANONIMA", "No.Ref.del acreedor": "FC-DB58499A-497107720", "Fecha de vencimiento": "2026-01-07", "Importe": 21961.32, "Comentarios": "15m3 Concreto 4,003 convencional para cimentacion, 15m3 Colocacion de concreto con bomba Y 2 Laboratorios de concreto"}, {"EMPRESA": "EFICIENCIA URBANA", "Nº documento": 1001335, "Código de proveedor": "PL-00180", "Nombre de acreedor": "INVERSIONES SALISBURY, SOCIEDAD ANONIMA", "No.Ref.del acreedor": "FC-615DECDB-206129289", "Fecha de vencimiento": "2026-05-15", "Importe": 21961.32, "Comentarios": "CONCRETO BOMBEO Y COLOCACION CON BOMBA"}, {"EMPRESA": "EFICIENCIA URBANA", "Nº documento": 1001220, "Código de proveedor": "PL-00137", "Nombre de acreedor": "KAYROS SECURITY, SOCIEDAD ANÓNIMA", "No.Ref.del acreedor": "FC-D8B25498-3187818549", "Fecha de vencimiento": "2025-10-22", "Importe": 23100.0, "Comentarios": "AGENTES DE SEGURIDAD 48X48 JUNIO"}, {"EMPRESA": "EFICIENCIA URBANA", "Nº documento": 1001221, "Código de proveedor": "PL-00137", "Nombre de acreedor": "KAYROS SECURITY, SOCIEDAD ANÓNIMA", "No.Ref.del acreedor": "FC-06272E6B-2985773186", "Fecha de vencimiento": "2025-10-22", "Importe": 23100.0, "Comentarios": "AGENTES DE SEGURIDAD 48X48 MAYO"}, {"EMPRESA": "EFICIENCIA URBANA", "Nº documento": 1001222, "Código de proveedor": "PL-00137", "Nombre de acreedor": "KAYROS SECURITY, SOCIEDAD ANÓNIMA", "No.Ref.del acreedor": "FC-82E2722B-3269935366", "Fecha de vencimiento": "2025-10-22", "Importe": 23100.0, "Comentarios": "AGENTES DE SEGURIDAD 48X48 ABRIL"}, {"EMPRESA": "EFICIENCIA URBANA", "Nº documento": 1001107, "Código de proveedor": "PL-00172", "Nombre de acreedor": "MARVIN ULISES FUENTES FUENTES", "No.Ref.del acreedor": "FC-D6F32B99-162939752", "Fecha de vencimiento": "2025-08-06", "Importe": 4010.0, "Comentarios": "Medidor (contador) CL 200 electrónico 120-480v 4w FM 16S de 7 Terminales marca General Electric"}, {"EMPRESA": "EFICIENCIA URBANA", "Nº documento": 1001100, "Código de proveedor": "PL-00011", "Nombre de acreedor": "PHIEN SOCIEDAD ANONIMA", "No.Ref.del acreedor": "FC-914CA132-336610920", "Fecha de vencimiento": "2025-08-06", "Importe": 22516.22, "Comentarios": "Servicios administrativos de la unidad del mes de julio  2025"}, {"EMPRESA": "EFICIENCIA URBANA", "Nº documento": 1001127, "Código de proveedor": "PL-00011", "Nombre de acreedor": "PHIEN SOCIEDAD ANONIMA", "No.Ref.del acreedor": "FC-284A49E3-2884455255", "Fecha de vencimiento": "2025-08-20", "Importe": 167410.0, "Comentarios": "Servicios administrativos de la unidad del mes de agosto  2025"}, {"EMPRESA": "EFICIENCIA URBANA", "Nº documento": 1001112, "Código de proveedor": "PL-00011", "Nombre de acreedor": "PHIEN SOCIEDAD ANONIMA", "No.Ref.del acreedor": "FC-BBE92EF5F-1042369045", "Fecha de vencimiento": "2025-09-10", "Importe": 15209.02, "Comentarios": "Servicios de logistica, almacenamiento y distribucion de bienes del 1 al 31 de mayo 2025"}, {"EMPRESA": "EFICIENCIA URBANA", "Nº documento": 1001186, "Código de proveedor": "PL-00011", "Nombre de acreedor": "PHIEN SOCIEDAD ANONIMA", "No.Ref.del acreedor": "FC-9AAAFF1B-4221059398", "Fecha de vencimiento": "2025-09-17", "Importe": 15038.06, "Comentarios": "Servcios administrativos de la unidad mes de agosto"}, {"EMPRESA": "EFICIENCIA URBANA", "Nº documento": 1001190, "Código de proveedor": "PL-00011", "Nombre de acreedor": "PHIEN SOCIEDAD ANONIMA", "No.Ref.del acreedor": "FC-8AAAA3D5-1904756267", "Fecha de vencimiento": "2025-09-17", "Importe": 167410.0, "Comentarios": "Servicios administrativos de la unidad mes de septiembre 2025"}, {"EMPRESA": "EFICIENCIA URBANA", "Nº documento": 1001204, "Código de proveedor": "PL-00011", "Nombre de acreedor": "PHIEN SOCIEDAD ANONIMA", "No.Ref.del acreedor": "FC-96AC9089-1527333296", "Fecha de vencimiento": "2025-10-08", "Importe": 15038.06, "Comentarios": "Servicios administrativos de la unidad"}, {"EMPRESA": "EFICIENCIA URBANA", "Nº documento": 1001223, "Código de proveedor": "PL-00011", "Nombre de acreedor": "PHIEN SOCIEDAD ANONIMA", "No.Ref.del acreedor": "FC-C0D45BC4-2752728331", "Fecha de vencimiento": "2025-10-29", "Importe": 167410.0, "Comentarios": "Servicios contables y financiero del 01 al 31 de octubre 2025"}, {"EMPRESA": "EFICIENCIA URBANA", "Nº documento": 1001255, "Código de proveedor": "PL-00011", "Nombre de acreedor": "PHIEN SOCIEDAD ANONIMA", "No.Ref.del acreedor": "FC-A9C0EEDB-2598588240", "Fecha de vencimiento": "2025-12-03", "Importe": 167410.0, "Comentarios": "Servicios de administracion contable y financiera del 01 al 30 de noviembre 2025"}, {"EMPRESA": "EFICIENCIA URBANA", "Nº documento": 1001245, "Código de proveedor": "PL-00011", "Nombre de acreedor": "PHIEN SOCIEDAD ANONIMA", "No.Ref.del acreedor": "FC-54ED8BD9-3010808200", "Fecha de vencimiento": "2025-12-10", "Importe": 15543.53, "Comentarios": "comision procuracion, Ingreso de crédito al RGP, Ingreso compraventa al RGP, Reingreso crédito al RGP, honorarios procurador Eficiencia Urbana,"}, {"EMPRESA": "EFICIENCIA URBANA", "Nº documento": 1001265, "Código de proveedor": "PL-00011", "Nombre de acreedor": "PHIEN SOCIEDAD ANONIMA", "No.Ref.del acreedor": "FC-CCAFEDF5-2088783340", "Fecha de vencimiento": "2025-12-10", "Importe": 16121.42, "Comentarios": "envio de documentos para aviso a la muni por compraventa de eficiencia urbana, OD Guatemala y Compania Limitada, DOCUMENTOS PARA ACTUALIZACION DE DATOS EFU EN BANRURAL, RECOLECCION FORMULARIOS DE FELTRE, ESSENZIALE Y EFU y Re-Facturacion-Servicios Genera"}, {"EMPRESA": "EFICIENCIA URBANA", "Nº documento": 1001288, "Código de proveedor": "PL-00011", "Nombre de acreedor": "PHIEN SOCIEDAD ANONIMA", "No.Ref.del acreedor": "FC-94A7A683-3679407692", "Fecha de vencimiento": "2026-01-07", "Importe": 167410.0, "Comentarios": "Servicios de administracion contable y financiera del 01 de diciembre al 31 de diciembre 2025"}, {"EMPRESA": "EFICIENCIA URBANA", "Nº documento": 1001295, "Código de proveedor": "PL-00011", "Nombre de acreedor": "PHIEN SOCIEDAD ANONIMA", "No.Ref.del acreedor": "FC-9F26B0B6-1462649491", "Fecha de vencimiento": "2026-01-21", "Importe": 16294.65, "Comentarios": "Planilla Operativa, envio de documentacion para avisos, Gastos Credito, recepcion  de documentacion para avisos, Multa Aviso Dicabi, comision procuracion, Finca 6082, folio 82 libro 73E de Jalapa, Inscripción de registro Dicabi."}, {"EMPRESA": "EFICIENCIA URBANA", "Nº documento": 1001316, "Código de proveedor": "PL-00011", "Nombre de acreedor": "PHIEN SOCIEDAD ANONIMA", "No.Ref.del acreedor": "FC-87C4ADF1-3767289837", "Fecha de vencimiento": "2026-03-18", "Importe": 41007.77, "Comentarios": "6 TALONARIOS DE RECIBOS DE CAJA TAMAÑO 1/2 CA Y  PLANILA OPERATIVA"}, {"EMPRESA": "EFICIENCIA URBANA", "Nº documento": 1001193, "Código de proveedor": "PL-00136", "Nombre de acreedor": "RODRIGUEZ, AGUILAR, CASTELLANOS, SOLARES Y ALVARADO,SOCIEDAD CIVIL", "No.Ref.del acreedor": "FC-04C42F75-2482654135", "Fecha de vencimiento": "2025-09-24", "Importe": 13667.47, "Comentarios": "HACIENDA JUMAY (JALAPA) ESCRITURACIÓN"}, {"EMPRESA": "EFICIENCIA URBANA", "Nº documento": 1001194, "Código de proveedor": "PL-00136", "Nombre de acreedor": "RODRIGUEZ, AGUILAR, CASTELLANOS, SOLARES Y ALVARADO,SOCIEDAD CIVIL", "No.Ref.del acreedor": "FC-2677337D-2450607251", "Fecha de vencimiento": "2025-09-24", "Importe": 49018.04, "Comentarios": "Servicios prestados en hacienda jumay estructuracion mes de septiembre 2025"}, {"EMPRESA": "EFICIENCIA URBANA", "Nº documento": 1001231, "Código de proveedor": "PL-00136", "Nombre de acreedor": "RODRIGUEZ, AGUILAR, CASTELLANOS, SOLARES Y ALVARADO,SOCIEDAD CIVIL", "No.Ref.del acreedor": "FC-618BCE84-2272021562", "Fecha de vencimiento": "2025-11-12", "Importe": 18214.56, "Comentarios": "HACIENDA JUMAY (JALAPA) ESCRITURACIÓN MES DE OCTUBRE@@SERVICIOS PRESTADOS [NT-171505]"}, {"EMPRESA": "EFICIENCIA URBANA", "Nº documento": 1001338, "Código de proveedor": "PL-00210", "Nombre de acreedor": "SERGIO FRANCISCO CASTILLO OVALLE", "No.Ref.del acreedor": "FC-REINTEGRO-1152", "Fecha de vencimiento": "2026-05-15", "Importe": 4815.0, "Comentarios": "Pago de multas y timbres notariales para gestiones liberaciones de inmuebles en hacienda jumay Y Pago de envio de escrituras para firma"}, {"EMPRESA": "EFICIENCIA URBANA", "Nº documento": 1001227, "Código de proveedor": "PL-00146", "Nombre de acreedor": "SOTERO DÍAZ DE LA CRÚZ", "No.Ref.del acreedor": "FC-22BF95D0-4217850437", "Fecha de vencimiento": "2025-11-12", "Importe": 39190.0, "Comentarios": "Estimaciión de Pavimentación de la 8a, Avenida"}, {"EMPRESA": "EFICIENCIA URBANA", "Nº documento": 1000510, "Código de proveedor": "PL-00135", "Nombre de acreedor": "YENI CORINA LORENZANA ESTRADA", "No.Ref.del acreedor": "FC-AD37E464-1335250675", "Fecha de vencimiento": "2024-07-31", "Importe": 9615.0, "Comentarios": "1655 m2 Grama de area social"}, {"EMPRESA": "FRUGALEX", "Nº documento": 1000148, "Código de proveedor": "PL-00063", "Nombre de acreedor": "AURA CORP, SOCIEDAD ANÓNIMA", "No.Ref.del acreedor": "FC-EB24A50F-2344239897", "Fecha de vencimiento": "2025-07-02", "Importe": 12096.0, "Comentarios": "Por culminación fase 1 de diseño 40% y Anticipo fase 2 desarrollo de diseño 60%"}, {"EMPRESA": "FRUGALEX", "Nº documento": 1000116, "Código de proveedor": "PL-00009", "Nombre de acreedor": "Corporacion Consba, S.A.", "No.Ref.del acreedor": "FC-445C1D22-1526811401", "Fecha de vencimiento": "2025-04-02", "Importe": 5400.0, "Comentarios": "Plantilla de ayudantes segunda quincena de marzo"}, {"EMPRESA": "FRUGALEX", "Nº documento": 1000152, "Código de proveedor": "PL-00009", "Nombre de acreedor": "Corporacion Consba, S.A.", "No.Ref.del acreedor": "FC-97547314-573459450", "Fecha de vencimiento": "2025-07-02", "Importe": 16637.99, "Comentarios": "Por trabajos reestructura en garita"}, {"EMPRESA": "FRUGALEX", "Nº documento": 1000236, "Código de proveedor": "PL-00055", "Nombre de acreedor": "DESARROLLOS STEL, SOCIEDAD ANÓNIMA", "No.Ref.del acreedor": "FC-7B506B0A-4004269743", "Fecha de vencimiento": "2026-05-15", "Importe": 48894.08, "Comentarios": "Servicios prestados del mes de abril año 2026"}, {"EMPRESA": "FRUGALEX", "Nº documento": 1000215, "Código de proveedor": "PL-00092", "Nombre de acreedor": "GONZALEZ JUAREZ, SOCIEDAD CIVIL", "No.Ref.del acreedor": "FC-D6338938-1845250761", "Fecha de vencimiento": "2025-12-17", "Importe": 7840.0, "Comentarios": "Servicios Profesionales de Auditoría Externa a sus Estados Financieros correspondientes del 01 de enero al 31 de diciembre 2025. Cuota 1/2 (50%) contra inicio de trabajo de campo.q"}, {"EMPRESA": "FRUGALEX", "Nº documento": 1000136, "Código de proveedor": "PL-00056", "Nombre de acreedor": "JOSÉ ABELARDO ESTRADA CISNEROS", "No.Ref.del acreedor": "FC-926F24BC-2829535416", "Fecha de vencimiento": "2025-06-04", "Importe": 8359.37, "Comentarios": "5 camionadas de selecto para condado Zacapa"}, {"EMPRESA": "FRUGALEX", "Nº documento": 1000161, "Código de proveedor": "PL-00056", "Nombre de acreedor": "JOSÉ ABELARDO ESTRADA CISNEROS", "No.Ref.del acreedor": "FC-12707F0A-3928441132", "Fecha de vencimiento": "2025-07-23", "Importe": 10031.25, "Comentarios": "6 Camionadas de Selecto"}, {"EMPRESA": "FRUGALEX", "Nº documento": 1000162, "Código de proveedor": "PL-00056", "Nombre de acreedor": "JOSÉ ABELARDO ESTRADA CISNEROS", "No.Ref.del acreedor": "FC-214B1E46-421021570", "Fecha de vencimiento": "2025-07-30", "Importe": 17425.71, "Comentarios": "48 mts de piedrín y 48 mts de arena"}, {"EMPRESA": "FRUGALEX", "Nº documento": 1000178, "Código de proveedor": "PL-00056", "Nombre de acreedor": "JOSÉ ABELARDO ESTRADA CISNEROS", "No.Ref.del acreedor": "FC-460D0A0C-3808444754", "Fecha de vencimiento": "2025-09-17", "Importe": 19250.45, "Comentarios": "36 M3 DE ARENA, 5 CAMIONADAS DE SELECTO y 24 M3 DE PIEDRÍN"}, {"EMPRESA": "FRUGALEX", "Nº documento": 1000074, "Código de proveedor": "PL-00025", "Nombre de acreedor": "KAYROS SECURITY, SOCIEDAD ANÓNIMA", "No.Ref.del acreedor": "FC-446B92F3-4134489970", "Fecha de vencimiento": "2024-11-20", "Importe": 11100.0, "Comentarios": "2 Agentes de seguridad de 48x48 del 29 de junio al 28 de julio"}, {"EMPRESA": "FRUGALEX", "Nº documento": 1000075, "Código de proveedor": "PL-00025", "Nombre de acreedor": "KAYROS SECURITY, SOCIEDAD ANÓNIMA", "No.Ref.del acreedor": "FC-8CBF01D7-541806342", "Fecha de vencimiento": "2024-12-04", "Importe": 11100.0, "Comentarios": "2 Agentes de seguridad de 48x48 del 29 de julio al 28 de agosto"}, {"EMPRESA": "FRUGALEX", "Nº documento": 1000118, "Código de proveedor": "PL-00025", "Nombre de acreedor": "KAYROS SECURITY, SOCIEDAD ANÓNIMA", "No.Ref.del acreedor": "FC-9334458F-1126450407", "Fecha de vencimiento": "2025-04-09", "Importe": 11100.0, "Comentarios": "2 Agentes de seguridad de 48x48"}, {"EMPRESA": "FRUGALEX", "Nº documento": 1000001, "Código de proveedor": "PL-00001", "Nombre de acreedor": "PHIEN, S.A.", "No.Ref.del acreedor": "FC-FF4B0B54-3896461589", "Fecha de vencimiento": "2023-11-30", "Importe": 11340.75, "Comentarios": "GASTOS ADMINISTRATIVOS MES DE NOVIEMBRE 2023"}, {"EMPRESA": "FRUGALEX", "Nº documento": 1000010, "Código de proveedor": "PL-00001", "Nombre de acreedor": "PHIEN, S.A.", "No.Ref.del acreedor": "FE-B63F03D5-1631537063", "Fecha de vencimiento": "2023-12-28", "Importe": 89794.04, "Comentarios": NaN}, {"EMPRESA": "FRUGALEX", "Nº documento": 1000228, "Código de proveedor": "PL-00036", "Nombre de acreedor": "RODRIGUEZ, AGUILAR, CASTELLANOS, SOLARES Y ALVARADO,SOCIEDAD CIVIL", "No.Ref.del acreedor": "FC-79C767A8-161762292", "Fecha de vencimiento": "2026-03-11", "Importe": 5317.4, "Comentarios": "Servicios prestados mes de enero 2026 Oasis Zacapa"}, {"EMPRESA": "FRUGALEX", "Nº documento": 1000229, "Código de proveedor": "PL-00036", "Nombre de acreedor": "RODRIGUEZ, AGUILAR, CASTELLANOS, SOLARES Y ALVARADO,SOCIEDAD CIVIL", "No.Ref.del acreedor": "FC-F49133B3-1831617848", "Fecha de vencimiento": "2026-03-11", "Importe": 5317.4, "Comentarios": "Servicios prestados mes de febrero 2026 Oasis Zacapa"}, {"EMPRESA": "FRUGALEX", "Nº documento": 1000107, "Código de proveedor": "PL-00059", "Nombre de acreedor": "WATERMANIA SOCIEDAD ANONIMA", "No.Ref.del acreedor": "FC-63F6BCD3-2702920673", "Fecha de vencimiento": "2025-03-26", "Importe": 161425.0, "Comentarios": "Piscina condado zacapa"}, {"EMPRESA": "GARBATELLA", "Nº documento": 1000027, "Código de proveedor": "PL-00018", "Nombre de acreedor": "ARQUITECTURA SIETE, SOCIEDAD ANÓNIMA", "No.Ref.del acreedor": "FC-8DEC193C-723927719", "Fecha de vencimiento": "2026-02-11", "Importe": 83000.0, "Comentarios": "Urbanizacion club el progreso"}, {"EMPRESA": "GARBATELLA", "Nº documento": 1000023, "Código de proveedor": "PL-00019", "Nombre de acreedor": "DESTAKA, SOCIEDAD ANÓNIMA", "No.Ref.del acreedor": "FC-CB62E22A-1426147232", "Fecha de vencimiento": "2026-01-21", "Importe": 4995.77, "Comentarios": "Vallas: Tamaño 6x3 mts Lamina de aluzing 26 Costanera de 3x2 Fundidas de concreto Con tenzores Impresión en vinil adhesivo full color Altura de base 7 mts Proyecto: Club Residencial El Progreso"}, {"EMPRESA": "GARBATELLA", "Nº documento": 1000010, "Código de proveedor": "PL-00008", "Nombre de acreedor": "EDITH NOHEMI RODAS VIVAR", "No.Ref.del acreedor": "FPQ-A8B20BA4-3971041597", "Fecha de vencimiento": "2025-12-10", "Importe": 4750.0, "Comentarios": "PAGO DEL ANTICIPIO DEL 50% PARA LA GESTION ANTE CONRED DE LA NORMA PARA LA REDUCCION DE DESASTRES NRD2, PARA EL PROYECTO DENOMINADO CLUB RESIDENCIAL EL PROGRESO."}, {"EMPRESA": "GARBATELLA", "Nº documento": 1000040, "Código de proveedor": "PL-00029", "Nombre de acreedor": "GEOESTUDIOS SOCIEDAD ANONIMA", "No.Ref.del acreedor": "408FEA00-2968078401", "Fecha de vencimiento": "2026-05-20", "Importe": 17196.43, "Comentarios": "408FEA00-B0E9-4841-911B-8D78562E2659 | Procesado por RV4 APAgent | TKT 00575"}, {"EMPRESA": "GARBATELLA", "Nº documento": 1000031, "Código de proveedor": "PL-00016", "Nombre de acreedor": "GRUPO HERGU, SOCIEDAD ANÓNIMA", "No.Ref.del acreedor": "FC-15BF5C75-2189575012", "Fecha de vencimiento": "2026-02-18", "Importe": 75000.0, "Comentarios": "Valor Correspondiente al pago de la estimación No. 3 del Proyecto Club Residencial Progreso"}, {"EMPRESA": "GARBATELLA", "Nº documento": 1000039, "Código de proveedor": "PL-00028", "Nombre de acreedor": "INVERSIONES SALISBURY, SOCIEDAD ANONIMA", "No.Ref.del acreedor": "FC-CC1C8DDB-4160442342", "Fecha de vencimiento": "2026-05-15", "Importe": 81322.08, "Comentarios": "120 m3 de concreto asentamiento 4000 psi"}, {"EMPRESA": "GARBATELLA", "Nº documento": 1000019, "Código de proveedor": "PL-00015", "Nombre de acreedor": "JOSÉ MARIANO SANDOVAL POLANCO", "No.Ref.del acreedor": "FC-1F99A195-3645981668", "Fecha de vencimiento": "2026-01-07", "Importe": 8000.0, "Comentarios": "Anticipo del 50% por elaboracion de plan de gestion ambiental"}, {"EMPRESA": "GARBATELLA", "Nº documento": 1000011, "Código de proveedor": "PL-00009", "Nombre de acreedor": "NESTOR PABLO ESCOBAR DÁVILA", "No.Ref.del acreedor": "FC-EDBD9F7A-3034860405", "Fecha de vencimiento": "2025-12-10", "Importe": 30520.0, "Comentarios": "Diseño hidrosanitario proyecto CLUB RESIDENCIAL PROGRESO"}, {"EMPRESA": "GARBATELLA", "Nº documento": 1000020, "Código de proveedor": "PL-00001", "Nombre de acreedor": "PHIEN SOCIEDAD ANONIMA", "No.Ref.del acreedor": "FC-C89D77DC-3287304798", "Fecha de vencimiento": "2026-01-21", "Importe": 211.2, "Comentarios": "honorarios procurador 5% y FINCA 6605 FOLIO 105 LIBRO 54E DE JUTIAPA"}, {"EMPRESA": "GARBATELLA", "Nº documento": 1000038, "Código de proveedor": "PL-00007", "Nombre de acreedor": "SOLUCIONES INMOBILIARIAS DON GARCIA SOCIEDAD ANONIMA", "No.Ref.del acreedor": "FC-D84F63AC-2045266572", "Fecha de vencimiento": "2026-05-15", "Importe": 4776.79, "Comentarios": "Cancelación Estudio Hidrogeológico proyecto URBANIZACIÓN CLUB RESIDENCIAL EL PROGRESO, EL PROGRESO JUTIAPA"}, {"EMPRESA": "GARBATELLA", "Nº documento": 1000030, "Código de proveedor": "PL-00002", "Nombre de acreedor": "VICTOR JACINTO VALDEZ MEZA", "No.Ref.del acreedor": "FC-E70E6467-298208045", "Fecha de vencimiento": "2026-02-18", "Importe": 16691.27, "Comentarios": "por trabajos de resane, grisiado, pisos y pintura en garita Área interna, club Residencial El Progreso Jutiapa"}, {"EMPRESA": "GIBRALEON", "Nº documento": 1000004, "Código de proveedor": "PL-00005", "Nombre de acreedor": "DESARROLLOS STEL, SOCIEDAD ANÓNIMA", "No.Ref.del acreedor": "FC-BF7F3F10-3619439628", "Fecha de vencimiento": "2025-10-15", "Importe": 354.21, "Comentarios": "HABILITACION DE LIBROS APERTURA DE SOCIEDAD"}, {"EMPRESA": "GIBRALEON", "Nº documento": 1000011, "Código de proveedor": "PL-00005", "Nombre de acreedor": "DESARROLLOS STEL, SOCIEDAD ANÓNIMA", "No.Ref.del acreedor": "FC-5A5B952C-3494792670", "Fecha de vencimiento": "2026-02-11", "Importe": 959.0, "Comentarios": "aviso de emisión de acciones y  Compra de timbres notariales y fiscales por ampliación de capital"}, {"EMPRESA": "GIBRALEON", "Nº documento": 1000010, "Código de proveedor": "PL-00001", "Nombre de acreedor": "PHIEN SOCIEDAD ANONIMA", "No.Ref.del acreedor": "FC-0AEEBDD5-2604682587", "Fecha de vencimiento": "2025-12-31", "Importe": 540.41, "Comentarios": "ingreso aumento Gibraleon,  honorarios procurador 5%, Multa aumento, 6 Talonarios recibos de caja tamaño 1/2 carta origina"}, {"EMPRESA": "GIBRALEON", "Nº documento": 1000014, "Código de proveedor": "PL-00001", "Nombre de acreedor": "PHIEN SOCIEDAD ANONIMA", "No.Ref.del acreedor": "FC-3CA35190-4077865768", "Fecha de vencimiento": "2026-04-22", "Importe": 41.62, "Comentarios": "honorarios procurador y  Presentar Avisos emisión de acciones"}, {"EMPRESA": "LEOFRENI", "Nº documento": 1000004, "Código de proveedor": "PL-00005", "Nombre de acreedor": "DESARROLLOS STEL, SOCIEDAD ANÓNIMA", "No.Ref.del acreedor": "FC-F5BB240B-3851175862", "Fecha de vencimiento": "2025-10-15", "Importe": 333.95, "Comentarios": "HABILITACION DE LIBROS APERTURA DE SOCIEDAD"}, {"EMPRESA": "LEOFRENI", "Nº documento": 1000009, "Código de proveedor": "PL-00005", "Nombre de acreedor": "DESARROLLOS STEL, SOCIEDAD ANÓNIMA", "No.Ref.del acreedor": "FC-A4C8F2B3-3590671607", "Fecha de vencimiento": "2026-02-11", "Importe": 959.0, "Comentarios": "aviso de emisión de acciones, Compra de timbres notariales y fiscales por ampliación de capital"}, {"EMPRESA": "LEOFRENI", "Nº documento": 1000001, "Código de proveedor": "PL-00001", "Nombre de acreedor": "PHIEN SOCIEDAD ANONIMA", "No.Ref.del acreedor": "FC-08B0F782-3753396058", "Fecha de vencimiento": "2025-07-23", "Importe": 36.53, "Comentarios": "Servicios de logistica almacenamiento y distribucion de bienes del 1 de junio al 30 ed junio 2025"}, {"EMPRESA": "LEOFRENI", "Nº documento": 1000002, "Código de proveedor": "PL-00001", "Nombre de acreedor": "PHIEN SOCIEDAD ANONIMA", "No.Ref.del acreedor": "FC-004E1B5B-1710771045", "Fecha de vencimiento": "2025-08-13", "Importe": 560.0, "Comentarios": "Servicios de logistica almacenamiento y distribucion de bienes del 1 al 31 de mayo 2025"}, {"EMPRESA": "LEOFRENI", "Nº documento": 1000003, "Código de proveedor": "PL-00001", "Nombre de acreedor": "PHIEN SOCIEDAD ANONIMA", "No.Ref.del acreedor": "FC-767F1AA3-28396610", "Fecha de vencimiento": "2025-10-08", "Importe": 1.25, "Comentarios": "Servicios de logistica almacenamiento y distribucion de bienes del 1 de agosto al 31 de agosto 2025"}, {"EMPRESA": "LEOFRENI", "Nº documento": 1000005, "Código de proveedor": "PL-00001", "Nombre de acreedor": "PHIEN SOCIEDAD ANONIMA", "No.Ref.del acreedor": "FC-CCB7679E-3373548062", "Fecha de vencimiento": "2025-10-15", "Importe": 219.36, "Comentarios": "asamblea por aumento de capital Leofreni, arancel por gastos de procuracion Leofreni, asamblea por aumento de capital Leofreni"}, {"EMPRESA": "LEOFRENI", "Nº documento": 1000007, "Código de proveedor": "PL-00001", "Nombre de acreedor": "PHIEN SOCIEDAD ANONIMA", "No.Ref.del acreedor": "FC-E9FD3B35-3045082839", "Fecha de vencimiento": "2025-12-10", "Importe": 81.41, "Comentarios": "comision procuracion, Finca 8389, folio 389, libro 17E de Santa Rosa y aviso emision de acciones"}, {"EMPRESA": "LEOFRENI", "Nº documento": 1000008, "Código de proveedor": "PL-00001", "Nombre de acreedor": "PHIEN SOCIEDAD ANONIMA", "No.Ref.del acreedor": "FC-4288FBF7-466698927", "Fecha de vencimiento": "2025-12-31", "Importe": 250.4, "Comentarios": "honorarios procurador 5%, ingreso aumento leofreni,  Multa aumento"}, {"EMPRESA": "LEOFRENI", "Nº documento": 1000012, "Código de proveedor": "PL-00001", "Nombre de acreedor": "PHIEN SOCIEDAD ANONIMA", "No.Ref.del acreedor": "FC-E73AA4FF-3942927184", "Fecha de vencimiento": "2026-04-22", "Importe": 41.62, "Comentarios": "honorarios procurador y  Presentar Avisos emisión de acciones"}, {"EMPRESA": "OTTAVIA", "Nº documento": 1000088, "Código de proveedor": "PL-00029", "Nombre de acreedor": "DESARROLLOS STEL, SOCIEDAD ANÓNIMA", "No.Ref.del acreedor": "FC-38B0DBEB-4118104151", "Fecha de vencimiento": "2026-04-29", "Importe": 1260.0, "Comentarios": "Servicios prestados del mes de marzo 2026"}, {"EMPRESA": "OTTAVIA", "Nº documento": 1000090, "Código de proveedor": "PL-00029", "Nombre de acreedor": "DESARROLLOS STEL, SOCIEDAD ANÓNIMA", "No.Ref.del acreedor": "FC-2541B64D-792414128", "Fecha de vencimiento": "2026-05-15", "Importe": 1260.0, "Comentarios": "Servicios prestados mes de abril 2026"}, {"EMPRESA": "OTTAVIA", "Nº documento": 1000089, "Código de proveedor": "PL-00011", "Nombre de acreedor": "GRUPO CONSERSA, SOCIEDAD ANÓNIMA", "No.Ref.del acreedor": "FC-6AC2D252-1702970767", "Fecha de vencimiento": "2026-04-29", "Importe": 15125.0, "Comentarios": "Anticipo de comisiones Cañadas de Jalapa"}, {"EMPRESA": "OTTAVIA", "Nº documento": 1000077, "Código de proveedor": "PL-00026", "Nombre de acreedor": "ROSA MARÍA PARADA MARTÍNEZ", "No.Ref.del acreedor": "FC-9E1D55B5-3953607382", "Fecha de vencimiento": "2026-03-18", "Importe": 4776.79, "Comentarios": "Pago No. 3 de Q.30,000.00 correspondiente mes de diciembre de 2025, del Proyecto Cañadas de Jalapa"}, {"EMPRESA": "OTTAVIA", "Nº documento": 1000085, "Código de proveedor": "PL-00026", "Nombre de acreedor": "ROSA MARÍA PARADA MARTÍNEZ", "No.Ref.del acreedor": "FC-ADD6CF60-749093904", "Fecha de vencimiento": "2026-04-29", "Importe": 4776.79, "Comentarios": "Pago No. 6 de Q.30,000.00 correspondiente al mes de marzo 2026 del Proyecto de Cañadas de Jalapa"}, {"EMPRESA": "OVEST", "Nº documento": 1000065, "Código de proveedor": "PL-00012", "Nombre de acreedor": "DESARROLLOS STEL, SOCIEDAD ANÓNIMA", "No.Ref.del acreedor": "FC-E050320E-643910797", "Fecha de vencimiento": "2026-02-11", "Importe": 735.0, "Comentarios": "Compra de timbres notariales y fiscales por ampliación de capital"}, {"EMPRESA": "OVEST", "Nº documento": 1000029, "Código de proveedor": "PL-00002", "Nombre de acreedor": "IDEAS Y SOLUCIONES CREATIVAS, SOCIEDAD ANONIMA", "No.Ref.del acreedor": "FC-80A6C329-316559356", "Fecha de vencimiento": "2025-10-01", "Importe": 20616.0, "Comentarios": "2 Vallas Publicitarias elaboradas con lamina de aluzing calibre 26, remachadas a estructura de tuvo cuadrado de 1\" chapa 20, con 2 manos de pintura anticorrosiva, marcos de costanera de 3\" Sta Lucia"}, {"EMPRESA": "OVEST", "Nº documento": 1000069, "Código de proveedor": "PL-00023", "Nombre de acreedor": "OSCAR AUGUSTO RIVAS VILLANUEVA", "No.Ref.del acreedor": "FC-E929942E-2840349397", "Fecha de vencimiento": "2026-04-29", "Importe": 1067.84, "Comentarios": "Honorarios profesionales Servicios ejercicio de depositario mes de abril 2026"}, {"EMPRESA": "OVEST", "Nº documento": 1000070, "Código de proveedor": "PL-00023", "Nombre de acreedor": "OSCAR AUGUSTO RIVAS VILLANUEVA", "No.Ref.del acreedor": "FC-E4F22721-2537636739", "Fecha de vencimiento": "2026-05-29", "Importe": 1067.84, "Comentarios": "Honorarios profesionales servicios de ejercicio de depositario mes de mayo 2026"}, {"EMPRESA": "OVEST", "Nº documento": 1000056, "Código de proveedor": "PL-00020", "Nombre de acreedor": "RODRIGUEZ, AGUILAR, CASTELLANOS, SOLARES Y ALVARADO, SOCIEDAD CIVIL", "No.Ref.del acreedor": "FC-ECF69E69-3939978450", "Fecha de vencimiento": "2025-12-17", "Importe": 10206.56, "Comentarios": "Servicios prestados en hacienda santa lucia mes de diciembre 2025"}, {"EMPRESA": "OVEST", "Nº documento": 1000016, "Código de proveedor": "PL-00019", "Nombre de acreedor": "SSC INMOBILIARIO, SOCIEDAD ANÓNIMA", "No.Ref.del acreedor": "FC-C81DED4A-360270834", "Fecha de vencimiento": "2025-09-03", "Importe": 15731.6, "Comentarios": "Servicios de logistica almacenamiento y distribucion de bienes del 01 junio al 30 de junio  del 2025"}, {"EMPRESA": "ROSSIO", "Nº documento": 1000082, "Código de proveedor": "PL-00016", "Nombre de acreedor": "CORPORACION CONSBA, SOCIEDAD ANONIMA", "No.Ref.del acreedor": "FC-EAC3DD36-1616726102", "Fecha de vencimiento": "2026-03-18", "Importe": 36130.0, "Comentarios": "Servicios logisticos y de planificación proyecto hacienda el sol jutiapa"}, {"EMPRESA": "ROSSIO", "Nº documento": 1000084, "Código de proveedor": "PL-00032", "Nombre de acreedor": "DESARROLLOS STEL, SOCIEDAD ANÓNIMA", "No.Ref.del acreedor": "FC-7ABB3859-47858234", "Fecha de vencimiento": "2026-03-13", "Importe": 43256.01, "Comentarios": "Servicios prestados mes de febrero 2026"}, {"EMPRESA": "ROSSIO", "Nº documento": 1000085, "Código de proveedor": "PL-00032", "Nombre de acreedor": "DESARROLLOS STEL, SOCIEDAD ANÓNIMA", "No.Ref.del acreedor": "FC-181EDAA6-401754446", "Fecha de vencimiento": "2026-04-29", "Importe": 43256.01, "Comentarios": "Servicios prestados del mes de marzo 2026"}, {"EMPRESA": "ROSSIO", "Nº documento": 1000089, "Código de proveedor": "PL-00032", "Nombre de acreedor": "DESARROLLOS STEL, SOCIEDAD ANÓNIMA", "No.Ref.del acreedor": "FC-D856E1E3-2451655347", "Fecha de vencimiento": "2026-05-15", "Importe": 43256.01, "Comentarios": "Servicios prestados mes de abril 2026"}, {"EMPRESA": "ROSSIO", "Nº documento": 1000071, "Código de proveedor": "PL-00040", "Nombre de acreedor": "GONZALEZ JUAREZ, SOCIEDAD CIVIL", "No.Ref.del acreedor": "FC-F1F5ED26-106187753", "Fecha de vencimiento": "2025-12-03", "Importe": 10080.0, "Comentarios": "Servicios Profesionales de Auditoría Externa a sus Estados Financieros correspondientes del 01 de enero al 31 de diciembre 2025. Cuota 1/2 (50%) contra inicio de trabajo de campo."}, {"EMPRESA": "ROSSIO", "Nº documento": 1000054, "Código de proveedor": "PL-00008", "Nombre de acreedor": "IDEAS Y SOLUCIONES CREATIVAS, SOCIEDAD ANONIMA", "No.Ref.del acreedor": "FC-C478841A-2444116800", "Fecha de vencimiento": "2025-10-08", "Importe": 35616.0, "Comentarios": "2 Vallas Publicitarias elaboradas con lamina de aluzing callibre 26, tubo de 1\" chapa de 20, con 2 manos de pintura anticorrosiva, marcos de costanera de 3\" lleva 2 bases verticales y 2 en diagonal,."}, {"EMPRESA": "ROSSIO", "Nº documento": 1000088, "Código de proveedor": "PL-00044", "Nombre de acreedor": "JOSE OVIDIO DE LEON CONDE", "No.Ref.del acreedor": "8DCABD35-3161278439", "Fecha de vencimiento": "2026-05-15", "Importe": 4000.0, "Comentarios": "8DCABD35-BC6D-47E7-B76D-B29C4A43198E | Procesado por RV4 APAgent | TKT 00574"}, {"EMPRESA": "ROSSIO", "Nº documento": 1000050, "Código de proveedor": "PL-00037", "Nombre de acreedor": "PABLO CESAR BARRERA ROJAS", "No.Ref.del acreedor": "FC-REINTEGRO-0", "Fecha de vencimiento": "2025-09-24", "Importe": 1800.0, "Comentarios": "Reintegro de caja chica pago de pipas de agua"}, {"EMPRESA": "ROSSIO", "Nº documento": 1000062, "Código de proveedor": "PL-00021", "Nombre de acreedor": "RODRIGUEZ, AGUILAR, CASTELLANOS, SOLARES Y ALVARADO, SOCIEDAD CIVIL", "No.Ref.del acreedor": "FC-66465BEC-2434289496", "Fecha de vencimiento": "2025-10-22", "Importe": 6805.12, "Comentarios": "Posesion lotes en hacienda el sol jutiapa mes de octubre 2025"}, {"EMPRESA": "ROSSIO", "Nº documento": 1000067, "Código de proveedor": "PL-00021", "Nombre de acreedor": "RODRIGUEZ, AGUILAR, CASTELLANOS, SOLARES Y ALVARADO, SOCIEDAD CIVIL", "No.Ref.del acreedor": "FC-3C5608DD-2415217277", "Fecha de vencimiento": "2025-11-26", "Importe": 3315.2, "Comentarios": "POSESIÓN JUTIAPA (LOTES) MES DE NOVIEMBRE"}, {"EMPRESA": "ROSSIO", "Nº documento": 1000068, "Código de proveedor": "PL-00021", "Nombre de acreedor": "RODRIGUEZ, AGUILAR, CASTELLANOS, SOLARES Y ALVARADO, SOCIEDAD CIVIL", "No.Ref.del acreedor": "FC-BE04F0C8-2178501229", "Fecha de vencimiento": "2025-11-26", "Importe": 2352.0, "Comentarios": "CONSTITUCIÓN DE ASOCIACIÓN CIVIL HACIENDA EL SOL"}, {"EMPRESA": "ROSSIO", "Nº documento": 1000086, "Código de proveedor": "PL-00010", "Nombre de acreedor": "SSC INMOBILIARIO, SOCIEDAD ANÓNIMA", "No.Ref.del acreedor": "FC-CE69C1AE-4258874635", "Fecha de vencimiento": "2026-04-29", "Importe": 10000.0, "Comentarios": "Corte, carga y limpiezas de terreno SYW30404, JA7K03596"}, {"EMPRESA": "ROSSIO", "Nº documento": 1000059, "Código de proveedor": "PL-00014", "Nombre de acreedor": "VICTOR JACINTO VALDEZ MEZA", "No.Ref.del acreedor": "FC-5466C185-136924432", "Fecha de vencimiento": "2025-10-22", "Importe": 26924.4, "Comentarios": "Mano de Obra por pavimentación de calle 50% anticipo meta 4, hacienda el sol"}, {"EMPRESA": "TEZZOLI", "Nº documento": 1000034, "Código de proveedor": "PL-00021", "Nombre de acreedor": "CORPORACION CONSBA, SOCIEDAD ANONIMA", "No.Ref.del acreedor": "FC-A759B1E9-104876967", "Fecha de vencimiento": "2024-12-13", "Importe": 42323.4, "Comentarios": "Servicios de logistica y aaesoria en tramites municipales"}, {"EMPRESA": "TEZZOLI", "Nº documento": 1000037, "Código de proveedor": "PL-00021", "Nombre de acreedor": "CORPORACION CONSBA, SOCIEDAD ANONIMA", "No.Ref.del acreedor": "FC-220DF9C1-2717994600", "Fecha de vencimiento": "2025-01-08", "Importe": 141398.53, "Comentarios": "Mano de obra Garita Club Campestre Primera Estimacion"}, {"EMPRESA": "TEZZOLI", "Nº documento": 1000056, "Código de proveedor": "PL-00021", "Nombre de acreedor": "CORPORACION CONSBA, SOCIEDAD ANONIMA", "No.Ref.del acreedor": "FC-A903E415-464535717", "Fecha de vencimiento": "2025-02-05", "Importe": 96291.43, "Comentarios": "Mano de obra Garita Club Campestre estimacion NO. 2"}, {"EMPRESA": "TEZZOLI", "Nº documento": 1000069, "Código de proveedor": "PL-00021", "Nombre de acreedor": "CORPORACION CONSBA, SOCIEDAD ANONIMA", "No.Ref.del acreedor": "FC-1BC51E4A-1416186986", "Fecha de vencimiento": "2025-04-23", "Importe": 72948.68, "Comentarios": "Mano de obra Garita Club Campestre"}, {"EMPRESA": "TEZZOLI", "Nº documento": 1000087, "Código de proveedor": "PL-00021", "Nombre de acreedor": "CORPORACION CONSBA, SOCIEDAD ANONIMA", "No.Ref.del acreedor": "FC-BB9CED93-4410785", "Fecha de vencimiento": "2025-05-28", "Importe": 100685.57, "Comentarios": "Mano de obra Garita Club Campestre Estimacion No. 4"}, {"EMPRESA": "TEZZOLI", "Nº documento": 1000088, "Código de proveedor": "PL-00021", "Nombre de acreedor": "CORPORACION CONSBA, SOCIEDAD ANONIMA", "No.Ref.del acreedor": "FC-71128829-3018999161", "Fecha de vencimiento": "2025-05-28", "Importe": 18272.0, "Comentarios": "MO pavimentacion Primera Avenida"}, {"EMPRESA": "TEZZOLI", "Nº documento": 1000219, "Código de proveedor": "PL-00018", "Nombre de acreedor": "DESARROLLOS STEL, SOCIEDAD ANÓNIMA", "No.Ref.del acreedor": "FC-BCD447DB-1537556660", "Fecha de vencimiento": "2026-04-29", "Importe": 26329.31, "Comentarios": "Servicios prestados del mes de marzo 2026"}, {"EMPRESA": "TEZZOLI", "Nº documento": 1000221, "Código de proveedor": "PL-00018", "Nombre de acreedor": "DESARROLLOS STEL, SOCIEDAD ANÓNIMA", "No.Ref.del acreedor": "FC-9AB4797E-1668304449", "Fecha de vencimiento": "2026-05-15", "Importe": 27349.34, "Comentarios": "Servicios prestados del mes de abril 2026"}, {"EMPRESA": "TEZZOLI", "Nº documento": 1000070, "Código de proveedor": "PL-00029", "Nombre de acreedor": "INVERSIONES IKIGAI DE GUATEMALA, SOCIEDAD ANONIMA", "No.Ref.del acreedor": "FC-4598D338-3150925570", "Fecha de vencimiento": "2025-04-30", "Importe": 30000.0, "Comentarios": "Pago 4/12 venta terreno Campestre Jumay, Jalapa abril 2025"}, {"EMPRESA": "TEZZOLI", "Nº documento": 1000082, "Código de proveedor": "PL-00029", "Nombre de acreedor": "INVERSIONES IKIGAI DE GUATEMALA, SOCIEDAD ANONIMA", "No.Ref.del acreedor": "FC-46459773-2237022860", "Fecha de vencimiento": "2025-05-28", "Importe": 53100.0, "Comentarios": "Pago 5/12 venta terreno Campestre Jumay, Jalapa mayo 2025"}, {"EMPRESA": "TEZZOLI", "Nº documento": 1000099, "Código de proveedor": "PL-00029", "Nombre de acreedor": "INVERSIONES IKIGAI DE GUATEMALA, SOCIEDAD ANONIMA", "No.Ref.del acreedor": "FC-D5AA5388-412961676", "Fecha de vencimiento": "2025-06-25", "Importe": 53100.0, "Comentarios": "Pago 6/12 venta terreno Campestre Jumay, Jalapa junio 2025"}, {"EMPRESA": "TEZZOLI", "Nº documento": 1000110, "Código de proveedor": "PL-00029", "Nombre de acreedor": "INVERSIONES IKIGAI DE GUATEMALA, SOCIEDAD ANONIMA", "No.Ref.del acreedor": "FC-7037FCC0-4161751814", "Fecha de vencimiento": "2025-07-30", "Importe": 53100.0, "Comentarios": "Pago 7/12 venta terreno Campestre Jumay, Jalapa julio 2025"}, {"EMPRESA": "TEZZOLI", "Nº documento": 1000122, "Código de proveedor": "PL-00029", "Nombre de acreedor": "INVERSIONES IKIGAI DE GUATEMALA, SOCIEDAD ANONIMA", "No.Ref.del acreedor": "FC-F348D2F1-2941733957", "Fecha de vencimiento": "2025-08-27", "Importe": 53100.0, "Comentarios": "Pago 8/12 venta terreno Campestre Jumay, Jalapa agosto 2025"}, {"EMPRESA": "TEZZOLI", "Nº documento": 1000142, "Código de proveedor": "PL-00029", "Nombre de acreedor": "INVERSIONES IKIGAI DE GUATEMALA, SOCIEDAD ANONIMA", "No.Ref.del acreedor": "FC-6B7B0AC0-2714520062", "Fecha de vencimiento": "2025-09-24", "Importe": 53100.0, "Comentarios": "Pago 9/12 venta terreno Campestre Jumay, Jalapa septiembre 2025"}, {"EMPRESA": "TEZZOLI", "Nº documento": 1000094, "Código de proveedor": "PL-00012", "Nombre de acreedor": "JOSÉ ABELARDO ESTRADA CISNEROS", "No.Ref.del acreedor": "FC-11A99A62-1773752296", "Fecha de vencimiento": "2025-06-11", "Importe": 18271.21, "Comentarios": "51 m3 de selecto"}, {"EMPRESA": "TEZZOLI", "Nº documento": 1000108, "Código de proveedor": "PL-00012", "Nombre de acreedor": "JOSÉ ABELARDO ESTRADA CISNEROS", "No.Ref.del acreedor": "FC-A25CBEFF-1162561939", "Fecha de vencimiento": "2025-07-16", "Importe": 20321.87, "Comentarios": "127m3 de arena y 96m3 de Piedrin"}, {"EMPRESA": "TEZZOLI", "Nº documento": 1000138, "Código de proveedor": "PL-00012", "Nombre de acreedor": "JOSÉ ABELARDO ESTRADA CISNEROS", "No.Ref.del acreedor": "FC-1E7FB3EB-964971147", "Fecha de vencimiento": "2025-09-10", "Importe": 21782.14, "Comentarios": "84 M3 DE ARENA y 36 M3 DE PIEDRÍN"}, {"EMPRESA": "TEZZOLI", "Nº documento": 1000154, "Código de proveedor": "PL-00012", "Nombre de acreedor": "JOSÉ ABELARDO ESTRADA CISNEROS", "No.Ref.del acreedor": "FC-0A8DA5E0-945374625", "Fecha de vencimiento": "2025-10-15", "Importe": 12897.32, "Comentarios": "9 Días de trabajo"}, {"EMPRESA": "TEZZOLI", "Nº documento": 1000158, "Código de proveedor": "PL-00012", "Nombre de acreedor": "JOSÉ ABELARDO ESTRADA CISNEROS", "No.Ref.del acreedor": "FC-E07C1151-3405202529", "Fecha de vencimiento": "2025-10-29", "Importe": 4356.43, "Comentarios": "12 M3 DE ARENA y 12 M3 DE PIEDRIN"}, {"EMPRESA": "TEZZOLI", "Nº documento": 1000199, "Código de proveedor": "PL-00012", "Nombre de acreedor": "JOSÉ ABELARDO ESTRADA CISNEROS", "No.Ref.del acreedor": "FC-8B3C6C40-3705816318", "Fecha de vencimiento": "2026-01-14", "Importe": 2400.0, "Comentarios": "12 MTS DE ARENA"}, {"EMPRESA": "TEZZOLI", "Nº documento": 1000162, "Código de proveedor": "PL-00055", "Nombre de acreedor": "KAYROS SECURITY, SOCIEDAD ANÓNIMA", "No.Ref.del acreedor": "FC-160ECE45-1482703450", "Fecha de vencimiento": "2025-10-29", "Importe": 23100.0, "Comentarios": "Agentes de seguridad de 48x48 junio"}, {"EMPRESA": "TEZZOLI", "Nº documento": 1000163, "Código de proveedor": "PL-00055", "Nombre de acreedor": "KAYROS SECURITY, SOCIEDAD ANÓNIMA", "No.Ref.del acreedor": "FC-2D4C11DA-2591244865", "Fecha de vencimiento": "2025-10-29", "Importe": 23100.0, "Comentarios": "2 AGENTES DE SEGURIDAD 48X48 MAYO"}, {"EMPRESA": "TEZZOLI", "Nº documento": 1000164, "Código de proveedor": "PL-00055", "Nombre de acreedor": "KAYROS SECURITY, SOCIEDAD ANÓNIMA", "No.Ref.del acreedor": "FC-C7F0EDC3-2400209146", "Fecha de vencimiento": "2025-10-29", "Importe": 23100.0, "Comentarios": "2 AGENTES DE SEGURIDAD 48X48 ABRIL"}, {"EMPRESA": "TEZZOLI", "Nº documento": 1000043, "Código de proveedor": "PL-00025", "Nombre de acreedor": "LUIS GERARDO ROLDÁN GALINDO", "No.Ref.del acreedor": "FC-B4224F77-798575065", "Fecha de vencimiento": "2025-01-08", "Importe": 91387.46, "Comentarios": "Extrencion de linea trifasica del proyecto"}, {"EMPRESA": "TEZZOLI", "Nº documento": 1000114, "Código de proveedor": "PL-00011", "Nombre de acreedor": "PHIEN SOCIEDAD ANONIMA", "No.Ref.del acreedor": "FC-B571CBBC-3504752833", "Fecha de vencimiento": "2025-07-16", "Importe": 7083.72, "Comentarios": "Servicios de logistica almacenamiento y distribucion de bienes del 1 de junio al 30 de junio 2025"}, {"EMPRESA": "TEZZOLI", "Nº documento": 1000156, "Código de proveedor": "PL-00011", "Nombre de acreedor": "PHIEN SOCIEDAD ANONIMA", "No.Ref.del acreedor": "FC-8AEEB633-491670916", "Fecha de vencimiento": "2025-10-15", "Importe": 279.09, "Comentarios": "asamblea por aumento de capital Tezzoli, arancel por gastos de procuracion Tezzoli, asamblea por aumento de capital Tezzoli y aumentos de capital Tezzoli"}, {"EMPRESA": "TEZZOLI", "Nº documento": 1000171, "Código de proveedor": "PL-00011", "Nombre de acreedor": "PHIEN SOCIEDAD ANONIMA", "No.Ref.del acreedor": "FC-F6F85841-3762766322", "Fecha de vencimiento": "2025-11-19", "Importe": 549.57, "Comentarios": "Aviso de emision de acciones, comision procuracion, Ingreso al RGP de aportación, Presentación aviso DICABI Y honorarios procurador Tezzoli"}, {"EMPRESA": "TEZZOLI", "Nº documento": 1000214, "Código de proveedor": "PL-00011", "Nombre de acreedor": "PHIEN SOCIEDAD ANONIMA", "No.Ref.del acreedor": "FC-7D417738-3250014624", "Fecha de vencimiento": "2026-03-25", "Importe": 59.82, "Comentarios": "honorarios procurador, Ingreso de servidumbre"}, {"EMPRESA": "TEZZOLI", "Nº documento": 1000212, "Código de proveedor": "PL-00017", "Nombre de acreedor": "RODRIGUEZ, AGUILAR, CASTELLANOS, SOLARES Y ALVARADO,SOCIEDAD CIVIL", "No.Ref.del acreedor": "FC-73B6BE18-4072818653", "Fecha de vencimiento": "2026-03-11", "Importe": 17011.68, "Comentarios": "Servicios prestados mes de febrero 2026"}, {"EMPRESA": "TALOCCI", "Nº documento": 1000004, "Código de proveedor": "PL-00005", "Nombre de acreedor": "DESARROLLOS STEL, SOCIEDAD ANÓNIMA", "No.Ref.del acreedor": "FC-F5BB240B-3851175862", "Fecha de vencimiento": "2025-10-15", "Importe": 333.95, "Comentarios": "HABILITACION DE LIBROS APERTURA DE SOCIEDAD"}, {"EMPRESA": "TALOCCI", "Nº documento": 1000009, "Código de proveedor": "PL-00005", "Nombre de acreedor": "DESARROLLOS STEL, SOCIEDAD ANÓNIMA", "No.Ref.del acreedor": "FC-A4C8F2B3-3590671607", "Fecha de vencimiento": "2026-02-11", "Importe": 959.0, "Comentarios": "aviso de emisión de acciones, Compra de timbres notariales y fiscales por ampliación de capital"}, {"EMPRESA": "TALOCCI", "Nº documento": 1000001, "Código de proveedor": "PL-00001", "Nombre de acreedor": "PHIEN SOCIEDAD ANONIMA", "No.Ref.del acreedor": "FC-08B0F782-3753396058", "Fecha de vencimiento": "2025-07-23", "Importe": 36.53, "Comentarios": "Servicios de logistica almacenamiento y distribucion de bienes del 1 de junio al 30 ed junio 2025"}, {"EMPRESA": "TALOCCI", "Nº documento": 1000002, "Código de proveedor": "PL-00001", "Nombre de acreedor": "PHIEN SOCIEDAD ANONIMA", "No.Ref.del acreedor": "FC-004E1B5B-1710771045", "Fecha de vencimiento": "2025-08-13", "Importe": 560.0, "Comentarios": "Servicios de logistica almacenamiento y distribucion de bienes del 1 al 31 de mayo 2025"}, {"EMPRESA": "TALOCCI", "Nº documento": 1000003, "Código de proveedor": "PL-00001", "Nombre de acreedor": "PHIEN SOCIEDAD ANONIMA", "No.Ref.del acreedor": "FC-767F1AA3-28396610", "Fecha de vencimiento": "2025-10-08", "Importe": 1.25, "Comentarios": "Servicios de logistica almacenamiento y distribucion de bienes del 1 de agosto al 31 de agosto 2025"}, {"EMPRESA": "TALOCCI", "Nº documento": 1000005, "Código de proveedor": "PL-00001", "Nombre de acreedor": "PHIEN SOCIEDAD ANONIMA", "No.Ref.del acreedor": "FC-CCB7679E-3373548062", "Fecha de vencimiento": "2025-10-15", "Importe": 219.36, "Comentarios": "asamblea por aumento de capital Leofreni, arancel por gastos de procuracion Leofreni, asamblea por aumento de capital Leofreni"}, {"EMPRESA": "TALOCCI", "Nº documento": 1000007, "Código de proveedor": "PL-00001", "Nombre de acreedor": "PHIEN SOCIEDAD ANONIMA", "No.Ref.del acreedor": "FC-E9FD3B35-3045082839", "Fecha de vencimiento": "2025-12-10", "Importe": 81.41, "Comentarios": "comision procuracion, Finca 8389, folio 389, libro 17E de Santa Rosa y aviso emision de acciones"}, {"EMPRESA": "TALOCCI", "Nº documento": 1000008, "Código de proveedor": "PL-00001", "Nombre de acreedor": "PHIEN SOCIEDAD ANONIMA", "No.Ref.del acreedor": "FC-4288FBF7-466698927", "Fecha de vencimiento": "2025-12-31", "Importe": 250.4, "Comentarios": "honorarios procurador 5%, ingreso aumento leofreni,  Multa aumento"}, {"EMPRESA": "TALOCCI", "Nº documento": 1000012, "Código de proveedor": "PL-00001", "Nombre de acreedor": "PHIEN SOCIEDAD ANONIMA", "No.Ref.del acreedor": "FC-E73AA4FF-3942927184", "Fecha de vencimiento": "2026-04-22", "Importe": 41.62, "Comentarios": "honorarios procurador y  Presentar Avisos emisión de acciones"}, {"EMPRESA": "URBIVA", "Nº documento": 1000123, "Código de proveedor": "PL00006", "Nombre de acreedor": "DESARROLLOS STEL, SOCIEDAD ANÓNIMA", "No.Ref.del acreedor": "FC-EB788E65-3157280630", "Fecha de vencimiento": "2026-04-29", "Importe": 1645.0, "Comentarios": "Servicios prestados del mes de marzo 2026"}, {"EMPRESA": "URBIVA", "Nº documento": 1000125, "Código de proveedor": "PL00006", "Nombre de acreedor": "DESARROLLOS STEL, SOCIEDAD ANÓNIMA", "No.Ref.del acreedor": "FC-247D84B8-3403369110", "Fecha de vencimiento": "2026-05-15", "Importe": 1645.0, "Comentarios": "Servicios prestados correspondientes al mes de abril 2026"}, {"EMPRESA": "URBIVA", "Nº documento": 1000124, "Código de proveedor": "PL00052", "Nombre de acreedor": "JOSE OVIDIO DE LEON CONDE", "No.Ref.del acreedor": "FC-D9F7B21D-1431587744", "Fecha de vencimiento": "2026-05-13", "Importe": 3000.0, "Comentarios": "D9F7B21D-5554-4BA0-B447-41F3EF67C6C4 | Procesado por RV4 APAgent | TKT 00573"}, {"EMPRESA": "UTILICA", "Nº documento": 1000379, "Código de proveedor": "PL-00115", "Nombre de acreedor": "ALFREDO ORELLANA BATRES", "No.Ref.del acreedor": "FPQ-B705B95A-2823376309", "Fecha de vencimiento": "2025-07-09", "Importe": 9962.5, "Comentarios": "7 CAMIONADAS DE ARENA, 7 CAMIONADAS DE PIEDRÍN Y 7 CAMIONADAS DE SELECTO"}, {"EMPRESA": "UTILICA", "Nº documento": 1000511, "Código de proveedor": "PL-00115", "Nombre de acreedor": "ALFREDO ORELLANA BATRES", "No.Ref.del acreedor": "FPQ-658C56FA-1908097361", "Fecha de vencimiento": "2025-11-26", "Importe": 3600.0, "Comentarios": "1 CAMIONADA DE ARENA Y 1 CAMIONADA DE PIEDRIN"}, {"EMPRESA": "UTILICA", "Nº documento": 1000530, "Código de proveedor": "PL-00115", "Nombre de acreedor": "ALFREDO ORELLANA BATRES", "No.Ref.del acreedor": "FPQ-FB716607-716607", "Fecha de vencimiento": "2025-12-17", "Importe": 1500.0, "Comentarios": "1 CAMIONADA DE ARENA"}, {"EMPRESA": "UTILICA", "Nº documento": 1000543, "Código de proveedor": "PL-00115", "Nombre de acreedor": "ALFREDO ORELLANA BATRES", "No.Ref.del acreedor": "FPQ-DAFC93C2-3486928505", "Fecha de vencimiento": "2026-01-07", "Importe": 21600.0, "Comentarios": "6 CAMIONADAS DE ARENA y 6 CAMIONADAS DE PIEDRIN"}, {"EMPRESA": "UTILICA", "Nº documento": 1000546, "Código de proveedor": "PL-00115", "Nombre de acreedor": "ALFREDO ORELLANA BATRES", "No.Ref.del acreedor": "FPQ-8D4607E1-3882697668", "Fecha de vencimiento": "2026-02-11", "Importe": 4750.0, "Comentarios": "5 CAMIONADAS DE SELECTO"}, {"EMPRESA": "UTILICA", "Nº documento": 1000516, "Código de proveedor": "PL-00109", "Nombre de acreedor": "ANGEL ARNOLDO HERNÁNDEZ CÁN", "No.Ref.del acreedor": "FC-99CFBA7D-735792934", "Fecha de vencimiento": "2025-11-26", "Importe": 1222.6, "Comentarios": "3ra estiamción de instalación de bordillo de la 2da avenida"}, {"EMPRESA": "UTILICA", "Nº documento": 1000515, "Código de proveedor": "PL-00109", "Nombre de acreedor": "ANGEL ARNOLDO HERNÁNDEZ CÁN", "No.Ref.del acreedor": "FC-30288965-723403410", "Fecha de vencimiento": "2025-12-03", "Importe": 2137.5, "Comentarios": "1ra estimación de instalación de bordillo de la 1ra avenida"}, {"EMPRESA": "UTILICA", "Nº documento": 1000520, "Código de proveedor": "PL-00109", "Nombre de acreedor": "ANGEL ARNOLDO HERNÁNDEZ CÁN", "No.Ref.del acreedor": "FC-96A36FF9-1987857133", "Fecha de vencimiento": "2025-12-10", "Importe": 15907.5, "Comentarios": "Estimación de pavimentación de encaminamiento de laguneta"}, {"EMPRESA": "UTILICA", "Nº documento": 1000521, "Código de proveedor": "PL-00109", "Nombre de acreedor": "ANGEL ARNOLDO HERNÁNDEZ CÁN", "No.Ref.del acreedor": "FC-D65339E5-3054126702", "Fecha de vencimiento": "2025-12-10", "Importe": 2722.77, "Comentarios": "Estimación No. 1 de instalación postes de acometida de casa modelo"}, {"EMPRESA": "UTILICA", "Nº documento": 1000522, "Código de proveedor": "PL-00109", "Nombre de acreedor": "ANGEL ARNOLDO HERNÁNDEZ CÁN", "No.Ref.del acreedor": "FC-B0FB8D3C-2812497690", "Fecha de vencimiento": "2025-12-10", "Importe": 1622.25, "Comentarios": "Estimación No. 5 de hidrosanitarios."}, {"EMPRESA": "UTILICA", "Nº documento": 1000391, "Código de proveedor": "PL-00103", "Nombre de acreedor": "AXALTA GUATEMALA, SOCIEDAD ANONIMA", "No.Ref.del acreedor": "FC-488923DE-1726499298", "Fecha de vencimiento": "2025-07-30", "Importe": 7040.0, "Comentarios": "128m2 acril techo power (Incluye material y aplicacion)"}, {"EMPRESA": "UTILICA", "Nº documento": 1000466, "Código de proveedor": "PL-00042", "Nombre de acreedor": "Corporacion Consba, S.A.", "No.Ref.del acreedor": "FC-854BDC58-1890861367", "Fecha de vencimiento": "2025-09-10", "Importe": 31385.5, "Comentarios": "Gastos administrativos 04 2024"}, {"EMPRESA": "UTILICA", "Nº documento": 1000506, "Código de proveedor": "PL-00042", "Nombre de acreedor": "Corporacion Consba, S.A.", "No.Ref.del acreedor": "FC-4F817BBA-1131433339", "Fecha de vencimiento": "2025-12-03", "Importe": 31385.0, "Comentarios": "Gastos administrativos 05- 2024"}, {"EMPRESA": "UTILICA", "Nº documento": 1000424, "Código de proveedor": "PL-00139", "Nombre de acreedor": "DESARROLLOS ARQUBO, SOCIEDAD ANÓNIMA", "No.Ref.del acreedor": "FC-50E89355-51134779", "Fecha de vencimiento": "2025-08-20", "Importe": 23525.0, "Comentarios": "Accesorios de cocina para casa modelo"}, {"EMPRESA": "UTILICA", "Nº documento": 1000570, "Código de proveedor": "PL-00081", "Nombre de acreedor": "DESARROLLOS STEL, SOCIEDAD ANÓNIMA", "No.Ref.del acreedor": "FC-431BE4DD-2778875517", "Fecha de vencimiento": "2026-04-29", "Importe": 24379.7, "Comentarios": "Servicios prestados durante el mes de marzo 2026"}, {"EMPRESA": "UTILICA", "Nº documento": 100000007, "Código de proveedor": "PL-00081", "Nombre de acreedor": "DESARROLLOS STEL, SOCIEDAD ANÓNIMA", "No.Ref.del acreedor": "FC-CA1BB6CB-184699507", "Fecha de vencimiento": "2026-05-15", "Importe": 24379.7, "Comentarios": "Servicios prestados del mes de abril año 2026"}, {"EMPRESA": "UTILICA", "Nº documento": 1000523, "Código de proveedor": "PL-00099", "Nombre de acreedor": "EDWIN MIGUEL JIMÉNEZ PÉREZ", "No.Ref.del acreedor": "FC-D61D651E-2680375695", "Fecha de vencimiento": "2025-12-17", "Importe": 52803.0, "Comentarios": "Pago de instalaciones eléctricas estimación 1 de condado jutiapa"}, {"EMPRESA": "UTILICA", "Nº documento": 1000076, "Código de proveedor": "PL-00001", "Nombre de acreedor": "GRUPO CONSERSA, S.A.", "No.Ref.del acreedor": "FC-5E4D92BC-1480609452", "Fecha de vencimiento": "2024-04-01", "Importe": 41270.0, "Comentarios": "Fee es de Febrero 2024 Basado en Solicitud de compra 47. Basado en Pedidos 47."}, {"EMPRESA": "UTILICA", "Nº documento": 1000437, "Código de proveedor": "PL-00121", "Nombre de acreedor": "GRUPO MOBIUS, SOCIEDAD ANONIMA", "No.Ref.del acreedor": "FC-CEE22275-1085425195", "Fecha de vencimiento": "2025-09-10", "Importe": 14400.0, "Comentarios": "Tapaderas y rejillas hidrosanitarios 1ra avenida tramo 1"}, {"EMPRESA": "UTILICA", "Nº documento": 1000438, "Código de proveedor": "PL-00121", "Nombre de acreedor": "GRUPO MOBIUS, SOCIEDAD ANONIMA", "No.Ref.del acreedor": "FC-596C2EFA-362563504", "Fecha de vencimiento": "2025-09-10", "Importe": 4600.0, "Comentarios": "Tapaderas y rejillas hidrosanitarios 1ra calle (aguas negras y pluviales)"}, {"EMPRESA": "UTILICA", "Nº documento": 1000439, "Código de proveedor": "PL-00121", "Nombre de acreedor": "GRUPO MOBIUS, SOCIEDAD ANONIMA", "No.Ref.del acreedor": "FC-D9A365C4-758139433", "Fecha de vencimiento": "2025-09-10", "Importe": 6050.0, "Comentarios": "Tapaderas y rejillas hidrosanitarios 1ra avenida A (Aguas negras y pluviales)"}, {"EMPRESA": "UTILICA", "Nº documento": 1000440, "Código de proveedor": "PL-00121", "Nombre de acreedor": "GRUPO MOBIUS, SOCIEDAD ANONIMA", "No.Ref.del acreedor": "FC-D42E3A13-4179641861", "Fecha de vencimiento": "2025-09-10", "Importe": 3400.0, "Comentarios": "cajas prefabricadas para hidrosanitarios 2da calle condado jutiapa"}, {"EMPRESA": "UTILICA", "Nº documento": 1000541, "Código de proveedor": "PL-00121", "Nombre de acreedor": "GRUPO MOBIUS, SOCIEDAD ANONIMA", "No.Ref.del acreedor": "FC-51387077-625427082", "Fecha de vencimiento": "2026-01-07", "Importe": 4050.0, "Comentarios": "3 Tapaderas prefabricadas y Flete"}, {"EMPRESA": "UTILICA", "Nº documento": 1000187, "Código de proveedor": "PL-00077", "Nombre de acreedor": "INVERSIONES SALISBURY, SOCIEDAD ANONIMA", "No.Ref.del acreedor": "FC-28250787-888882294", "Fecha de vencimiento": "2024-12-11", "Importe": 68440.4, "Comentarios": "47m2 concreto"}, {"EMPRESA": "UTILICA", "Nº documento": 1000188, "Código de proveedor": "PL-00077", "Nombre de acreedor": "INVERSIONES SALISBURY, SOCIEDAD ANONIMA", "No.Ref.del acreedor": "FC-9D57F46D-4121576215", "Fecha de vencimiento": "2024-12-11", "Importe": 17213.28, "Comentarios": "14m2 concreto"}, {"EMPRESA": "UTILICA", "Nº documento": 1000208, "Código de proveedor": "PL-00077", "Nombre de acreedor": "INVERSIONES SALISBURY, SOCIEDAD ANONIMA", "No.Ref.del acreedor": "FC-31A36D1A-3172286997", "Fecha de vencimiento": "2025-02-05", "Importe": 21656.04, "Comentarios": "Concreto casa modelo"}, {"EMPRESA": "UTILICA", "Nº documento": 1000225, "Código de proveedor": "PL-00077", "Nombre de acreedor": "INVERSIONES SALISBURY, SOCIEDAD ANONIMA", "No.Ref.del acreedor": "FC-D8BB6B9C-1244086747", "Fecha de vencimiento": "2025-04-02", "Importe": 4751.04, "Comentarios": "4m3 de concreto incluye bombeo y colocacion con bomba, dosis de retardante, grupo de colocacion y bombeo"}, {"EMPRESA": "UTILICA", "Nº documento": 1000298, "Código de proveedor": "PL-00077", "Nombre de acreedor": "INVERSIONES SALISBURY, SOCIEDAD ANONIMA", "No.Ref.del acreedor": "FC-67CF9A8D-1937589022", "Fecha de vencimiento": "2025-04-23", "Importe": 24515.4, "Comentarios": "Concreto casa modelo"}, {"EMPRESA": "UTILICA", "Nº documento": 1000487, "Código de proveedor": "PL-00107", "Nombre de acreedor": "JOSÉ ABELARDO ESTRADA CISNEROS", "No.Ref.del acreedor": "FC-C080865B-1413038594", "Fecha de vencimiento": "2025-10-29", "Importe": 22856.92, "Comentarios": "14.5 Dias de Camión"}, {"EMPRESA": "UTILICA", "Nº documento": 1000507, "Código de proveedor": "PL-00107", "Nombre de acreedor": "JOSÉ ABELARDO ESTRADA CISNEROS", "No.Ref.del acreedor": "FC-0CC181CB-276710354", "Fecha de vencimiento": "2025-11-19", "Importe": 825.0, "Comentarios": "0.5 Día de camión"}, {"EMPRESA": "UTILICA", "Nº documento": 1000510, "Código de proveedor": "PL-00107", "Nombre de acreedor": "JOSÉ ABELARDO ESTRADA CISNEROS", "No.Ref.del acreedor": "FC-4941A7D5-944916168", "Fecha de vencimiento": "2025-11-19", "Importe": 15763.39, "Comentarios": "10 Días de Camión"}, {"EMPRESA": "UTILICA", "Nº documento": 1000532, "Código de proveedor": "PL-00107", "Nombre de acreedor": "JOSÉ ABELARDO ESTRADA CISNEROS", "No.Ref.del acreedor": "FC-AEFD1BC7-2006730919", "Fecha de vencimiento": "2025-12-17", "Importe": 15763.39, "Comentarios": "10 días de camión"}, {"EMPRESA": "UTILICA", "Nº documento": 1000533, "Código de proveedor": "PL-00107", "Nombre de acreedor": "JOSÉ ABELARDO ESTRADA CISNEROS", "No.Ref.del acreedor": "FC-F2E93DCA-777339494", "Fecha de vencimiento": "2025-12-17", "Importe": 15763.39, "Comentarios": "10 días de camión"}, {"EMPRESA": "UTILICA", "Nº documento": 1000491, "Código de proveedor": "PL-00156", "Nombre de acreedor": "JOSÉ ARNOLDO PADILLA SALAZAR", "No.Ref.del acreedor": "FC-D2420АЗС-4101849745", "Fecha de vencimiento": "2025-10-22", "Importe": 98000.0, "Comentarios": "500 Pies Perforazión de pozo"}, {"EMPRESA": "UTILICA", "Nº documento": 1000477, "Código de proveedor": "PL-00104", "Nombre de acreedor": "JUAN PABLO CHIAPAS PÉREZ", "No.Ref.del acreedor": "FC-DE329C58-1433028541", "Fecha de vencimiento": "2025-09-24", "Importe": 5015.62, "Comentarios": "Servicios profesionales de 350 firmas y sellos de planos en condado jutiapa"}, {"EMPRESA": "UTILICA", "Nº documento": 100000002, "Código de proveedor": "PL-00079", "Nombre de acreedor": "KAYROS SECURITY, SOCIEDAD ANÓNIMA", "No.Ref.del acreedor": "FC-7CAEEA4E-190270243", "Fecha de vencimiento": "2026-01-14", "Importe": 11100.0, "Comentarios": "2.0 AGENTES DE SEGURIDAD 24X24 NOVIEMBRE 2025 Marzo 2025"}, {"EMPRESA": "UTILICA", "Nº documento": 1000497, "Código de proveedor": "PL-00155", "Nombre de acreedor": "LAS 4 A, SOCIEDAD ANONIMA", "No.Ref.del acreedor": "FC-1749A142-2351517676", "Fecha de vencimiento": "2025-11-05", "Importe": 7400.0, "Comentarios": "Renta de rodo del 25/09/2025 al 22/10/2025"}, {"EMPRESA": "UTILICA", "Nº documento": 1000345, "Código de proveedor": "PL-00136", "Nombre de acreedor": "LUIS GERARDO ROLDÁN GALINDO", "No.Ref.del acreedor": "FC-1D2FA07A-2640858738", "Fecha de vencimiento": "2025-05-21", "Importe": 45125.0, "Comentarios": "Mano de obra de electrificacion 13.2 kv en condado jutiapa 50%"}, {"EMPRESA": "UTILICA", "Nº documento": 1000387, "Código de proveedor": "PL-00097", "Nombre de acreedor": "MARBIN ALEXANDER GRIJALVA ARGUETA", "No.Ref.del acreedor": "FC-DA9D36CD-471879333", "Fecha de vencimiento": "2025-07-09", "Importe": 1952.51, "Comentarios": "Estimación 15 sobre obra gris de casa modelo"}, {"EMPRESA": "UTILICA", "Nº documento": 1000336, "Código de proveedor": "PL-00056", "Nombre de acreedor": "MARIA ELENA RAQUEC CUJCUJ", "No.Ref.del acreedor": "FC-BBDA8912-1686981863", "Fecha de vencimiento": "2025-05-14", "Importe": 4000.0, "Comentarios": "Marcos de rejilla de la 1ra calle y 2da avendia"}, {"EMPRESA": "UTILICA", "Nº documento": 1000358, "Código de proveedor": "PL-00056", "Nombre de acreedor": "MARIA ELENA RAQUEC CUJCUJ", "No.Ref.del acreedor": "FC-FD3C8276-2446936492", "Fecha de vencimiento": "2025-06-04", "Importe": 4000.0, "Comentarios": "Barandas para 2da casa modelo en condado jutiapa"}, {"EMPRESA": "UTILICA", "Nº documento": 1000566, "Código de proveedor": "PL-00147", "Nombre de acreedor": "OMALI, SOCIEDAD ANONIMA", "No.Ref.del acreedor": "FC-8DDDA59A-1529432690", "Fecha de vencimiento": "2026-04-22", "Importe": 43179.72, "Comentarios": "INSTALACION DE GEOMEMBRANA PARA RECUBRIMIENTO DE RESERVORIO"}, {"EMPRESA": "UTILICA", "Nº documento": 1000065, "Código de proveedor": "PL-00005", "Nombre de acreedor": "PHIEN SOCIEDAD ANONIMA", "No.Ref.del acreedor": "FC-E74522B4-4071113954", "Fecha de vencimiento": "2024-03-06", "Importe": 42090.0, "Comentarios": NaN}, {"EMPRESA": "UTILICA", "Nº documento": 1000073, "Código de proveedor": "PL-00005", "Nombre de acreedor": "PHIEN SOCIEDAD ANONIMA", "No.Ref.del acreedor": "FC-50DACF4A-3849865033", "Fecha de vencimiento": "2024-04-03", "Importe": 42090.0, "Comentarios": "Basado en Solicitud de compra 61. Basado en Pedidos 60."}, {"EMPRESA": "UTILICA", "Nº documento": 1000086, "Código de proveedor": "PL-00005", "Nombre de acreedor": "PHIEN SOCIEDAD ANONIMA", "No.Ref.del acreedor": "FC-521BD347-161697436", "Fecha de vencimiento": "2024-04-24", "Importe": 42090.0, "Comentarios": "Servicios administrativos de la unidad del 01 de abril al 30 de abril del 2024"}, {"EMPRESA": "UTILICA", "Nº documento": 1000561, "Código de proveedor": "PL-00005", "Nombre de acreedor": "PHIEN SOCIEDAD ANONIMA", "No.Ref.del acreedor": "FC-F4ECFDF7-2851883787", "Fecha de vencimiento": "2026-03-25", "Importe": 2408.0, "Comentarios": "Pago de2da contancia de marca Utilica"}, {"EMPRESA": "UTILICA", "Nº documento": 1000321, "Código de proveedor": "PL-00119", "Nombre de acreedor": "PREFABRICADOS CIFA, SOCIEDAD ANONIMA", "No.Ref.del acreedor": "FC-C3C956BF-3736029099", "Fecha de vencimiento": "2025-05-14", "Importe": 75248.09, "Comentarios": "Postes de concreto para el proyecto"}, {"EMPRESA": "UTILICA", "Nº documento": 1000490, "Código de proveedor": "PL-00084", "Nombre de acreedor": "RODRIGUEZ, AGUILAR, CASTELLANOS, SOLARES Y ALVARADO,SOCIEDAD CIVIL", "No.Ref.del acreedor": "FC-9962386B-3914876299", "Fecha de vencimiento": "2025-10-22", "Importe": 7214.0, "Comentarios": "Servicios prestados en condado jutiapa mes de octubre 2025"}, {"EMPRESA": "UTILICA", "Nº documento": 1000518, "Código de proveedor": "PL-00084", "Nombre de acreedor": "RODRIGUEZ, AGUILAR, CASTELLANOS, SOLARES Y ALVARADO,SOCIEDAD CIVIL", "No.Ref.del acreedor": "FC-51F570C1-3314893882", "Fecha de vencimiento": "2025-11-26", "Importe": 30486.0, "Comentarios": "CONDADO JUTIAPA MES DE NOVIEMBRE"}, {"EMPRESA": "UTILICA", "Nº documento": 1000554, "Código de proveedor": "PL-00084", "Nombre de acreedor": "RODRIGUEZ, AGUILAR, CASTELLANOS, SOLARES Y ALVARADO,SOCIEDAD CIVIL", "No.Ref.del acreedor": "FC-EBE70D7C-423970444", "Fecha de vencimiento": "2026-03-11", "Importe": 6272.0, "Comentarios": "Servicios prestados area comercial mes de enero 2026 condado jutiapa"}, {"EMPRESA": "UTILICA", "Nº documento": 1000555, "Código de proveedor": "PL-00084", "Nombre de acreedor": "RODRIGUEZ, AGUILAR, CASTELLANOS, SOLARES Y ALVARADO,SOCIEDAD CIVIL", "No.Ref.del acreedor": "FC-B0D72573-814697987", "Fecha de vencimiento": "2026-03-11", "Importe": 6272.0, "Comentarios": "Servicios prestados area comercial condado jutiapa mes de febrero 2026"}, {"EMPRESA": "UTILICA", "Nº documento": 1000556, "Código de proveedor": "PL-00084", "Nombre de acreedor": "RODRIGUEZ, AGUILAR, CASTELLANOS, SOLARES Y ALVARADO,SOCIEDAD CIVIL", "No.Ref.del acreedor": "FC-ABB57A91-3621538937", "Fecha de vencimiento": "2026-03-11", "Importe": 4030.39, "Comentarios": "Servicios prestados condado jutiapa mes de enero 2026"}, {"EMPRESA": "UTILICA", "Nº documento": 1000557, "Código de proveedor": "PL-00084", "Nombre de acreedor": "RODRIGUEZ, AGUILAR, CASTELLANOS, SOLARES Y ALVARADO,SOCIEDAD CIVIL", "No.Ref.del acreedor": "FC-5D3DA48E-2338079844", "Fecha de vencimiento": "2026-03-11", "Importe": 4030.39, "Comentarios": "Servicios prestados condado jutiapa mes de febrero 2026"}, {"EMPRESA": "UTILICA", "Nº documento": 1000341, "Código de proveedor": "PL-00123", "Nombre de acreedor": "SERVELIO BARRERA GONZÁLEZ", "No.Ref.del acreedor": "FC-E6E20078-1092110253", "Fecha de vencimiento": "2025-05-21", "Importe": 21382.04, "Comentarios": "Mano de obra instalacion de piso, azulejo y fachada casa modelo"}, {"EMPRESA": "UTILICA", "Nº documento": 1000373, "Código de proveedor": "PL-00110", "Nombre de acreedor": "TABLATEX, SOCIEDAD ANONIMA", "No.Ref.del acreedor": "FC-D388FCC7-2914471688", "Fecha de vencimiento": "2025-07-09", "Importe": 43601.15, "Comentarios": "Cancelación del 100% de suministro y aplicación de textura en casa 1 y 2 en obra Condado Jutiapa"}, {"EMPRESA": "UTILICA", "Nº documento": 1000426, "Código de proveedor": "PL-00110", "Nombre de acreedor": "TABLATEX, SOCIEDAD ANONIMA", "No.Ref.del acreedor": "FC-0576AE92-2543603209", "Fecha de vencimiento": "2025-09-17", "Importe": 6228.74, "Comentarios": "Cancelación del 10% de suministros y aplicación de textura en casa modelo en obra Condado Jutiapa"}, {"EMPRESA": "VILET", "Nº documento": 1000006, "Código de proveedor": "PL-00002", "Nombre de acreedor": "DESARROLLOS STEL, SOCIEDAD ANÓNIMA", "No.Ref.del acreedor": "FC-8A40A582-2818719979", "Fecha de vencimiento": "2026-02-11", "Importe": 949.23, "Comentarios": "Gastos legales por apertura de nueva sociedad, aviso de emisión de acciones Vilet. Y Certificacion F6584 F158 L684 Vilet, arancel por gastos de procuracion vilet"}, {"EMPRESA": "VILET", "Nº documento": 1000003, "Código de proveedor": "PL-00003", "Nombre de acreedor": "GONZALEZ JUAREZ, SOCIEDAD CIVIL", "No.Ref.del acreedor": "FC-14016CBC-877480732", "Fecha de vencimiento": "2025-12-03", "Importe": 6720.0, "Comentarios": "Servicios Profesionales de Auditoría Externa a sus Estados Financieros correspondientes del 01 de enero al 31 de diciembre 2025. Cuota 1/2 (50%) contra inicio de trabajo de campo."}, {"EMPRESA": "VILET", "Nº documento": 1000007, "Código de proveedor": "PL-00005", "Nombre de acreedor": "PHIEN SOCIEDAD ANONIMA", "No.Ref.del acreedor": "FC-7B3A7458-3318695334", "Fecha de vencimiento": "2026-04-22", "Importe": 910.0, "Comentarios": "pastas nuevas sociedade"}];
+
+function renderCXP() {
+  filtrarCXP(); // initial render
+}
+
+window.EMPRESA_DISPLAY_MAP = {"EFICIENCIA URBANA": "Eficiencia Urbana — Hacienda Jumay", "SERVICIOS GENERALES CCC": "Servicios Generales — La Ceiba", "ROSSIO": "Rossio — Hacienda el Sol", "FRUGALEX": "Frugalex — Oasis Zacapa", "OTTAVIA": "Ottavia — Cañadas de Jalapa", "UTILICA": "Utilica — Condado Jutiapa", "TEZZOLI": "Tezzoli — Club Campestre Jumay", "URBIVA": "Urbiva — Club del Bosque", "GARBATELLA": "Garbatella — Club Residencial El Progreso", "CAPIPOS": "Capipos — Arboleda Santa Elena", "OVEST": "Ovest — Hacienda Santa Lucia", "CORCOLLE": "Corcolle — Hacienda El Cafetal Fase I", "LEOFRENI": "Leofreni — Hacienda El Cafetal Fase II", "GIBRALEON": "Gibraleón — Hacienda El Cafetal Fase III", "TALOCCI": "Talocci — Hacienda El Cafetal Fase IV", "VILET": "Vilet — Celajes De Tecpan"};
+window.filtrarCXP = function() {
+  const tbody = document.getElementById('cxpTbody');
+  if (!tbody) return;
+  const filtro = document.getElementById('cxpFiltroEmpresa')?.value || '';
+  const hoy = new Date();
+  const items = filtro ? CXP_DATA.filter(r => r['EMPRESA'] === filtro) : CXP_DATA;
+  tbody.innerHTML = items.map(r => {
+    const venc = r['Fecha de vencimiento'] ? new Date(r['Fecha de vencimiento']) : null;
+    const vencida = venc && venc < hoy;
+    const fechaTxt = r['Fecha de vencimiento'] || '—';
+    return `<tr>
+      <td style="padding:5px 10px;font-weight:600;font-size:11px">${r['EMPRESA']||'—'}</td>
+      <td style="padding:5px 10px;font-size:11px">${(r['Nombre de acreedor']||'—').substring(0,40)}</td>
+      <td style="padding:5px 10px;text-align:right;font-size:11px;color:${vencida?'#e05050':'inherit'};font-weight:${vencida?'700':'400'}">${fechaTxt}${vencida?' ⚠':''}</td>
+      <td style="padding:5px 10px;text-align:right;font-weight:700;font-size:11px">Q ${Number(r['Importe']||0).toLocaleString('es-GT',{minimumFractionDigits:2,maximumFractionDigits:2})}</td>
+    </tr>`;
+  }).join('') || '<tr><td colspan="4" style="text-align:center;padding:20px;color:var(--muted)">Sin documentos para esta sociedad</td></tr>';
+  const totalEl = document.getElementById('cxpTotal');
+  const total = items.reduce((s,r) => s+(Number(r['Importe'])||0), 0);
+  if (totalEl) totalEl.textContent = `Total: Q ${total.toLocaleString('es-GT',{minimumFractionDigits:2})} · ${items.length} documentos`;
+};
+
+
+/* ── Índice de Proyectos (slide 32) ────────────────────── */
+async function renderIndiceProyectos() {
+  const tbody = document.getElementById('indiceTbody');
+  if (!tbody) return;
+  try {
+    const inv = await apiFetch('/api/inventario/resumen');
+    if (!inv || !inv.length) { tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:30px;color:var(--muted)">Sin datos de inventario</td></tr>'; return; }
+    let i = 1;
+    tbody.innerHTML = inv.map(r => `<tr>
+      <td style="padding:6px 8px;text-align:center;font-weight:700;color:var(--muted)">${i++}</td>
+      <td style="padding:6px 8px;font-weight:600">${r.proyecto||r.empresa||'—'}</td>
+      <td style="padding:6px 8px;text-align:right">${r.total_lotes||'—'}</td>
+      <td style="padding:6px 8px;text-align:right">${r.disponibles||'—'}</td>
+      <td style="padding:6px 8px;text-align:right;font-weight:700;color:var(--dorado)">${r.pct_vendido ? (r.pct_vendido*100).toFixed(1)+'%' : '—'}</td>
+      <td style="padding:6px 8px;text-align:right">—</td>
+      <td style="padding:6px 8px;text-align:right">—</td>
+    </tr>`).join('');
+  } catch(e) {
+    tbody.innerHTML = `<tr><td colspan="7" style="text-align:center;padding:20px;color:var(--red)">Error: ${e.message}</td></tr>`;
+  }
+}
+
+
+/* ── Apply slides configuration from jd.html ──────────── */
+function applySlideConfig() {
+  const saved = localStorage.getItem('rv4_slides_config');
+  if (!saved) return;
+  const config = JSON.parse(saved);
+  // Map config ids to slide data-screen-labels
+  const idToLabel = {
+    'portada':     ['01 Portada'],
+    'agenda':      ['02 Agenda'],
+    'minuta':      ['Minutas JD'],
+    'resumen':     ['03 Resumen Ejecutivo'],
+    'div-inv':     ['04 Divider Inventario'],
+    'inv-consol':  ['05 Inventario Consolidado'],
+    'absorcion':   ['06 Absorcion por Proyecto'],
+    'ventas-anio': ['06b Ventas por Año'],
+    'valor':       ['07 Valor por Proyecto'],
+    'div-ventas':  ['08 Divider Ventas'],
+    'ventas-res':  ['09 Ventas Resumen'],
+    'tendencia':   ['10 Tendencia Ventas'],
+    'mezcla':      ['11 Mezcla Financiera'],
+    'vendedores':  ['12 Top Vendedores'],
+    'metas':       ['13 Metas vs Avance'],
+    'div-cartera': ['14 Divider Cartera'],
+    'cartera-res': ['15 Cartera Resumen'],
+    'aging':       ['16 Aging Cartera'],
+    'morosos':     ['16b Morosos 61+'],
+    'cobros':      ['17 Proyeccion Cobros'],
+    'desist':      ['18 Desistimientos'],
+    'alertas':     ['19 Alertas Cartera'],
+    'div-flujos':  ['20 Divider Flujos'],
+    'flujos':      ['21 Flujos Resumen'],
+    'detalle':     ['22 Detalle Movimientos'],
+    'div-pcv':     ['22 Divider PCV'],
+    'pcv':         ['23 PCV Cumplimiento'],
+    'revision':    ['24 Registros a Revisar'],
+    'cxp':         ['29 Divider CXP'],
+    'cxp-det':     ['30 CXP Cuentas por Pagar'],
+    'anexos':      ['31 Divider Anexos','32 Indice Anexos'],
+    'cierre':      ['33 Cierre'],
+  };
+  document.querySelectorAll('.slide').forEach(s => {
+    const label = s.dataset.screenLabel || '';
+    // Find which config id this slide belongs to
+    for (const [cfgId, labels] of Object.entries(idToLabel)) {
+      if (labels.some(l => label.startsWith(l.split(' ')[0]) && label.includes(l.split(' ')[1]||''))) {
+        if (config[cfgId] === false) {
+          s.dataset.hidden = 'true';
+          s.style.display = 'none';
+        } else {
+          delete s.dataset.hidden;
+          s.style.display = '';
+        }
+        break;
+      }
+    }
+    // Also handle dividers - hide if their section is hidden
+    if (label.includes('Divider')) {
+      const sec = label.toLowerCase();
+      let shouldHide = false;
+      if (sec.includes('inventario') && config['inv-consol'] === false && config['absorcion'] === false && config['valor'] === false) shouldHide = true;
+      if (sec.includes('ventas') && config['ventas-res'] === false && config['tendencia'] === false) shouldHide = true;
+      if (sec.includes('cartera') && config['cartera-res'] === false) shouldHide = true;
+      if (sec.includes('flujos') && config['flujos'] === false && config['detalle'] === false) shouldHide = true;
+      if (sec.includes('pcv') && config['pcv'] === false && config['revision'] === false) shouldHide = true;
+      if (shouldHide) { s.dataset.hidden = 'true'; s.style.display = 'none'; }
+    }
+  });
+}
+
 /* ── Init ───────────────────────────────────────── */
 function init() {
   // Theme
@@ -1605,8 +1947,15 @@ function init() {
   // Period selectors
   document.getElementById('periodMes').value = state.mes;
   document.getElementById('periodAnio').value = state.anio;
-  document.getElementById('periodMes').addEventListener('change', e => { state.mes  = Number(e.target.value); loadAll(); });
-  document.getElementById('periodAnio').addEventListener('change', e => { state.anio = Number(e.target.value); loadAll(); });
+  // Debounced period change — prevents race conditions when user switches filters rapidly
+  let _loadAllTimer = null;
+  let _loadAllVersion = 0; // increments on each loadAll call; async callbacks check this
+  function scheduledLoadAll() {
+    clearTimeout(_loadAllTimer);
+    _loadAllTimer = setTimeout(() => { _loadAllVersion++; loadAll(); }, 300);
+  }
+  document.getElementById('periodMes').addEventListener('change', e => { state.mes  = Number(e.target.value); scheduledLoadAll(); });
+  document.getElementById('periodAnio').addEventListener('change', e => { state.anio = Number(e.target.value); scheduledLoadAll(); });
   // Keepalive: ping every 20s to prevent backend session timeout
   setInterval(async () => {
     try {
@@ -1622,23 +1971,34 @@ function init() {
   document.getElementById('detalleFlujoSociedad')?.addEventListener('change', () => { if (getToken()) loadDetalleFlujos(); });
   document.getElementById('tendenciaProyecto')?.addEventListener('change', () => { if (getToken()) reloadTendencia(); });
 
-  // SSO from URL (?token=xxx&usuario=base64)
+  // SSO from URL (?token=xxx&usuario=base64) + período (?mes=X&anio=X)
   const params = new URLSearchParams(window.location.search);
   if (params.get('token')) {
     localStorage.setItem('token', params.get('token'));
     if (params.get('usuario')) {
       try { localStorage.setItem('usuario', atob(params.get('usuario'))); } catch(e) {}
     }
-    history.replaceState({}, '', window.location.pathname);
   }
 
-  // Init defaults: current month/year if available
-  const now = new Date();
-  if (!params.get('mes') && !params.get('anio')) {
+  // Aplicar período de URL si viene (ej. desde jd.html → /presentacion.html?mes=5&anio=2026)
+  const urlMes  = params.get('mes');
+  const urlAnio = params.get('anio');
+  if (urlMes !== null && urlMes !== undefined) state.mes = Number(urlMes);
+  if (urlAnio)                                  state.anio = Number(urlAnio);
+
+  // Si no vino período, usar año actual con "todo el año" (Junta = balance anual)
+  if (!urlMes && !urlAnio) {
+    const now = new Date();
     state.anio = now.getFullYear();
-    state.mes = 0;  // empieza con "todo el año" (Junta = balance anual)
-    document.getElementById('periodAnio').value = state.anio;
-    document.getElementById('periodMes').value  = state.mes;
+    state.mes  = 0;
+  }
+  // Reflejar en los selectores
+  document.getElementById('periodAnio').value = state.anio;
+  document.getElementById('periodMes').value  = state.mes;
+
+  // Limpiar query string para no exponer el token
+  if (params.get('token') || urlMes || urlAnio) {
+    history.replaceState({}, '', window.location.pathname);
   }
 
   fitStage();
@@ -1647,4 +2007,5 @@ function init() {
   loadAll();
 }
 
+document.addEventListener('DOMContentLoaded', () => { applySlideConfig(); }, { once: true });
 document.addEventListener('DOMContentLoaded', init);

@@ -183,7 +183,7 @@ async function cargarIngresos() {
     setText('ingRealInteres',    `Intereses: ${fmtQ(r.saldo_interes)}`);
     setText('ingDisponibles',    `${fmtNum(d.total_disponibles)} lotes disponibles`);
     setText('ingPrecioPromedio', `Precio prom: ${fmtQ(d.precio_promedio)}`);
-    recalcPlazos();
+    renderPlazosVenta();
   } catch (e) {
     toast('Error cargando ingresos: ' + e.message, 'red');
   }
@@ -360,7 +360,9 @@ function syncPlazosDOM() {
 // ─────────────────────────────────────────────
 async function cargarEgresosOp() {
   try {
-    const d = await apiFetch(`/api/proyecciones/${encodeURIComponent(S.empresa)}/egresos-operativos`);
+    const anosEgr = parseInt(document.getElementById('inpAnosEgr')?.value) || 0;
+    const url = `/api/proyecciones/${encodeURIComponent(S.empresa)}/egresos-operativos?anos_egr=${anosEgr}`;
+    const d = await apiFetch(url);
     S.egresosOp = d;
     renderEgresosOp(d);
   } catch (e) {
@@ -375,30 +377,30 @@ function renderEgresosOp(d) {
       <div class="egr-bars">
         <div class="egr-bar-row">
           <span class="egr-bar-lbl">Presupuesto</span>
-          <div class="egr-bar-wrap">
-            <div class="egr-bar" style="width:100%;background:var(--borde)"></div>
-          </div>
+          <div class="egr-bar-wrap"><div class="egr-bar" style="width:100%;background:var(--borde)"></div></div>
           <span class="egr-val">${fmtQ(data.presupuesto)}</span>
         </div>
         <div class="egr-bar-row">
           <span class="egr-bar-lbl">Ejecutado</span>
-          <div class="egr-bar-wrap">
-            <div class="egr-bar" style="width:${Math.min(data.avance_pct,100)}%;background:var(--amber)"></div>
-          </div>
+          <div class="egr-bar-wrap"><div class="egr-bar" style="width:${Math.min(data.avance_pct,100)}%;background:var(--amber)"></div></div>
           <span class="egr-val">${fmtQ(data.ejecutado)} <small style="color:var(--muted)">(${fmtPct(data.avance_pct)})</small></span>
         </div>
         <div class="egr-bar-row">
           <span class="egr-bar-lbl" style="color:var(--red)">Pendiente</span>
-          <div class="egr-bar-wrap">
-            <div class="egr-bar" style="width:${Math.min(100-data.avance_pct,100)}%;background:var(--red)"></div>
-          </div>
+          <div class="egr-bar-wrap"><div class="egr-bar" style="width:${Math.min(100-data.avance_pct,100)}%;background:var(--red)"></div></div>
           <span class="egr-val" style="color:var(--red)">${fmtQ(data.pendiente)}</span>
         </div>
+        ${data.dist_anual ? `<div class="egr-bar-row">
+          <span class="egr-bar-lbl" style="color:var(--blue)">/ año</span>
+          <div class="egr-bar-wrap"></div>
+          <span class="egr-val" style="color:var(--blue);font-weight:700">${fmtQ(data.dist_anual)}</span>
+        </div>` : ''}
       </div>
     </div>`;
 
   const container = document.getElementById('egresosOpContainer');
   if (!container) return;
+  const anosEgr = d.anos_distribucion || 0;
   container.innerHTML = `
     ${renderSeccion(d.urbanizacion, '🏗️ Urbanización')}
     ${renderSeccion(d.administracion, '🏢 Administración')}
@@ -407,6 +409,7 @@ function renderEgresosOp(d) {
       <span>Ejecutado: <strong style="color:var(--amber)">${fmtQ(d.total.ejecutado)}</strong></span>
       <span>Pendiente: <strong style="color:var(--red)">${fmtQ(d.total.pendiente)}</strong></span>
       <span>Avance: <strong>${fmtPct(d.total.avance_pct)}</strong></span>
+      ${d.total.dist_anual ? `<span>Por año: <strong style="color:var(--blue)">${fmtQ(d.total.dist_anual)}</strong></span>` : ''}
     </div>`;
 }
 
@@ -415,7 +418,9 @@ function renderEgresosOp(d) {
 // ─────────────────────────────────────────────
 async function cargarFinancieros() {
   try {
-    const d = await apiFetch(`/api/proyecciones/${encodeURIComponent(S.empresa)}/egresos-financieros`);
+    const anosIc = parseInt(document.getElementById('inpAnosIC')?.value) || 0;
+    const url = `/api/proyecciones/${encodeURIComponent(S.empresa)}/egresos-financieros?anos_ic=${anosIc}`;
+    const d = await apiFetch(url);
     S.egresosFinancieros = d;
     renderFinancieros(d);
   } catch (e) {
@@ -475,10 +480,17 @@ function renderFinancieros(d) {
   if (icEl) {
     const ic = d.intercompany;
     icEl.innerHTML = `
-      <div class="kpi ${ic.tipo === 'por pagar' ? 'red' : 'green'}" style="max-width:300px">
-        <div class="kpi-val">${fmtQ(ic.saldo)}</div>
-        <div class="kpi-lbl">Saldo Intercompany</div>
-        <div class="kpi-sub">${ic.tipo === 'por pagar' ? '⚠️ Por pagar' : '✓ A favor'}</div>
+      <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-start">
+        <div class="kpi ${ic.tipo === 'por pagar' ? 'red' : 'green'}" style="min-width:200px">
+          <div class="kpi-val">${fmtQ(ic.saldo)}</div>
+          <div class="kpi-lbl">Saldo Intercompany</div>
+          <div class="kpi-sub">${ic.tipo === 'por pagar' ? '⚠️ Por pagar' : '✓ A favor'}</div>
+        </div>
+        ${ic.dist_anual ? `<div class="kpi blue" style="min-width:160px">
+          <div class="kpi-val">${fmtQ(ic.dist_anual)}</div>
+          <div class="kpi-lbl">Por año</div>
+          <div class="kpi-sub">Distribuido en ${ic.anos_distribucion} años</div>
+        </div>` : ''}
       </div>`;
   }
 }
@@ -601,8 +613,12 @@ function renderFlujo(d) {
   const picoAno = pico?.anio;
   tbody.innerHTML = anual.map(r => `
     <tr class="${r.es_negativo || r.anio === picoAno ? 'neg' : ''}">
-      <td>Año ${r.anio}${r.anio === picoAno ? ' ⚠️' : ''}</td>
-      <td>${fmtQ(r.ingresos)}</td>
+      <td>${r.anio_cal || (new Date().getFullYear() + r.anio - 1)}${r.anio === picoAno ? ' ⚠️' : ''}</td>
+      <td>
+        <div style="font-size:11px">${fmtQ(r.ingresos)}</div>
+        ${r.ing_real > 0 ? `<div style="font-size:10px;color:var(--muted)">Real: ${fmtQ(r.ing_real)}</div>` : ''}
+        ${r.ing_proy > 0 ? `<div style="font-size:10px;color:var(--green)">Proy: ${fmtQ(r.ing_proy)}</div>` : ''}
+      </td>
       <td>(${fmtQ(r.egresos_op)})</td>
       <td>(${fmtQ(r.iva_neto)})</td>
       <td>(${fmtQ(r.egresos_fin)})</td>
@@ -635,4 +651,58 @@ function resetUI() {
 // ─────────────────────────────────────────────
 //  INIT
 // ─────────────────────────────────────────────
+
+async function cargarHorizonte() {
+  try {
+    const d = await apiFetch(`/api/proyecciones/${encodeURIComponent(S.empresa)}/horizonte`);
+    S.horizonteCalc = d.horizonte_calculado;
+    S.ultimoAnioOV  = d.ultimo_anio_ov;
+    const inpAnos = document.getElementById('inpAnos');
+    const horizActual = parseInt(inpAnos.value) || 0;
+    if (!horizActual || horizActual === 5) {
+      inpAnos.value = d.horizonte_calculado;
+    }
+    verificarHorizonte();
+  } catch (e) { /* silencioso */ }
+}
+
+function verificarHorizonte() {
+  const horizActual = parseInt(document.getElementById('inpAnos').value) || 0;
+  const alertEl = document.getElementById('alertaHorizonte');
+  if (!alertEl) return;
+  if (S.horizonteCalc && horizActual < S.horizonteCalc) {
+    alertEl.style.display = 'flex';
+    document.getElementById('alertaHorizonteTxt').textContent =
+      `Horizonte definido (${horizActual} años) menor al calculado por OV (${S.horizonteCalc} años, hasta ${S.ultimoAnioOV}). Ingresos más allá de ${horizActual} años no se mostrarán.`;
+  } else {
+    if (alertEl) alertEl.style.display = 'none';
+  }
+}
+
+
+async function limpiarProyecto() {
+  if (!S.empresa) return;
+  if (!confirm(`¿Seguro que querés limpiar todos los datos guardados de "${S.empresa}"? Esta acción no se puede deshacer.`)) return;
+  try {
+    await apiFetch(`/api/proyecciones/${encodeURIComponent(S.empresa)}`, { method: 'DELETE' });
+    // Limpiar campos en pantalla
+    document.getElementById('inpAnos').value = '';
+    document.getElementById('inpDesc').value = '';
+    document.getElementById('inpISR').value  = '';
+    S.plazosVenta = [];
+    S.anos = 5; S.tasaDesc = 0.12; S.pctISR = 0;
+    S.horizonteCalc = null;
+    renderPlazosVenta();
+    resetUI();
+    document.getElementById('savedBadge').style.display = 'none';
+    document.getElementById('projMeta').textContent = `Empresa: ${S.empresa}`;
+    document.getElementById('egresosOpContainer').innerHTML = '<div style="color:var(--muted);font-size:12px">Datos limpiados. Actualizá para ver el presupuesto vs ejecutado.</div>';
+    // Recargar horizonte automático
+    await cargarHorizonte();
+    toast('✓ Datos del proyecto limpiados', 'green');
+  } catch (e) {
+    toast('Error limpiando: ' + e.message, 'red');
+  }
+}
+
 document.addEventListener('DOMContentLoaded', initProyectos);

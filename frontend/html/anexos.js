@@ -35,7 +35,8 @@ function buildAnexosSlides() {
   const deck = document.getElementById('deck');
   if (!deck) return;
   // Cierre = última slide existente (slide 25 — Gracias). Insertamos antes.
-  const cierre = deck.querySelector('section.slide[data-screen-label="25 Cierre"]');
+  // Find cierre slide by searching for the last slide with "Cierre" in label
+  const cierre = deck.querySelector('section.slide[data-screen-label="33 Cierre"]') || deck.querySelector('section.slide[data-screen-label*="Cierre"]');
   if (!cierre) return;
 
   // El número de slide para "Anexos" parte después del slide 24 (PCV registros).
@@ -47,12 +48,12 @@ function buildAnexosSlides() {
   // ── Divider Anexos ────────────────────────────────
   const dividerNum = 25;
   html.push(`
-    <section class="slide" data-screen-label="${String(dividerNum).padStart(2,'0')} Divider Anexos">
+    <section class="slide" data-screen-label="${String(dividerNum).padStart(2,'0')} Divider Anexos" data-seccion="anexos">
       <div class="divider">
-        <div class="divider-num">07</div>
+        <div class="divider-num">09</div>
         <div class="divider-content">
           <div class="divider-rule"></div>
-          <span class="divider-eyebrow">Sección 07</span>
+          <span class="divider-eyebrow">Sección 09</span>
           <h2 class="divider-title">Anexos</h2>
           <p class="divider-desc">Fichas ejecutivas por proyecto · indicadores consolidados de inventario, ventas, cartera y flujo. Disponibles para consulta y profundización durante la sesión.</p>
         </div>
@@ -69,16 +70,16 @@ function buildAnexosSlides() {
         <div class="ax-card-name">${p.nombre}</div>
         <div class="ax-card-sociedad">${p.sociedadNombre}</div>
       </div>
-      <div class="ax-card-num">07.${String(i+1).padStart(2,'0')}</div>
+      <div class="ax-card-num">09.${String(i+1).padStart(2,'0')}</div>
     </div>`;
   }).join('');
 
   html.push(`
-    <section class="slide" data-screen-label="${String(indiceNum).padStart(2,'0')} Indice Anexos" id="slideIndiceAnexos">
+    <section class="slide" data-screen-label="${String(indiceNum).padStart(2,'0')} Indice Anexos" data-seccion="anexos" id="slideIndiceAnexos">
       <div class="slide-pad">
         <div class="slide-header">
           <div class="slide-header-left">
-            <span class="slide-section-tag">07 · Anexos</span>
+            <span class="slide-section-tag">09 · Anexos</span>
             <h2 class="slide-title">Índice de proyectos</h2>
             <p class="slide-subtitle">${PROYECTOS_ANEXO.length} proyectos · clic en cualquier tarjeta para abrir su ficha</p>
           </div>
@@ -93,9 +94,9 @@ function buildAnexosSlides() {
   PROYECTOS_ANEXO.forEach((p, i) => {
     const slideNum = indiceNum + 1 + i;
     const labelNum = String(slideNum).padStart(2,'0');
-    const codigo = `07.${String(i+1).padStart(2,'0')}`;
+    const codigo = `09.${String(i+1).padStart(2,'0')}`;
     html.push(`
-      <section class="slide ax-slide" data-screen-label="${labelNum} Anexo ${p.nombre}" data-anexo-idx="${i}">
+      <section class="slide ax-slide" data-screen-label="${labelNum} Anexo ${p.nombre}" data-seccion="anexos" data-anexo-idx="${i}">
         <div class="slide-pad">
           <button class="ax-back" onclick="goToIndiceAnexos()" title="Volver al índice de proyectos">← Volver al índice</button>
           <div class="slide-header ax-header">

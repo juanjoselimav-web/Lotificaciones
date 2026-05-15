@@ -19,8 +19,10 @@ router = APIRouter(prefix="/api/flujos", tags=["flujos"])
 ORDEN_SECCIONES = [
     "INGRESOS",
     "EGRESOS / URBANIZACION",
+    "EGRESOS / MOVIMIENTO DE TIERRAS",   # separado de urbanización — debe ir después de URBANIZACION
     "EGRESOS / ADMINISTRACION",
     "FINANCIAMIENTO",
+    "DIVIDENDOS",                         # destino de reclasificaciones FINANCIAMIENTO→DIVIDENDOS
     "TERRENO",
     "IMPUESTOS",
     "SIN CLASIFICAR",

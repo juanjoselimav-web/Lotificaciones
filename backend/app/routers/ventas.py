@@ -78,6 +78,63 @@ async def update_vendedor(
 
 # ── KPIs RESUMEN ──────────────────────────────────────────────
 
+@router.get("/historico-anios")
+async def get_historico_anios(
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user)
+):
+    """
+    Resumen de ventas brutas, netas y valor por año — SIN filtro de período.
+    Devuelve TODA la historia para el slide 'Ventas por año (histórico)'.
+    Una sola query, sin paralelismo de 8 llamadas como el código viejo.
+    """
+    rows = db.execute(text(f"""
+        WITH ventas_anio AS (
+            SELECT
+                EXTRACT(YEAR FROM l.fecha_venta)::INT AS anio,
+                COUNT(*) FILTER (WHERE l.estatus IN ('VENTA','RESERVADO','CANJE')
+                    AND {es_venta_where()}) AS brutas,
+                COALESCE(SUM(l.precio_final) FILTER (WHERE l.estatus IN ('VENTA','RESERVADO','CANJE')
+                    AND {es_venta_where()}), 0) AS valor
+            FROM lotes l
+            WHERE l.fecha_venta IS NOT NULL
+              AND EXTRACT(YEAR FROM l.fecha_venta) BETWEEN 2020 AND EXTRACT(YEAR FROM CURRENT_DATE)
+            GROUP BY EXTRACT(YEAR FROM l.fecha_venta)
+        ),
+        desist_anio AS (
+            SELECT
+                EXTRACT(YEAR FROM fecha_desistimiento)::INT AS anio,
+                COUNT(*) AS total_desist
+            FROM desistimientos
+            WHERE fecha_desistimiento IS NOT NULL
+              AND EXTRACT(YEAR FROM fecha_desistimiento) BETWEEN 2020 AND EXTRACT(YEAR FROM CURRENT_DATE)
+            GROUP BY EXTRACT(YEAR FROM fecha_desistimiento)
+        )
+        SELECT
+            v.anio,
+            v.brutas,
+            COALESCE(d.total_desist, 0) AS desistimientos,
+            (v.brutas - COALESCE(d.total_desist, 0)) AS netas,
+            v.valor
+        FROM ventas_anio v
+        LEFT JOIN desist_anio d ON d.anio = v.anio
+        WHERE v.brutas > 0
+        ORDER BY v.anio
+    """)).fetchall()
+    return {
+        "anios": [
+            {
+                "anio": int(r.anio),
+                "brutas": int(r.brutas or 0),
+                "netas": int(r.netas or 0),
+                "desistimientos": int(r.desistimientos or 0),
+                "valor": float(r.valor or 0),
+            }
+            for r in rows
+        ]
+    }
+
+
 @router.get("/kpis")
 async def get_kpis(
     año: int = Query(2026),

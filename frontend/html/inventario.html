@@ -617,16 +617,5 @@ function logout(){localStorage.clear();window.location.href='/index.html';}
 
 init();
 </script>
-<script>
-(function() {
-  var btn = document.getElementById('btn-junta');
-  if (btn) btn.addEventListener('click', function(e) {
-    e.preventDefault();
-    var token = localStorage.getItem('token') || '';
-    var usuario = localStorage.getItem('usuario') || '';
-    window.open('/presentacion.html?token=' + encodeURIComponent(token) + '&usuario=' + btoa(usuario), '_blank');
-  });
-})();
-</script>
 </body>
 </html>

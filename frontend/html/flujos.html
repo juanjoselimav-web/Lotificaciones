@@ -1010,13 +1010,5 @@ async function syncManual() {
 // ── Init ──────────────────────────────────────────────────────────────────────
 cargarPeriodos().then(cargarResumen);
 </script>
-<script>
-document.getElementById('btn-junta').addEventListener('click', e => {
-  e.preventDefault();
-  const token = localStorage.getItem('token') || '';
-  const usuario = localStorage.getItem('usuario') || '';
-  window.open(`/presentacion.html?token=${encodeURIComponent(token)}&usuario=${btoa(usuario)}`, '_blank');
-});
-</script>
 </body>
 </html>

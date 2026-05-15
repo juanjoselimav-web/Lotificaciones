@@ -3,12 +3,13 @@ proyecciones.py — Router FastAPI v3 — Proyecciones al Cierre
 Módulos: Ingresos, Egresos Op (PPTO vs Ejecutado), Financieros (Préstamos+Intercompany), Tierra/Dividendos
 """
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 from typing import Optional
 from datetime import date, datetime
 import json
+import io
 
 from app.database import get_db
 from app.core.security import get_current_user
@@ -438,6 +439,52 @@ async def save_supuestos(empresa: str, body: dict, db: Session = Depends(get_db)
     return {"ok": True}
 
 
+@router.get("/{empresa}/horizonte")
+async def get_horizonte(empresa: str, db: Session = Depends(get_db), user=Depends(get_current_user)):
+    """Calcula el horizonte automático basado en la última fecha de cobro en cartera."""
+    row = db.execute(text("""
+        SELECT
+            MAX(EXTRACT(YEAR FROM fecha_programada_cobro)) AS ultimo_anio,
+            MIN(EXTRACT(YEAR FROM fecha_programada_cobro)) AS primer_anio
+        FROM ov_cartera
+        WHERE empresa = :e
+          AND line_status = 'O'
+          AND fecha_programada_cobro IS NOT NULL
+    """), {"e": normalizar_empresa_cartera(empresa)}).fetchone()
+
+    anio_actual = date.today().year
+    ultimo_anio = int(row.ultimo_anio or anio_actual)
+    horizonte_calc = max(1, ultimo_anio - anio_actual + 1)
+
+    return {
+        "empresa": empresa,
+        "ultimo_anio_ov": ultimo_anio,
+        "anio_actual": anio_actual,
+        "horizonte_calculado": horizonte_calc,
+    }
+
+
+@router.get("/{empresa}/ingresos-por-anio")
+async def get_ingresos_por_anio(empresa: str, db: Session = Depends(get_db), user=Depends(get_current_user)):
+    """Distribución anual de ingresos reales por fecha_programada_cobro."""
+    rows = db.execute(text("""
+        SELECT
+            EXTRACT(YEAR FROM fecha_programada_cobro) AS anio,
+            SUM(saldo_pendiente)                       AS total
+        FROM ov_cartera
+        WHERE empresa = :e
+          AND line_status = 'O'
+          AND fecha_programada_cobro IS NOT NULL
+        GROUP BY anio
+        ORDER BY anio
+    """), {"e": normalizar_empresa_cartera(empresa)}).fetchall()
+
+    return {
+        "empresa": empresa,
+        "distribucion": [{"anio": int(r.anio), "total": float(r.total)} for r in rows],
+    }
+
+
 @router.get("/{empresa}/ingresos")
 async def get_ingresos(
     empresa: str,
@@ -451,8 +498,8 @@ async def get_ingresos(
         SELECT
             COUNT(DISTINCT doc_num)                         AS contratos,
             COALESCE(SUM(saldo_pendiente), 0)               AS saldo_pendiente_total,
-            COALESCE(SUM(CASE WHEN tipo_linea = 'BB' AND descripcion = 'Cuota Capital' THEN saldo_pendiente ELSE 0 END), 0) AS saldo_capital,
-            COALESCE(SUM(CASE WHEN tipo_linea NOT IN ('N','S') AND NOT (tipo_linea='BB' AND descripcion='Cuota Capital') AND NOT (tipo_linea='BB' AND descripcion='Descuento') THEN saldo_pendiente ELSE 0 END), 0) AS saldo_interes
+            COALESCE(SUM(CASE WHEN tipo_linea = 'BB' THEN saldo_pendiente ELSE 0 END), 0) AS saldo_capital,
+            COALESCE(SUM(CASE WHEN tipo_linea = 'S'  THEN saldo_pendiente ELSE 0 END), 0) AS saldo_interes
         FROM ov_cartera
         WHERE empresa = :e
           AND line_status = 'O'
@@ -490,6 +537,7 @@ async def get_ingresos(
 @router.get("/{empresa}/egresos-operativos")
 async def get_egresos_operativos(
     empresa: str,
+    anos_egr: int = Query(0, description="Años para distribuir egresos pendientes (0=no distribuir)"),
     db: Session = Depends(get_db),
     user=Depends(get_current_user)
 ):
@@ -498,11 +546,9 @@ async def get_egresos_operativos(
     ppto = PPTO_PROYECTOS.get(ppto_key, {"urb": 0, "adm": 0, "total": 0})
     sociedad_flujos = normalizar_sociedad_flujos(empresa)
 
-    # Ejecutado a la fecha desde flujos_efectivo
+    # Ejecutado base desde flujos_efectivo
     rows = db.execute(text("""
-        SELECT
-            seccion,
-            COALESCE(SUM(monto_egreso), 0) AS ejecutado
+        SELECT seccion, COALESCE(SUM(monto_egreso), 0) AS ejecutado
         FROM flujos_efectivo
         WHERE sociedad ILIKE :s
           AND seccion IN ('EGRESOS / URBANIZACION', 'EGRESOS / ADMINISTRACION')
@@ -513,34 +559,66 @@ async def get_egresos_operativos(
     for r in rows:
         ejecutado[r.seccion] = float(r.ejecutado)
 
-    ejec_urb = ejecutado["EGRESOS / URBANIZACION"]
-    ejec_adm = ejecutado["EGRESOS / ADMINISTRACION"]
+    # Aplicar reclasificaciones (misma lógica que flujos.py)
+    reclas = db.execute(text("""
+        SELECT seccion_origen, seccion_destino, SUM(monto) AS monto
+        FROM flujos_reclasificaciones
+        WHERE sociedad ILIKE :s
+          AND (seccion_origen IN ('EGRESOS / URBANIZACION','EGRESOS / ADMINISTRACION')
+           OR  seccion_destino IN ('EGRESOS / URBANIZACION','EGRESOS / ADMINISTRACION'))
+        GROUP BY seccion_origen, seccion_destino
+    """), {"s": f"%{sociedad_flujos}%"}).fetchall()
+
+    for r in reclas:
+        ori, dst, monto = r.seccion_origen, r.seccion_destino, float(r.monto or 0)
+        if not monto or ori == dst:
+            continue
+        if ori in ejecutado:
+            ejecutado[ori] -= monto
+        if dst in ejecutado:
+            ejecutado[dst] += monto
+
+    ejec_urb   = max(ejecutado["EGRESOS / URBANIZACION"],   0.0)
+    ejec_adm   = max(ejecutado["EGRESOS / ADMINISTRACION"], 0.0)
     ejec_total = ejec_urb + ejec_adm
 
     ppto_urb = ppto["urb"]
     ppto_adm = ppto["adm"]
     ppto_total = ppto["total"]
 
+    pendiente_urb = round(max(ppto_urb - ejec_urb, 0), 2)
+    pendiente_adm = round(max(ppto_adm - ejec_adm, 0), 2)
+    pendiente_total = round(max(ppto_total - ejec_total, 0), 2)
+
+    # Distribución anual del pendiente si se solicitó
+    dist_urb = round(pendiente_urb / anos_egr, 2) if anos_egr > 0 else None
+    dist_adm = round(pendiente_adm / anos_egr, 2) if anos_egr > 0 else None
+    dist_total = round(pendiente_total / anos_egr, 2) if anos_egr > 0 else None
+
     return {
         "empresa": empresa,
         "ppto_key": ppto_key,
+        "anos_distribucion": anos_egr,
         "urbanizacion": {
             "presupuesto": round(ppto_urb, 2),
             "ejecutado":   round(ejec_urb, 2),
-            "pendiente":   round(max(ppto_urb - ejec_urb, 0), 2),
+            "pendiente":   pendiente_urb,
             "avance_pct":  round(ejec_urb / ppto_urb * 100, 1) if ppto_urb else 0,
+            "dist_anual":  dist_urb,
         },
         "administracion": {
             "presupuesto": round(ppto_adm, 2),
             "ejecutado":   round(ejec_adm, 2),
-            "pendiente":   round(max(ppto_adm - ejec_adm, 0), 2),
+            "pendiente":   pendiente_adm,
             "avance_pct":  round(ejec_adm / ppto_adm * 100, 1) if ppto_adm else 0,
+            "dist_anual":  dist_adm,
         },
         "total": {
             "presupuesto": round(ppto_total, 2),
             "ejecutado":   round(ejec_total, 2),
-            "pendiente":   round(max(ppto_total - ejec_total, 0), 2),
+            "pendiente":   pendiente_total,
             "avance_pct":  round(ejec_total / ppto_total * 100, 1) if ppto_total else 0,
+            "dist_anual":  dist_total,
         },
     }
 
@@ -548,6 +626,7 @@ async def get_egresos_operativos(
 @router.get("/{empresa}/egresos-financieros")
 async def get_egresos_financieros(
     empresa: str,
+    anos_ic: int = Query(0, description="Años para distribuir intercompany (0=no distribuir)"),
     db: Session = Depends(get_db),
     user=Depends(get_current_user)
 ):
@@ -643,13 +722,18 @@ async def get_egresos_financieros(
     """), {"s": f"%{sociedad_flujos}%"}).fetchone()
 
     saldo_intercompany = float(ic_row.egresado or 0) - float(ic_row.ingresado or 0)
+    ic_tipo = "por pagar" if saldo_intercompany > 0 else "a favor"
+    ic_abs  = abs(saldo_intercompany)
+    ic_dist = round(ic_abs / anos_ic, 2) if anos_ic > 0 else None
 
     return {
         "empresa": empresa,
         "prestamo_bancario": prestamo_result,
         "intercompany": {
-            "saldo": round(abs(saldo_intercompany), 2),
-            "tipo": "por pagar" if saldo_intercompany > 0 else "a favor",
+            "saldo": round(ic_abs, 2),
+            "tipo":  ic_tipo,
+            "anos_distribucion": anos_ic,
+            "dist_anual": ic_dist,
         },
     }
 
@@ -772,18 +856,24 @@ async def get_flujo(empresa: str, db: Session = Depends(get_db), user=Depends(ge
     # Calcular ingresos proyectados desde plazos
     total_ing_proyectado = 0.0
     for p in plazos:
-        cap = float(p.get("ticket", 0)) * float(p.get("unidades_proyectadas", 0))
-        intr = cap * float(p.get("tasa_interes", 0)) * float(p.get("plazo_meses", 0)) / 12
-        total_ing_proyectado += cap + intr
+        ini_str = p.get("inicio", "")
+        fin_str = p.get("fin", "")
+        tk      = float(p.get("ticket", 0))
+        tasa_p  = float(p.get("tasa", 0))
+        plazo_m = int(p.get("plazo", 0)) if str(p.get("plazo","")).isdigit() else 0
+        unid_mes= int(p.get("unidMes", 0))
+        if not ini_str or not fin_str or not tk or not unid_mes: continue
+        interes_u = tk * (tasa_p/100) * (plazo_m/12) if plazo_m > 0 else 0
+        total_ing_proyectado += (tk + interes_u) * int(p.get("unidProy", unid_mes))
 
     total_ing_real = ing["ingresos_reales"]["saldo_pendiente"]
     total_ing = total_ing_real + total_ing_proyectado
 
     # IVA
     cap_real = ing["ingresos_reales"]["saldo_capital"]
-    cap_proy = sum(float(p.get("ticket", 0)) * float(p.get("unidades_proyectadas", 0)) for p in plazos)
+    cap_proy = sum(float(p.get("ticket", 0)) * int(p.get("unidProy", int(p.get("unidMes",0)))) for p in plazos)
     iva_deb  = (cap_real + cap_proy) * 0.70 * 0.12
-    egr_op_total = egr["total"]["pendiente"]  # solo lo pendiente por ejecutar
+    egr_op_total = egr["total"]["pendiente"]
     iva_cred = egr_op_total * 0.12
     iva_neto = iva_deb - iva_cred
 
@@ -802,36 +892,98 @@ async def get_flujo(empresa: str, db: Session = Depends(get_db), user=Depends(ge
 
     flujo_neto = total_ing - egr_op_total - iva_neto - egr_fin - isr - egr_tierra - egr_div
 
-    # TIR/VAN — distribución anual
-    ing_a  = total_ing / anos if anos else total_ing
+    # ── Distribución anual de ingresos reales por fecha_programada_cobro ──
+    anio_actual = date.today().year
+    ing_real_rows = db.execute(text("""
+        SELECT EXTRACT(YEAR FROM fecha_programada_cobro) AS anio,
+               SUM(saldo_pendiente) AS total
+        FROM ov_cartera
+        WHERE empresa = :e AND line_status = 'O'
+          AND fecha_programada_cobro IS NOT NULL
+        GROUP BY anio ORDER BY anio
+    """), {"e": normalizar_empresa_cartera(empresa)}).fetchall()
+    ing_real_por_anio = {int(r.anio): float(r.total) for r in ing_real_rows}
+
+    # ── Distribución anual de ingresos proyectados por plazos ──
+    ing_proy_por_anio = {}
+    for p in plazos:
+        ini_str = p.get("inicio", "")
+        fin_str = p.get("fin", "")
+        tk      = float(p.get("ticket", 0))
+        tasa_p  = float(p.get("tasa", 0))
+        plazo_m = int(p.get("plazo", 0)) if str(p.get("plazo","")).isdigit() else 0
+        unid_mes= int(p.get("unidMes", 0))
+        if not ini_str or not fin_str or not tk or not unid_mes: continue
+        try:
+            ini_d = datetime.strptime(ini_str + "-01", "%Y-%m-%d").date()
+            fin_d = datetime.strptime(fin_str + "-01", "%Y-%m-%d").date()
+        except: continue
+        interes_u = tk * (tasa_p/100) * (plazo_m/12) if plazo_m > 0 else 0
+        ingreso_u = tk + interes_u
+        cur = ini_d
+        while cur < fin_d:
+            yr_p = cur.year
+            ing_proy_por_anio[yr_p] = ing_proy_por_anio.get(yr_p, 0) + ingreso_u * unid_mes
+            mes = cur.month + 1
+            anio_c = cur.year + (1 if mes > 12 else 0)
+            mes = mes if mes <= 12 else 1
+            try: cur = cur.replace(year=anio_c, month=mes)
+            except: break
+
+    # Determinar rango real de años
+    todos_anios = set(ing_real_por_anio.keys()) | set(ing_proy_por_anio.keys())
+    if todos_anios:
+        anio_max = max(todos_anios)
+        anos_real = max(1, anio_max - anio_actual + 1)
+    else:
+        anos_real = anos
+    anos_total = max(anos_real, anos)
+
+    # Egresos distribuidos sobre el horizonte del usuario
     egr_a  = egr_op_total / anos if anos else egr_op_total
     iva_a  = iva_neto / anos if anos else iva_neto
     isr_a  = isr / anos if anos else isr
     tier_a = (egr_tierra + egr_div) / anos if anos else (egr_tierra + egr_div)
 
-    # Distribuir cuotas de préstamo por año
+    # Cuotas préstamo por año calendario
     cuotas_pend = prest.get("cuotas_pendientes", [])
     hoy = date.today()
     fin_yr = {}
     for c in cuotas_pend:
         try:
-            yr = int(c["fecha"][:4]) - hoy.year + 1
-            yr = max(1, min(yr, anos))
+            yr = int(c["fecha"][:4]) - anio_actual + 1
+            yr = max(1, yr)
             fin_yr[yr] = fin_yr.get(yr, 0) + c["cuota"]
         except: pass
     fin_yr_ic = egr_ic / anos if anos else egr_ic
 
     flujo_anual = []
     pico = {"anio": None, "flujo": 0.0}
-    for yr in range(1, anos + 1):
-        efin_yr = fin_yr.get(yr, 0) + fin_yr_ic
-        fn_yr = ing_a - egr_a - iva_a - efin_yr - isr_a - tier_a
+    for yr in range(1, anos_total + 1):
+        anio_cal = anio_actual + yr - 1
+        ing_real_yr = ing_real_por_anio.get(anio_cal, 0)
+        ing_proy_yr = ing_proy_por_anio.get(anio_cal, 0)
+        ing_yr = ing_real_yr + ing_proy_yr
+
+        if yr <= anos:
+            egr_yr  = egr_a
+            iva_yr  = iva_a
+            isr_yr  = isr_a
+            tier_yr = tier_a
+        else:
+            egr_yr = iva_yr = isr_yr = tier_yr = 0.0
+
+        efin_yr = fin_yr.get(yr, 0) + (fin_yr_ic if yr <= anos else 0)
+        fn_yr = ing_yr - egr_yr - iva_yr - efin_yr - isr_yr - tier_yr
         acum  = (flujo_anual[-1]["flujo_acumulado"] if flujo_anual else 0) + fn_yr
         flujo_anual.append({
-            "anio": yr, "ingresos": round(ing_a, 2),
-            "egresos_op": round(egr_a, 2), "iva_neto": round(iva_a, 2),
-            "egresos_fin": round(efin_yr, 2), "isr": round(isr_a, 2),
-            "tierra_capital": round(tier_a, 2), "flujo_neto": round(fn_yr, 2),
+            "anio": yr, "anio_cal": anio_cal,
+            "ingresos": round(ing_yr, 2),
+            "ing_real": round(ing_real_yr, 2),
+            "ing_proy": round(ing_proy_yr, 2),
+            "egresos_op": round(egr_yr, 2), "iva_neto": round(iva_yr, 2),
+            "egresos_fin": round(efin_yr, 2), "isr": round(isr_yr, 2),
+            "tierra_capital": round(tier_yr, 2), "flujo_neto": round(fn_yr, 2),
             "flujo_acumulado": round(acum, 2), "es_negativo": fn_yr < 0,
         })
         if fn_yr < pico["flujo"]:
@@ -862,4 +1014,171 @@ async def get_flujo(empresa: str, db: Session = Depends(get_db), user=Depends(ge
             "punto_equilibrio_lotes": lotes_pe,
             "pico_negativo": pico if pico["anio"] else None,
         },
+    }
+
+@router.delete("/{empresa}")
+async def delete_supuestos(empresa: str, db: Session = Depends(get_db), user=Depends(get_current_user)):
+    """Elimina los supuestos guardados de un proyecto para empezar de cero."""
+    db.execute(text("DELETE FROM proyeccion_supuestos WHERE empresa = :e"), {"e": empresa})
+    db.commit()
+    return {"ok": True, "empresa": empresa, "mensaje": "Supuestos eliminados correctamente"}
+
+@router.get("/cxp")
+async def get_cuentas_por_pagar(db: Session = Depends(get_db), user=Depends(get_current_user)):
+    """
+    Cuentas por pagar consolidadas — datos completos sin filtro de fecha.
+    Visualización histórica completa para Junta Directiva.
+    """
+    try:
+        rows = db.execute(text("""
+            SELECT empresa, doc_num, codigo_proveedor, nombre_acreedor,
+                   ref_acreedor, fecha_vencimiento, importe, comentarios
+            FROM cuentas_por_pagar
+            ORDER BY empresa, fecha_vencimiento
+        """)).fetchall()
+
+        items = []
+        total = 0.0
+        for r in rows:
+            imp = float(r.importe or 0)
+            total += imp
+            items.append({
+                "empresa": r.empresa,
+                "doc_num": str(r.doc_num) if r.doc_num else None,
+                "codigo_proveedor": r.codigo_proveedor,
+                "nombre_acreedor": r.nombre_acreedor,
+                "ref_acreedor": r.ref_acreedor,
+                "fecha_vencimiento": str(r.fecha_vencimiento)[:10] if r.fecha_vencimiento else None,
+                "importe": imp,
+                "comentarios": r.comentarios,
+            })
+
+        # Resumen por empresa (para totales en frontend)
+        resumen_empresa = {}
+        for it in items:
+            e = it["empresa"] or "—"
+            resumen_empresa.setdefault(e, {"empresa": e, "total": 0.0, "count": 0})
+            resumen_empresa[e]["total"] += it["importe"]
+            resumen_empresa[e]["count"] += 1
+
+        return {
+            "items": items,
+            "total_general": total,
+            "total_registros": len(items),
+            "por_empresa": sorted(resumen_empresa.values(), key=lambda x: -x["total"]),
+        }
+    except Exception as e:
+        # Si la tabla no existe (sync nunca ejecutado) devolver vacío sin error
+        return {"items": [], "total_general": 0, "total_registros": 0, "por_empresa": [], "_warning": str(e)[:200]}
+
+
+@router.post("/cxp/sync")
+async def sync_cuentas_por_pagar(
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    user=Depends(get_current_user)
+):
+    """
+    Sincroniza la tabla cuentas_por_pagar desde la pestaña 'CUENTA POR PAGAR'
+    del Excel 'PRESUPUESTO, PRESTAMOS Y TIERRA.xlsx'.
+    El usuario sube el archivo, el endpoint procesa y reemplaza los registros.
+    """
+    # Validar archivo
+    if not file.filename or not file.filename.lower().endswith(('.xlsx', '.xlsm')):
+        raise HTTPException(status_code=400, detail="Archivo debe ser .xlsx o .xlsm")
+
+    try:
+        import pandas as pd
+    except ImportError:
+        raise HTTPException(status_code=500, detail="pandas no instalado en el backend")
+
+    content = await file.read()
+    try:
+        xl = pd.ExcelFile(io.BytesIO(content))
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"No se pudo abrir el Excel: {e}")
+
+    if 'CUENTA POR PAGAR' not in xl.sheet_names:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Pestaña 'CUENTA POR PAGAR' no encontrada. Pestañas disponibles: {xl.sheet_names}"
+        )
+
+    df = pd.read_excel(xl, sheet_name='CUENTA POR PAGAR', header=0)
+    df.columns = [str(c).strip() for c in df.columns]
+
+    # Validar columnas requeridas
+    required = ['EMPRESA', 'Nº documento', 'Código de proveedor', 'Nombre de acreedor',
+                'No.Ref.del acreedor', 'Fecha de vencimiento', 'Importe', 'Comentarios']
+    missing = [c for c in required if c not in df.columns]
+    if missing:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Columnas faltantes en la pestaña: {missing}. Encontradas: {list(df.columns)}"
+        )
+
+    # Filtrar filas vacías
+    df = df.dropna(subset=['EMPRESA', 'Importe'], how='all')
+    df = df[df['EMPRESA'].astype(str).str.strip() != '']
+
+    # Asegurar que la tabla existe
+    db.execute(text("""
+        CREATE TABLE IF NOT EXISTS cuentas_por_pagar (
+            id SERIAL PRIMARY KEY,
+            empresa VARCHAR(150),
+            doc_num VARCHAR(50),
+            codigo_proveedor VARCHAR(50),
+            nombre_acreedor VARCHAR(300),
+            ref_acreedor VARCHAR(150),
+            fecha_vencimiento DATE,
+            importe NUMERIC(14,2),
+            comentarios TEXT,
+            sincronizado_en TIMESTAMP DEFAULT NOW()
+        )
+    """))
+
+    # Limpiar tabla antes de re-cargar (full refresh)
+    db.execute(text("TRUNCATE TABLE cuentas_por_pagar RESTART IDENTITY"))
+
+    # Insertar
+    insertados = 0
+    errores = []
+    for idx, row in df.iterrows():
+        try:
+            fv = row['Fecha de vencimiento']
+            if pd.isna(fv):
+                fv_str = None
+            elif hasattr(fv, 'date'):
+                fv_str = fv.date()
+            else:
+                fv_str = pd.to_datetime(fv).date()
+
+            db.execute(text("""
+                INSERT INTO cuentas_por_pagar
+                  (empresa, doc_num, codigo_proveedor, nombre_acreedor,
+                   ref_acreedor, fecha_vencimiento, importe, comentarios)
+                VALUES
+                  (:e, :dn, :cp, :na, :ra, :fv, :imp, :com)
+            """), {
+                "e":   str(row['EMPRESA']).strip()[:150] if pd.notna(row['EMPRESA']) else None,
+                "dn":  str(row['Nº documento']).strip()[:50] if pd.notna(row['Nº documento']) else None,
+                "cp":  str(row['Código de proveedor']).strip()[:50] if pd.notna(row['Código de proveedor']) else None,
+                "na":  str(row['Nombre de acreedor']).strip()[:300] if pd.notna(row['Nombre de acreedor']) else None,
+                "ra":  str(row['No.Ref.del acreedor']).strip()[:150] if pd.notna(row['No.Ref.del acreedor']) else None,
+                "fv":  fv_str,
+                "imp": float(row['Importe']) if pd.notna(row['Importe']) else 0,
+                "com": str(row['Comentarios']).strip() if pd.notna(row['Comentarios']) else None,
+            })
+            insertados += 1
+        except Exception as e:
+            errores.append({"fila": int(idx) + 2, "error": str(e)[:200]})
+
+    db.commit()
+
+    return {
+        "ok": True,
+        "insertados": insertados,
+        "errores": errores[:20],  # primeros 20 errores si hay
+        "total_errores": len(errores),
+        "mensaje": f"Sincronizados {insertados} registros de cuentas por pagar"
     }

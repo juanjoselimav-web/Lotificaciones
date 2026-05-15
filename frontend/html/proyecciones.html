@@ -258,6 +258,9 @@ select{background:var(--blanco);border:1px solid var(--borde);color:var(--texto)
       <button class="btn btn-secondary btn-sm" onclick="cargarFlujo()" id="btnCalc" style="display:none">
         <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" style="width:13px;height:13px"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/></svg>Calcular flujo
       </button>
+      <button class="btn btn-sm" onclick="limpiarProyecto()" id="btnLimpiar" style="display:none;background:var(--red-bg);color:var(--red);border:1px solid var(--red-bd)">
+        <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" style="width:13px;height:13px"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/></svg>Limpiar
+      </button>
       <button class="btn btn-primary" onclick="guardarTodo()" id="btnGuardar" style="display:none">
         <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" style="width:13px;height:13px"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/></svg>Guardar cambios
       </button>
@@ -271,7 +274,7 @@ select{background:var(--blanco);border:1px solid var(--borde);color:var(--texto)
     <!-- Selector -->
     <div class="proj-selector">
       <label>Proyecto</label>
-      <select id="selProyecto" onchange="onProyectoChange();document.getElementById('btnGuardar').style.display='inline-flex';document.getElementById('btnCalc').style.display='inline-flex'">
+      <select id="selProyecto" onchange="onProyectoChange();document.getElementById('btnGuardar').style.display='inline-flex';document.getElementById('btnCalc').style.display='inline-flex';document.getElementById('btnLimpiar').style.display='inline-flex'">
         <option value="">— Seleccione un proyecto —</option>
       </select>
       <span id="savedBadge">✓ Guardado</span>
@@ -295,20 +298,26 @@ select{background:var(--blanco);border:1px solid var(--borde);color:var(--texto)
           <span class="card-title">⚙ Supuestos Generales del Proyecto</span>
         </div>
         <div class="card-body">
-          <div class="sup-grid">
+          <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px;align-items:start">
             <div class="sup-field">
-              <label>Horizonte del proyecto (años)</label>
-              <input type="number" id="inpAnos" placeholder="ej. 5" min="1" max="30">
+              <label style="min-height:32px;display:flex;align-items:flex-end">Horizonte del proyecto (años)</label>
+              <input type="number" id="inpAnos" placeholder="ej. 5" min="1" max="30"
+                oninput="verificarHorizonte()">
               <span style="font-size:10px;color:var(--muted)">Para distribución anual y TIR/VAN</span>
             </div>
             <div class="sup-field">
-              <label>Tasa descuento VAN (%)</label>
+              <label style="min-height:32px;display:flex;align-items:flex-end">Tasa descuento VAN (%)</label>
               <input type="number" id="inpDesc" placeholder="ej. 12" min="0" max="100" step="0.5">
             </div>
             <div class="sup-field">
-              <label>% ISR sobre ingresos totales</label>
+              <label style="min-height:32px;display:flex;align-items:flex-end">% ISR sobre ingresos totales</label>
               <input type="number" id="inpISR" placeholder="ej. 5" min="0" max="100" step="0.5">
             </div>
+          </div>
+          <!-- Alerta horizonte automático -->
+          <div id="alertaHorizonte" style="display:none;margin-top:10px;background:var(--amber-bg);border:1px solid var(--amber-bd);border-radius:6px;padding:10px 14px;align-items:center;gap:10px;font-size:11px;color:var(--amber)">
+            <span style="font-size:16px">⚠️</span>
+            <span id="alertaHorizonteTxt"></span>
           </div>
         </div>
       </div>
@@ -409,7 +418,16 @@ select{background:var(--blanco);border:1px solid var(--borde);color:var(--texto)
       <div class="card">
         <div class="card-header">
           <span class="card-title"><span class="sec-num">2</span> Egresos Operativos — Presupuesto vs Ejecutado</span>
-          <button class="btn btn-secondary btn-sm" onclick="cargarEgresosOp()">↻ Actualizar</button>
+          <div style="display:flex;align-items:center;gap:10px">
+            <div style="display:flex;align-items:center;gap:6px;font-size:12px">
+              <label style="color:var(--muted);font-weight:600;white-space:nowrap">Distribuir pendiente en</label>
+              <input type="number" id="inpAnosEgr" placeholder="años" min="1" max="30"
+                style="width:70px;padding:5px 8px;border:1px solid var(--borde);border-radius:6px;font-size:12px;font-family:inherit"
+                onchange="cargarEgresosOp()">
+              <span style="color:var(--muted);font-weight:600">años</span>
+            </div>
+            <button class="btn btn-secondary btn-sm" onclick="cargarEgresosOp()">↻ Actualizar</button>
+          </div>
         </div>
         <div class="card-body">
           <div id="egresosOpContainer" style="color:var(--muted);font-size:12px">Cargando...</div>
@@ -424,7 +442,16 @@ select{background:var(--blanco);border:1px solid var(--borde);color:var(--texto)
         <div class="card-body">
           <div style="font-size:11px;font-weight:700;color:var(--azul);text-transform:uppercase;letter-spacing:.08em;margin-bottom:12px">Préstamo Bancario</div>
           <div id="prestamoBancarioContainer" style="color:var(--muted);font-size:12px">Cargando...</div>
-          <div style="font-size:11px;font-weight:700;color:var(--azul);text-transform:uppercase;letter-spacing:.08em;margin-top:20px;margin-bottom:12px">Intercompany</div>
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-top:20px;margin-bottom:12px">
+            <div style="font-size:11px;font-weight:700;color:var(--azul);text-transform:uppercase;letter-spacing:.08em">Intercompany</div>
+            <div style="display:flex;align-items:center;gap:6px;font-size:12px">
+              <label style="color:var(--muted);font-weight:600;white-space:nowrap">Distribuir en</label>
+              <input type="number" id="inpAnosIC" placeholder="años" min="1" max="30"
+                style="width:70px;padding:5px 8px;border:1px solid var(--borde);border-radius:6px;font-size:12px;font-family:inherit"
+                onchange="cargarFinancieros()">
+              <span style="color:var(--muted);font-weight:600">años</span>
+            </div>
+          </div>
           <div id="intercompanyContainer" style="color:var(--muted);font-size:12px">Cargando...</div>
         </div>
       </div>
