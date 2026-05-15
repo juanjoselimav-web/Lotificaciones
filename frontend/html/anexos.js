@@ -163,14 +163,25 @@ function initials(nombre) {
 
 // ── Navegación helpers ──────────────────────────────
 window.goToIndiceAnexos = function() {
-  const slides = document.querySelectorAll('.slide');
-  const idx = [...slides].findIndex(s => s.id === 'slideIndiceAnexos');
-  if (idx >= 0) window.showSlide(idx);
+  // Use the same slide array that showSlide() uses (only non-hidden slides)
+  const slides = [...document.querySelectorAll('.slide:not([data-hidden])')];
+  const idx = slides.findIndex(s => s.id === 'slideIndiceAnexos');
+  if (idx >= 0) { window.showSlide(idx); return; }
+  // Fallback: try all slides
+  const all = [...document.querySelectorAll('.slide')];
+  const allIdx = all.findIndex(s => s.id === 'slideIndiceAnexos');
+  if (allIdx >= 0) window.showSlide(allIdx);
 };
-window.goToAnexo = function(i) {
-  const slides = document.querySelectorAll('.slide');
-  const idx = [...slides].findIndex(s => s.dataset.anexoIdx === String(i));
-  if (idx >= 0) window.showSlide(idx);
+window.goToAnexo = function(proyIdx) {
+  // Navigate to the project slide by matching data-anexo-idx attribute
+  // Must use the same visible-slides array that showSlide() operates on
+  const slides = [...document.querySelectorAll('.slide:not([data-hidden])')];
+  const idx = slides.findIndex(s => s.dataset.anexoIdx === String(proyIdx));
+  if (idx >= 0) { window.showSlide(idx); return; }
+  // Fallback: all slides
+  const all = [...document.querySelectorAll('.slide')];
+  const allIdx = all.findIndex(s => s.dataset.anexoIdx === String(proyIdx));
+  if (allIdx >= 0) window.showSlide(allIdx);
 };
 
 // ── Cargar datos por proyecto ───────────────────────
