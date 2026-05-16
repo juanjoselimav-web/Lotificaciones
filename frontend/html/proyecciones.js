@@ -47,6 +47,12 @@ async function apiFetch(path, opts = {}) {
     headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json', ...opts.headers },
     ...opts
   });
+  if (res.status === 401) {
+    // Token expirado o inválido — limpiar sesión y redirigir al login
+    localStorage.clear();
+    window.location.href = '/index.html';
+    return;
+  }
   if (!res.ok) {
     const err = await res.json().catch(() => ({ detail: res.statusText }));
     throw new Error(err.detail || `HTTP ${res.status}`);

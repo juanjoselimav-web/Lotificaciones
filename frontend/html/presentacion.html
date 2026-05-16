@@ -364,60 +364,24 @@ html,body{height:100%;background:var(--bg);font-family:'Montserrat',sans-serif;c
           <div class="slide-header-left">
             <span class="slide-section-tag">Estructura de la sesión</span>
             <h2 class="slide-title">Agenda</h2>
-            <p class="slide-subtitle" id="agendaSubtitle">Diez bloques · panorama operativo, financiero y áreas de atención</p>
+            <p class="slide-subtitle">Seis bloques · panorama operativo, financiero y áreas de atención</p>
           </div>
           <div class="slide-header-right"><span class="slide-num">02 / 26</span></div>
         </div>
         <div class="agenda-grid">
-          <div class="agenda-item" data-agenda-seccion="minuta"><div class="agenda-num agenda-n">01</div><div class="agenda-text"><div class="a-title">Minuta</div><div class="a-desc">Acuerdos y seguimiento de la sesión anterior</div></div></div>
-          <div class="agenda-item" data-agenda-seccion="resumen"><div class="agenda-num agenda-n">02</div><div class="agenda-text"><div class="a-title">Resumen ejecutivo</div><div class="a-desc">Indicadores consolidados, el período en una página</div></div></div>
-          <div class="agenda-item" data-agenda-seccion="inventario"><div class="agenda-num agenda-n">03</div><div class="agenda-text"><div class="a-title">Inventario</div><div class="a-desc">Disponibilidad, absorción y valor por proyecto</div></div></div>
-          <div class="agenda-item" data-agenda-seccion="ventas"><div class="agenda-num agenda-n">04</div><div class="agenda-text"><div class="a-title">Consolidado de ventas</div><div class="a-desc">Tendencia, mezcla financiera, top vendedores y metas</div></div></div>
-          <div class="agenda-item" data-agenda-seccion="cartera"><div class="agenda-num agenda-n">05</div><div class="agenda-text"><div class="a-title">Consolidado Cartera Lotificaciones</div><div class="a-desc">Cobranza, mora, aging, desistimientos y casos atípicos</div></div></div>
-          <div class="agenda-item" data-agenda-seccion="flujos"><div class="agenda-num agenda-n">06</div><div class="agenda-text"><div class="a-title">Flujos de efectivo</div><div class="a-desc">Saldo y movimientos por sociedad</div></div></div>
-          <div class="agenda-item" data-agenda-seccion="pcv"><div class="agenda-num agenda-n">07</div><div class="agenda-text"><div class="a-title">Cumplimiento PCV y áreas de atención</div><div class="a-desc">Promesas de compraventa, alertas y registros a revisar</div></div></div>
-          <div class="agenda-item" data-agenda-seccion="cxp"><div class="agenda-num agenda-n">08</div><div class="agenda-text"><div class="a-title">Cuentas por pagar consolidada</div><div class="a-desc">Obligaciones pendientes por sociedad y proveedor</div></div></div>
-          <div class="agenda-item" data-agenda-seccion="anexos"><div class="agenda-num agenda-n">09</div><div class="agenda-text"><div class="a-title">Anexos</div><div class="a-desc">Detalle por proyecto e índice</div></div></div>
-          <div class="agenda-item" data-agenda-seccion="cierre"><div class="agenda-num agenda-n">10</div><div class="agenda-text"><div class="a-title">Cierre</div><div class="a-desc">Cierre de sesión y próximos pasos</div></div></div>
+          <div class="agenda-item"><div class="agenda-num">01</div><div class="agenda-text"><div class="a-title">Resumen ejecutivo</div><div class="a-desc">Indicadores consolidados, el período en una página</div></div></div>
+          <div class="agenda-item"><div class="agenda-num">02</div><div class="agenda-text"><div class="a-title">Inventario</div><div class="a-desc">Disponibilidad, absorción y valor por proyecto</div></div></div>
+          <div class="agenda-item"><div class="agenda-num">03</div><div class="agenda-text"><div class="a-title">Ventas</div><div class="a-desc">Tendencia, mezcla financiera, top vendedores y metas</div></div></div>
+          <div class="agenda-item"><div class="agenda-num">04</div><div class="agenda-text"><div class="a-title">Cartera y desistimientos</div><div class="a-desc">Cobranza, mora, aging y casos atípicos</div></div></div>
+          <div class="agenda-item"><div class="agenda-num">05</div><div class="agenda-text"><div class="a-title">Flujos de efectivo</div><div class="a-desc">Saldo y movimientos por sociedad</div></div></div>
+          <div class="agenda-item"><div class="agenda-num">06</div><div class="agenda-text"><div class="a-title">Cumplimiento PCV y áreas de atención</div><div class="a-desc">Promesas de compraventa, alertas y registros a revisar</div></div></div>
         </div>
       </div>
       <div class="slide-footer"><span>RV4 Lotificaciones · Junta Directiva</span><span id="ftr2">—</span></div>
     </section>
 
-    <section class="slide" data-screen-label="Minutas JD" data-seccion="minuta">
-      <div class="slide-pad" style="display:flex;flex-direction:column;height:100%">
-        <div class="slide-header">
-          <div class="slide-header-left">
-            <span class="slide-section-tag">07 · Minutas</span>
-            <h2 class="slide-title">Acuerdos y seguimiento</h2>
-            <p class="slide-subtitle" id="minutasPeriodoSub">Minuta de reunión · —</p>
-          </div>
-          <div class="slide-header-right"><span class="slide-num"></span></div>
-        </div>
-        <div style="flex:1;overflow-y:auto;margin-top:8px">
-          <table class="exec-table" id="minutasTable" style="width:100%">
-            <thead><tr>
-              <th style="width:35%">Acuerdo / Tema</th>
-              <th style="width:20%">Responsable</th>
-              <th style="width:35%">Observación</th>
-              <th style="width:10%">Fecha</th>
-            </tr></thead>
-            <tbody id="minutasTbody">
-              <tr><td colspan="4" style="text-align:center;color:var(--muted);padding:40px">Sin acuerdos registrados para este período</td></tr>
-            </tbody>
-          </table>
-        </div>
-        <div style="margin-top:12px;font-size:11px;color:var(--muted);text-align:right" id="minutasLastMod"></div>
-      </div>
-      <div class="slide-footer"><span>Minutas · Acuerdos JD</span><span class="meta-period" data-period></span></div>
-    </section>
-
-    <!-- ═══════════ SLIDE 25 — CIERRE ═══════════ -->
-
-
-
     <!-- ═══════════ SLIDE 03 — RESUMEN EJECUTIVO ═══════════ -->
-    <section class="slide" data-screen-label="03 Resumen Ejecutivo" data-seccion="resumen">
+    <section class="slide" data-screen-label="03 Resumen Ejecutivo">
       <div class="slide-pad">
         <div class="slide-header">
           <div class="slide-header-left">
@@ -435,16 +399,16 @@ html,body{height:100%;background:var(--bg);font-family:'Montserrat',sans-serif;c
         </div>
         <div class="kpi-grid cols-4">
           <div class="kpi-card"><div class="kpi-label">Cartera total</div><div class="kpi-value" id="rsmCartera">—</div><div class="kpi-sub" id="rsmClientes">—</div></div>
-          <div class="kpi-card amber"><div class="kpi-label">Tasa de morosidad<br><small style="font-size:10px;font-weight:500">mayor a 31 días</small></div><div class="kpi-value amber" id="rsmMoraTasa">—</div><div class="kpi-sub" id="rsmMoraMonto">—</div></div>
+          <div class="kpi-card amber"><div class="kpi-label">Tasa de mora</div><div class="kpi-value amber" id="rsmMoraTasa">—</div><div class="kpi-sub" id="rsmMoraMonto">—</div></div>
           <div class="kpi-card purple"><div class="kpi-label">Cobro próximos 30 días</div><div class="kpi-value purple" id="rsmCobro30">—</div><div class="kpi-sub">proyección de cuotas</div></div>
-          <div class="kpi-card red"><div class="kpi-label">Sin PCV firmado a la fecha</div><div class="kpi-value red" id="rsmSinPCV">—</div><div class="kpi-sub" id="rsmPCVPct">—</div></div>
+          <div class="kpi-card red"><div class="kpi-label">Sin PCV firmado</div><div class="kpi-value red" id="rsmSinPCV">—</div><div class="kpi-sub" id="rsmPCVPct">—</div></div>
         </div>
       </div>
       <div class="slide-footer"><span>Resumen Ejecutivo · Consolidado</span><span class="meta-period" data-period></span></div>
     </section>
 
     <!-- ═══════════ SLIDE 04 — DIVIDER INVENTARIO ═══════════ -->
-    <section class="slide" data-screen-label="04 Divider Inventario" data-seccion="inventario">
+    <section class="slide" data-screen-label="04 Divider Inventario">
       <div class="divider">
         <div class="divider-num">02</div>
         <div class="divider-content">
@@ -457,7 +421,7 @@ html,body{height:100%;background:var(--bg);font-family:'Montserrat',sans-serif;c
     </section>
 
     <!-- ═══════════ SLIDE 05 — INVENTARIO CONSOLIDADO ═══════════ -->
-    <section class="slide" data-screen-label="05 Inventario Consolidado" data-seccion="inventario">
+    <section class="slide" data-screen-label="05 Inventario Consolidado">
       <div class="slide-pad">
         <div class="slide-header">
           <div class="slide-header-left">
@@ -497,7 +461,7 @@ html,body{height:100%;background:var(--bg);font-family:'Montserrat',sans-serif;c
     </section>
 
     <!-- ═══════════ SLIDE 06 — ABSORCIÓN POR PROYECTO ═══════════ -->
-    <section class="slide" data-screen-label="06 Absorcion por Proyecto" data-seccion="inventario">
+    <section class="slide" data-screen-label="06 Absorcion por Proyecto">
       <div class="slide-pad">
         <div class="slide-header">
           <div class="slide-header-left">
@@ -512,26 +476,8 @@ html,body{height:100%;background:var(--bg);font-family:'Montserrat',sans-serif;c
       <div class="slide-footer"><span>Inventario · Por proyecto</span><span class="meta-period" data-period></span></div>
     </section>
 
-    <!-- ═══════════ SLIDE 06b — VENTAS POR AÑO (HISTÓRICO) ═══════════ -->
-    <section class="slide" data-screen-label="06b Ventas por Año" data-seccion="inventario">
-      <div class="slide-pad">
-        <div class="slide-header">
-          <div class="slide-header-left">
-            <span class="slide-section-tag">02 · Inventario</span>
-            <h2 class="slide-title">Ventas por año — histórico</h2>
-            <p class="slide-subtitle">Unidades y valor vendido por proyecto y año · acumulado total</p>
-          </div>
-          <div class="slide-header-right"><span class="slide-num" id="slideNumVentasAnio"></span></div>
-        </div>
-        <div id="ventasAnioContainer" style="display:flex;flex-direction:column;gap:16px;margin-top:8px">
-          <div style="color:var(--muted);text-align:center;padding:40px">Cargando datos históricos...</div>
-        </div>
-      </div>
-      <div class="slide-footer"><span>Inventario · Ventas históricas</span><span class="meta-period" data-period></span></div>
-    </section>
-
     <!-- ═══════════ SLIDE 07 — VALOR POR PROYECTO ═══════════ -->
-    <section class="slide" data-screen-label="07 Valor por Proyecto" data-seccion="inventario">
+    <section class="slide" data-screen-label="07 Valor por Proyecto">
       <div class="slide-pad">
         <div class="slide-header">
           <div class="slide-header-left">
@@ -552,7 +498,7 @@ html,body{height:100%;background:var(--bg);font-family:'Montserrat',sans-serif;c
     </section>
 
     <!-- ═══════════ SLIDE 08 — DIVIDER VENTAS ═══════════ -->
-    <section class="slide" data-screen-label="08 Divider Ventas" data-seccion="ventas">
+    <section class="slide" data-screen-label="08 Divider Ventas">
       <div class="divider">
         <div class="divider-num">03</div>
         <div class="divider-content">
@@ -565,44 +511,32 @@ html,body{height:100%;background:var(--bg);font-family:'Montserrat',sans-serif;c
     </section>
 
     <!-- ═══════════ SLIDE 09 — VENTAS DEL PERÍODO ═══════════ -->
-    <section class="slide" data-screen-label="09 Ventas Resumen" data-seccion="ventas">
-      <div class="slide-pad" style="display:flex;flex-direction:column;gap:0;overflow:hidden;padding-bottom:0">
-        <div class="slide-header" style="flex-shrink:0;margin-bottom:12px">
+    <section class="slide" data-screen-label="09 Ventas Resumen">
+      <div class="slide-pad">
+        <div class="slide-header">
           <div class="slide-header-left">
             <span class="slide-section-tag">03 · Ventas</span>
             <h2 class="slide-title">Resumen de ventas</h2>
             <p class="slide-subtitle" id="ventasSub">Indicadores del período · brutas, netas y composición financiera</p>
           </div>
-          <div class="slide-header-right"><span class="slide-num">11 / 26</span></div>
+          <div class="slide-header-right"><span class="slide-num">09 / 26</span></div>
         </div>
-        <!-- Fila 1: KPIs -->
-        <div class="kpi-grid cols-4" style="flex-shrink:0;margin-bottom:12px">
+        <div class="kpi-grid cols-4" style="margin-bottom:24px">
           <div class="kpi-card blue"><div class="kpi-label">Ventas brutas</div><div class="kpi-value blue" id="vtBrutas">—</div><div class="kpi-sub" id="vtValorBruto">—</div></div>
           <div class="kpi-card red"><div class="kpi-label">Desistimientos</div><div class="kpi-value red" id="vtDesist">—</div><div class="kpi-sub" id="vtDesistVal">—</div></div>
           <div class="kpi-card green"><div class="kpi-label">Ventas netas</div><div class="kpi-value green" id="vtNetas">—</div><div class="kpi-sub" id="vtTasaDes">—</div></div>
           <div class="kpi-card dorado"><div class="kpi-label">Ticket promedio</div><div class="kpi-value dorado" id="vtTicket">—</div><div class="kpi-sub" id="vtPlazo">—</div></div>
         </div>
-        <!-- Fila 2: Gráficos arriba | Tablas fijas abajo — mismo ancho columna por columna -->
-        <div style="flex:1;min-height:0;display:grid;grid-template-columns:1fr 1fr;grid-template-rows:auto auto;gap:12px 16px">
-          <!-- Col izq arriba: Mezcla -->
-          <div class="chart-wrap" style="min-height:0;padding:14px 18px">
-            <div class="chart-title" style="font-size:12px">Mezcla por forma de pago</div>
-            <div class="chart-sub" style="font-size:11px">Distribución de las ventas brutas del período</div>
-            <div id="vtMezcla" style="margin-top:12px"></div>
+        <div class="two-col">
+          <div class="chart-wrap">
+            <div class="chart-title">Mezcla por forma de pago</div>
+            <div class="chart-sub">Distribución de las ventas brutas del período</div>
+            <div id="vtMezcla" style="margin-top:20px"></div>
           </div>
-          <!-- Col der arriba: Composición -->
-          <div class="chart-wrap" style="min-height:0;padding:14px 18px">
-            <div class="chart-title" style="font-size:12px">Composición financiera (ventas del mes)</div>
-            <div class="chart-sub" style="font-size:11px">Capital contado, intereses x cobrar e intereses sin cobrar</div>
-            <div id="vtFinanciero" style="margin-top:12px"></div>
-          </div>
-          <!-- Col izq abajo: Intereses oportunidad (mismo ancho que Mezcla) -->
-          <div id="interesesSinCobrarContainer" style="background:var(--bg-card);border:1px solid var(--border);border-radius:8px;padding:12px 14px;overflow:auto">
-            <div style="color:var(--muted);font-size:11px;padding:6px">Cargando intereses…</div>
-          </div>
-          <!-- Col der abajo: Ventas por plazo (mismo ancho que Composición) -->
-          <div id="ventasPorPlazoContainer" style="background:var(--bg-card);border:1px solid var(--border);border-radius:8px;padding:12px 14px;overflow:auto">
-            <div style="color:var(--muted);font-size:11px;padding:6px">Cargando ventas por plazo…</div>
+          <div class="chart-wrap">
+            <div class="chart-title">Composición financiera (ventas del mes)</div>
+            <div class="chart-sub">Capital contado, intereses x cobrar e intereses sin cobrar</div>
+            <div id="vtFinanciero" style="margin-top:20px"></div>
           </div>
         </div>
       </div>
@@ -610,7 +544,7 @@ html,body{height:100%;background:var(--bg);font-family:'Montserrat',sans-serif;c
     </section>
 
     <!-- ═══════════ SLIDE 10 — TENDENCIA MENSUAL ═══════════ -->
-    <section class="slide" data-screen-label="10 Tendencia Ventas" data-seccion="ventas">
+    <section class="slide" data-screen-label="10 Tendencia Ventas">
       <div class="slide-pad">
         <div class="slide-header">
           <div class="slide-header-left">
@@ -639,7 +573,7 @@ html,body{height:100%;background:var(--bg);font-family:'Montserrat',sans-serif;c
     </section>
 
     <!-- ═══════════ SLIDE 11 — MEZCLA FINANCIERA ═══════════ -->
-    <section class="slide" data-screen-label="11 Mezcla Financiera" data-seccion="ventas">
+    <section class="slide" data-screen-label="11 Mezcla Financiera">
       <div class="slide-pad">
         <div class="slide-header">
           <div class="slide-header-left">
@@ -664,7 +598,7 @@ html,body{height:100%;background:var(--bg);font-family:'Montserrat',sans-serif;c
     </section>
 
     <!-- ═══════════ SLIDE 12 — TOP VENDEDORES ═══════════ -->
-    <section class="slide" data-screen-label="12 Top Vendedores" data-seccion="ventas">
+    <section class="slide" data-screen-label="12 Top Vendedores">
       <div class="slide-pad">
         <div class="slide-header">
           <div class="slide-header-left">
@@ -684,7 +618,7 @@ html,body{height:100%;background:var(--bg);font-family:'Montserrat',sans-serif;c
     </section>
 
     <!-- ═══════════ SLIDE 13 — METAS VS AVANCE ═══════════ -->
-    <section class="slide" data-screen-label="13 Metas vs Avance" data-seccion="ventas">
+    <section class="slide" data-screen-label="13 Metas vs Avance">
       <div class="slide-pad">
         <div class="slide-header">
           <div class="slide-header-left">
@@ -700,7 +634,7 @@ html,body{height:100%;background:var(--bg);font-family:'Montserrat',sans-serif;c
     </section>
 
     <!-- ═══════════ SLIDE 14 — DIVIDER CARTERA ═══════════ -->
-    <section class="slide" data-screen-label="14 Divider Cartera" data-seccion="cartera">
+    <section class="slide" data-screen-label="14 Divider Cartera">
       <div class="divider">
         <div class="divider-num">04</div>
         <div class="divider-content">
@@ -713,7 +647,7 @@ html,body{height:100%;background:var(--bg);font-family:'Montserrat',sans-serif;c
     </section>
 
     <!-- ═══════════ SLIDE 15 — RESUMEN CARTERA ═══════════ -->
-    <section class="slide" data-screen-label="15 Cartera Resumen" data-seccion="cartera">
+    <section class="slide" data-screen-label="15 Cartera Resumen">
       <div class="slide-pad">
         <div class="slide-header">
           <div class="slide-header-left">
@@ -727,7 +661,7 @@ html,body{height:100%;background:var(--bg);font-family:'Montserrat',sans-serif;c
           <div class="kpi-card"><div class="kpi-label">Cartera total</div><div class="kpi-value" id="carTotal">—</div><div class="kpi-sub" id="carClientes">—</div></div>
           <div class="kpi-card blue"><div class="kpi-label">Capital</div><div class="kpi-value blue" id="carCapital">—</div><div class="kpi-sub">saldo de capital pendiente</div></div>
           <div class="kpi-card purple"><div class="kpi-label">Intereses</div><div class="kpi-value purple" id="carIntereses">—</div><div class="kpi-sub">saldo de intereses pendientes</div></div>
-          <div class="kpi-card amber"><div class="kpi-label">Cartera<br><small style="font-size:10px;font-weight:500">(Mayor a 31 días)</small></div><div class="kpi-value amber" id="carMora">—</div><div class="kpi-sub" id="carMoraTasa">—</div></div>
+          <div class="kpi-card amber"><div class="kpi-label">Mora total</div><div class="kpi-value amber" id="carMora">—</div><div class="kpi-sub" id="carMoraTasa">—</div></div>
         </div>
         <div class="kpi-grid cols-4">
           <div class="kpi-card green"><div class="kpi-label">Cobro 30 días</div><div class="kpi-value green" id="carCobro30">—</div><div class="kpi-sub">cuotas próximas</div></div>
@@ -742,7 +676,7 @@ html,body{height:100%;background:var(--bg);font-family:'Montserrat',sans-serif;c
     </section>
 
     <!-- ═══════════ SLIDE 16 — AGING ═══════════ -->
-    <section class="slide" data-screen-label="16 Aging Cartera" data-seccion="cartera">
+    <section class="slide" data-screen-label="16 Aging Cartera">
       <div class="slide-pad">
         <div class="slide-header">
           <div class="slide-header-left">
@@ -760,7 +694,7 @@ html,body{height:100%;background:var(--bg);font-family:'Montserrat',sans-serif;c
           </div>
           <div>
             <table class="exec-table">
-              <thead><tr><th>Rango</th><th class="right">Cuotas</th><th class="right">Clientes</th><th class="right">Monto (Q)</th><th class="right">%</th></tr></thead>
+              <thead><tr><th>Rango</th><th class="right">Cuotas</th><th class="right">Clientes</th><th class="right">Monto (Q)</th></tr></thead>
               <tbody id="agingTbody"></tbody>
             </table>
             <div class="callout red" style="margin-top:18px"><div class="label">Atención prioritaria</div><div class="text" id="agingLectura">—</div></div>
@@ -771,7 +705,7 @@ html,body{height:100%;background:var(--bg);font-family:'Montserrat',sans-serif;c
     </section>
 
     <!-- ═══════════ SLIDE 16-BIS — CLIENTES EN RIESGO MORA ═══════════ -->
-    <section class="slide" data-screen-label="16b Morosos 61+" data-seccion="cartera" id="slide-morosos">
+    <section class="slide" data-screen-label="16b Morosos 61+">
       <div class="slide-pad">
         <div class="slide-header">
           <div class="slide-header-left">
@@ -788,7 +722,7 @@ html,body{height:100%;background:var(--bg);font-family:'Montserrat',sans-serif;c
         </div>
         <div style="max-height:400px;overflow-y:auto">
         <table class="exec-table" style="font-size:13px">
-          <thead><tr><th>Cliente</th><th>Empresa / Proyecto</th><th class="right">Cuotas</th><th class="right">Monto vencido (Q)</th><th class="right">Días mora</th><th>Rango</th></tr></thead>
+          <thead><tr><th>Cliente</th><th>Empresa</th><th class="right">Cuotas</th><th class="right">Monto vencido (Q)</th><th class="right">Días mora</th><th>Rango</th></tr></thead>
           <tbody id="morTbody"></tbody>
         </table>
         </div>
@@ -797,7 +731,7 @@ html,body{height:100%;background:var(--bg);font-family:'Montserrat',sans-serif;c
     </section>
 
     <!-- ═══════════ SLIDE 17 — PROYECCIÓN MENSUAL ═══════════ -->
-    <section class="slide" data-screen-label="17 Proyeccion Cobros" data-seccion="cartera">
+    <section class="slide" data-screen-label="17 Proyeccion Cobros">
       <div class="slide-pad">
         <div class="slide-header">
           <div class="slide-header-left">
@@ -819,7 +753,7 @@ html,body{height:100%;background:var(--bg);font-family:'Montserrat',sans-serif;c
     </section>
 
     <!-- ═══════════ SLIDE 18 — DESISTIMIENTOS ═══════════ -->
-    <section class="slide" data-screen-label="18 Desistimientos" data-seccion="cartera">
+    <section class="slide" data-screen-label="18 Desistimientos">
       <div class="slide-pad">
         <div class="slide-header">
           <div class="slide-header-left">
@@ -841,7 +775,7 @@ html,body{height:100%;background:var(--bg);font-family:'Montserrat',sans-serif;c
     </section>
 
     <!-- ═══════════ SLIDE 19 — ALERTAS DE CARTERA ═══════════ -->
-    <section class="slide" data-screen-label="19 Alertas Cartera" data-seccion="cartera">
+    <section class="slide" data-screen-label="19 Alertas Cartera">
       <div class="slide-pad">
         <div class="slide-header">
           <div class="slide-header-left">
@@ -867,7 +801,7 @@ html,body{height:100%;background:var(--bg);font-family:'Montserrat',sans-serif;c
     </section>
 
     <!-- ═══════════ SLIDE 20 — DIVIDER FLUJOS ═══════════ -->
-    <section class="slide" data-screen-label="20 Divider Flujos" data-seccion="flujos">
+    <section class="slide" data-screen-label="20 Divider Flujos">
       <div class="divider">
         <div class="divider-num">05</div>
         <div class="divider-content">
@@ -880,7 +814,7 @@ html,body{height:100%;background:var(--bg);font-family:'Montserrat',sans-serif;c
     </section>
 
     <!-- ═══════════ SLIDE 21 — FLUJOS RESUMEN ═══════════ -->
-    <section class="slide" data-screen-label="21 Flujos Resumen" data-seccion="flujos">
+    <section class="slide" data-screen-label="21 Flujos Resumen">
       <div class="slide-pad">
         <div class="slide-header">
           <div class="slide-header-left">
@@ -926,330 +860,61 @@ html,body{height:100%;background:var(--bg);font-family:'Montserrat',sans-serif;c
       <div class="slide-footer"><span>Flujos · Resumen</span><span class="meta-period" data-period></span></div>
     </section>
 
-    <!-- ═══════════ SLIDE 26 — FLUJO EFECTIVO MAQUINARIA ═══════════ -->
-    <section class="slide" data-screen-label="26 Flujo Maquinaria" data-seccion="flujos">
-      <div class="slide-pad" style="overflow:hidden;display:flex;flex-direction:column;height:100%">
-
-        <!-- HEADER integrado al tema de la presentación -->
-        <div class="slide-header" style="flex-shrink:0;margin-bottom:14px">
+    <!-- ═══════════ SLIDE 22 — DETALLE MOVIMIENTOS FLUJOS ═══════════ -->
+    <section class="slide" data-screen-label="22 Detalle Movimientos">
+      <div class="slide-pad">
+        <div class="slide-header">
           <div class="slide-header-left">
-            <span class="slide-section-tag">05 · Flujos de Efectivo</span>
-            <h2 class="slide-title">Flujo de efectivo del período · Maquinaria</h2>
-            <p class="slide-subtitle">REAL · Enero – Abril 2026 · Servicios Generales CCC</p>
+            <span class="slide-section-tag">05 · Flujos de efectivo</span>
+            <h2 class="slide-title">Detalle de movimientos del mes</h2>
+            <p class="slide-subtitle" id="detalleFlujoSub">Principales movimientos por sección</p>
           </div>
-          <div class="slide-header-right"><span class="slide-num">26 / 26</span></div>
+          <div class="slide-header-right"><span class="slide-num">22 / 26</span></div>
         </div>
-
-        <!-- FILTROS DE MES — mismo estilo que otros slides con filtros de proyecto -->
-        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;flex-shrink:0">
-          <button onclick="maqSetMes(-1)" id="maqBtnAcum"
-            style="padding:7px 16px;border:1px solid var(--dorado);border-radius:5px;background:rgba(240,180,41,0.1);color:var(--dorado);font-family:inherit;font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;cursor:pointer">
-            Ene – Abr · Acumulado
-          </button>
-          <button onclick="maqSetMes(0)" id="maqBtn0"
-            style="padding:7px 14px;border:1px solid var(--border);border-radius:5px;background:var(--bg-section);color:var(--muted);font-family:inherit;font-size:11px;font-weight:600;cursor:pointer">
-            Enero
-          </button>
-          <button onclick="maqSetMes(1)" id="maqBtn1"
-            style="padding:7px 14px;border:1px solid var(--border);border-radius:5px;background:var(--bg-section);color:var(--muted);font-family:inherit;font-size:11px;font-weight:600;cursor:pointer">
-            Febrero
-          </button>
-          <button onclick="maqSetMes(2)" id="maqBtn2"
-            style="padding:7px 14px;border:1px solid var(--border);border-radius:5px;background:var(--bg-section);color:var(--muted);font-family:inherit;font-size:11px;font-weight:600;cursor:pointer">
-            Marzo
-          </button>
-          <button onclick="maqSetMes(3)" id="maqBtn3"
-            style="padding:7px 14px;border:1px solid var(--border);border-radius:5px;background:var(--bg-section);color:var(--muted);font-family:inherit;font-size:11px;font-weight:600;cursor:pointer">
-            Abril
-          </button>
+        <div style="display:flex;gap:12px;align-items:center;margin-bottom:18px">
+          <span class="label-sm">Sociedad:</span>
+          <select id="detalleFlujoSociedad" style="padding:7px 12px;border:1px solid var(--border);border-radius:5px;background:var(--bg-section);color:var(--text);font-family:inherit;font-size:12px;font-weight:600;cursor:pointer">
+            <option value="CONSOLIDADO">CONSOLIDADO (Todas)</option>
+            <option value="EFICIENCIA URBANA">Eficiencia Urbana</option>
+            <option value="SER GEN CCC">Servicios Generales</option>
+            <option value="ROSSIO">Rossio</option>
+            <option value="FRUGALEX">Frugalex</option>
+            <option value="OTTAVIA">Ottavia</option>
+            <option value="UTILICA">Utilica</option>
+            <option value="TEZZOLI">Tezzoli</option>
+            <option value="URBIVA">Urbiva</option>
+            <option value="GARBATELLA">Garbatella</option>
+            <option value="CAPIPOS">Capipos</option>
+            <option value="OVEST">Ovest</option>
+            <option value="CORCOLLE">Corcolle</option>
+            <option value="LEOFRENI">Leofreni</option>
+            <option value="GIBRALEON">Gibraleón</option>
+            <option value="TALOCCI">Talocci</option>
+            <option value="VILET">Vilet</option>
+          </select>
         </div>
-
-        <!-- KPI CARDS — mismo estilo que el resto de la presentación -->
-        <div class="kpi-grid cols-4" style="flex-shrink:0;margin-bottom:14px">
-          <div class="kpi-card" style="border-top:3px solid var(--text)">
-            <div class="kpi-label">Saldo Inicial de Caja</div>
-            <div class="kpi-value" id="mq-k-ini" style="color:var(--text)">—</div>
-            <div class="kpi-sub">al inicio del período</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:18px">
+          <div>
+            <h3 style="font-size:15px;font-weight:700;color:var(--text);margin-bottom:10px">Top movimientos · Egresos</h3>
+            <table class="exec-table" style="font-size:12px" id="detalleEgresosTbl">
+              <thead><tr><th>Sección</th><th>Categoría</th><th class="right">Monto (Q)</th></tr></thead>
+              <tbody id="detalleEgresosTbody"></tbody>
+            </table>
           </div>
-          <div class="kpi-card green">
-            <div class="kpi-label">Total Ingresos</div>
-            <div class="kpi-value green" id="mq-k-ing">—</div>
-            <div class="kpi-sub">total del período</div>
+          <div>
+            <h3 style="font-size:15px;font-weight:700;color:var(--text);margin-bottom:10px">Top movimientos · Ingresos</h3>
+            <table class="exec-table" style="font-size:12px" id="detalleIngresosTbl">
+              <thead><tr><th>Sección</th><th>Categoría</th><th class="right">Monto (Q)</th></tr></thead>
+              <tbody id="detalleIngresosTbody"></tbody>
+            </table>
           </div>
-          <div class="kpi-card red">
-            <div class="kpi-label">Total Egresos</div>
-            <div class="kpi-value red" id="mq-k-egr">—</div>
-            <div class="kpi-sub">total del período</div>
-          </div>
-          <div class="kpi-card dorado">
-            <div class="kpi-label">Saldo Final de Caja</div>
-            <div class="kpi-value dorado" id="mq-k-fin">—</div>
-            <div class="kpi-sub" id="mq-k-desc">—</div>
-          </div>
-        </div>
-
-        <!-- TABLA DE DETALLE -->
-        <div style="flex:1;min-height:0;overflow:auto">
-          <table class="exec-table" style="width:100%;border-collapse:collapse;font-size:12px">
-            <thead id="maq-theadRow"></thead>
-            <tbody id="maq-tbody"></tbody>
-          </table>
         </div>
       </div>
-      <div class="slide-footer"><span>Flujos · Maquinaria 2026</span></div>
-
-<script>
-(function maqSlideScope() {
-// ── Flujo Maquinaria — scoped to prevent global variable conflicts ──
-// Functions exposed globally so onclick attributes in HTML can call them
-
-
-// ─── DATOS EXACTOS (índice 0=Ene, 1=Feb, 2=Mar, 3=Abr) ───────────────────
-const MESES = ['Enero','Febrero','Marzo','Abril'];
-
-const SALDO_INICIAL = [28442, 17913, 2091, 20278];
-
-const INGRESOS = [
-  { label: 'Ingresos por movimientos de tierra', vals: [1023880, 578888, 410948, 485893] },
-  { label: 'Cuenta por Cobrar',                  vals: [279695,  192464, 1491289,1029751] },
-  { label: 'Aporte Consba',                      vals: [0,       160000, 0,       0     ] },
-  { label: 'Aporte RV4',                         vals: [0,       160000, 0,       0     ] },
-  { label: 'Intercompany',                       vals: [80000,   96500,  0,       104000] },
-];
-const TOTAL_INGRESOS = [1383575, 1187852, 1902237, 1619645];
-
-const EGRESOS = [
-  { label: 'Pagos Leasing Maquinaria',                vals: [421502, 209048, 318149, 211045] },
-  { label: 'Pagos Maquinas William Duarte',           vals: [208333, 568333, 417153, 475000] },
-  { label: 'Planilla',                                vals: [351501, 286658, 418451, 349640] },
-  { label: 'Combustible',                             vals: [231361, 79044,  119691, 133672] },
-  { label: 'Cemento',                                 vals: [0,      0,      267112, 264320] },
-  { label: 'Mantenimientos',                          vals: [89600,  0,      57481,  115772] },
-  { label: 'Materiales y suministros',                vals: [38343,  0,      11427,  0     ] },
-  { label: 'Fletes',                                  vals: [9250,   21613,  35436,  0     ] },
-  { label: 'Otros Gastos (Caja Chica)',               vals: [14000,  33900,  14826,  10726 ] },
-  { label: 'Reintegro Aporte Cemento $130K',          vals: [0,      0,      0,      0     ] },
-  { label: 'Reintegro préstamo maquinaria – Positran',vals: [0,      0,      0,      0     ] },
-  { label: 'Impuestos',                               vals: [30213,  5078,   64324,  61420 ] },
-  { label: 'Reintegro aporte RV4',                    vals: [0,      0,      160000, 0     ] },
-];
-const TOTAL_EGRESOS = [1394103, 1203675, 1884050, 1621594];
-
-const SALDO_FINAL = [17913, 2091, 20278, 18328];
-
-// ─── HELPERS ─────────────────────────────────────────────────────────────
-const Q    = n => 'Q ' + Math.abs(n).toLocaleString('es-GT');
-const Qs   = n => {
-  const a = Math.abs(n);
-  const s = n < 0 ? '-' : '';
-  if (a >= 1e6) return s + 'Q ' + (a/1e6).toFixed(2) + 'M';
-  if (a >= 1e3) return s + 'Q ' + (a/1e3).toFixed(1) + 'K';
-  return s + 'Q ' + a.toLocaleString('es-GT');
-};
-const dash = () => `<span class="v-dash">—</span>`;
-
-let activeMes = -1; // -1 = acumulado
-
-// ─── SET ACTIVE TAB ──────────────────────────────────────────────────────
-function setMes(idx) {
-  activeMes = idx;
-  // Update new button styles
-  ['maqBtnAcum','maqBtn0','maqBtn1','maqBtn2','maqBtn3'].forEach((id, i) => {
-    const btn = document.getElementById(id);
-    if (!btn) return;
-    const isActive = (i === 0 && idx === -1) || (i > 0 && i - 1 === idx);
-    if (isActive) {
-      btn.style.borderColor = i === 0 ? 'var(--dorado)' : 'var(--blue)';
-      btn.style.background = i === 0 ? 'rgba(240,180,41,0.15)' : 'rgba(96,165,250,0.12)';
-      btn.style.color = i === 0 ? 'var(--dorado)' : 'var(--blue)';
-    } else {
-      btn.style.borderColor = 'var(--border)';
-      btn.style.background = 'var(--bg-section)';
-      btn.style.color = 'var(--muted)';
-    }
-  });
-  render();
-}
-
-// ─── RENDER ──────────────────────────────────────────────────────────────
-function render() {
-  const isAcum = activeMes === -1;
-
-  // Aggregated values
-  const saldoIni  = SALDO_INICIAL[isAcum ? 0 : activeMes];
-  const totalIng  = isAcum ? TOTAL_INGRESOS.reduce((a,b)=>a+b,0) : TOTAL_INGRESOS[activeMes];
-  const totalEgr  = isAcum ? TOTAL_EGRESOS.reduce((a,b)=>a+b,0)  : TOTAL_EGRESOS[activeMes];
-  const saldoFin  = SALDO_FINAL[isAcum ? 3 : activeMes];
-  const neto      = totalIng - totalEgr;
-  const sign      = neto >= 0 ? '+' : '';
-
-  // ── KPIs ──
-  document.getElementById('mq-k-ini').textContent = Qs(saldoIni);
-  document.getElementById('mq-k-ing').textContent = Qs(totalIng);
-  document.getElementById('mq-k-egr').textContent = Qs(totalEgr);
-  document.getElementById('mq-k-fin').textContent = Qs(saldoFin);
-  document.getElementById('mq-k-desc').textContent = `Neto del período: ${sign}${Qs(neto)}`;
-
-  // ── THEAD ──
-  let thHtml = `<th style="width:36%">Descripción</th>`;
-  if (isAcum) {
-    MESES.forEach(m => { thHtml += `<th>${m}</th>`; });
-    thHtml += `<th>Total Acum.</th>`;
-  } else {
-    thHtml += `<th>Ingresos (Q)</th><th>Egresos (Q)</th><th>Neto (Q)</th>`;
-  }
-  document.getElementById('maq-theadRow').innerHTML = thHtml;
-
-  // ── TBODY ──
-  let html = '';
-
-  // Helper to build a cell value
-  const ingCell = (v) => v > 0 ? `<span class="v-green">Q ${v.toLocaleString('es-GT')}</span>` : dash();
-  const egrCell = (v) => v > 0 ? `<span class="v-gray">Q ${v.toLocaleString('es-GT')}</span>`  : dash();
-  const netCell = (v) => v > 0
-    ? `<span class="v-green">Q ${v.toLocaleString('es-GT')}</span>`
-    : v < 0
-      ? `<span class="v-red">-Q ${Math.abs(v).toLocaleString('es-GT')}</span>`
-      : dash();
-
-  // SALDO INICIAL
-  if (isAcum) {
-    let siRow = `<tr class="grand-total-top"><td>Saldo Inicial de Caja</td>`;
-    SALDO_INICIAL.forEach((v,i) => {
-      siRow += `<td><span class="v-white">Q ${v.toLocaleString('es-GT')}</span></td>`;
-    });
-    siRow += `<td><span class="v-white">Q ${SALDO_INICIAL[0].toLocaleString('es-GT')}</span></td></tr>`;
-    html += siRow;
-  } else {
-    html += `<tr class="grand-total-top">
-      <td>Saldo Inicial de Caja</td>
-      ${dash().replace('<','<td>').replace('</span>','</span></td>')}
-      <td>${dash()}</td>
-      <td><span class="v-white">Q ${saldoIni.toLocaleString('es-GT')}</span></td>
-    </tr>`;
-  }
-
-  // INGRESOS header
-  html += `<tr class="section-header"><td colspan="${isAcum ? 6 : 4}">Ingresos</td></tr>`;
-
-  INGRESOS.forEach(r => {
-    const total = r.vals.reduce((a,b)=>a+b,0);
-    if (total === 0) return; // skip zero rows
-
-    if (isAcum) {
-      let row = `<tr><td>${r.label}</td>`;
-      r.vals.forEach(v => {
-        row += `<td>${v > 0 ? `<span class="v-green">Q ${v.toLocaleString('es-GT')}</span>` : dash()}</td>`;
-      });
-      row += `<td><span class="v-green">Q ${total.toLocaleString('es-GT')}</span></td></tr>`;
-      html += row;
-    } else {
-      const v = r.vals[activeMes];
-      if (v === 0) return;
-      html += `<tr>
-        <td>${r.label}</td>
-        <td>${ingCell(v)}</td>
-        <td>${dash()}</td>
-        <td>${ingCell(v)}</td>
-      </tr>`;
-    }
-  });
-
-  // TOTAL INGRESOS
-  if (isAcum) {
-    let row = `<tr class="total-row"><td>Total Ingresos</td>`;
-    TOTAL_INGRESOS.forEach(v => { row += `<td><span class="v-blue">Q ${v.toLocaleString('es-GT')}</span></td>`; });
-    row += `<td><span class="v-blue">Q ${TOTAL_INGRESOS.reduce((a,b)=>a+b,0).toLocaleString('es-GT')}</span></td></tr>`;
-    html += row;
-  } else {
-    html += `<tr class="total-row">
-      <td>Total Ingresos</td>
-      <td><span class="v-blue">Q ${TOTAL_INGRESOS[activeMes].toLocaleString('es-GT')}</span></td>
-      <td>${dash()}</td>
-      <td><span class="v-blue">Q ${TOTAL_INGRESOS[activeMes].toLocaleString('es-GT')}</span></td>
-    </tr>`;
-  }
-
-  // EGRESOS header
-  html += `<tr class="section-header"><td colspan="${isAcum ? 6 : 4}">Egresos</td></tr>`;
-
-  EGRESOS.forEach(r => {
-    const total = r.vals.reduce((a,b)=>a+b,0);
-    if (total === 0) return;
-
-    if (isAcum) {
-      let row = `<tr><td>${r.label}</td>`;
-      r.vals.forEach(v => {
-        row += `<td>${v > 0 ? `<span class="v-gray">Q ${v.toLocaleString('es-GT')}</span>` : dash()}</td>`;
-      });
-      row += `<td><span class="v-gray">Q ${total.toLocaleString('es-GT')}</span></td></tr>`;
-      html += row;
-    } else {
-      const v = r.vals[activeMes];
-      if (v === 0) return;
-      html += `<tr>
-        <td>${r.label}</td>
-        <td>${dash()}</td>
-        <td>${egrCell(v)}</td>
-        <td><span class="v-red">-Q ${v.toLocaleString('es-GT')}</span></td>
-      </tr>`;
-    }
-  });
-
-  // TOTAL EGRESOS
-  if (isAcum) {
-    let row = `<tr class="total-row"><td>Total Egresos</td>`;
-    TOTAL_EGRESOS.forEach(v => { row += `<td><span class="v-blue">Q ${v.toLocaleString('es-GT')}</span></td>`; });
-    row += `<td><span class="v-blue">Q ${TOTAL_EGRESOS.reduce((a,b)=>a+b,0).toLocaleString('es-GT')}</span></td></tr>`;
-    html += row;
-  } else {
-    html += `<tr class="total-row">
-      <td>Total Egresos</td>
-      <td>${dash()}</td>
-      <td><span class="v-blue">Q ${TOTAL_EGRESOS[activeMes].toLocaleString('es-GT')}</span></td>
-      <td><span class="v-red">-Q ${TOTAL_EGRESOS[activeMes].toLocaleString('es-GT')}</span></td>
-    </tr>`;
-  }
-
-  // SALDO FINAL
-  if (isAcum) {
-    let row = `<tr class="grand-total"><td>Saldo Final Acumulado de Caja</td>`;
-    SALDO_FINAL.forEach(v => {
-      const cls = v >= 0 ? 'v-green' : 'v-red';
-      const sign = v < 0 ? '-' : '';
-      row += `<td><span class="${cls}">${sign}Q ${Math.abs(v).toLocaleString('es-GT')}</span></td>`;
-    });
-    const sf = SALDO_FINAL[3];
-    const cls = sf >= 0 ? 'v-green' : 'v-red';
-    row += `<td><span class="${cls}">Q ${sf.toLocaleString('es-GT')}</span></td></tr>`;
-    html += row;
-  } else {
-    const sf  = SALDO_FINAL[activeMes];
-    const cls = sf >= 0 ? 'v-green' : 'v-red';
-    html += `<tr class="grand-total">
-      <td>Saldo Final Acumulado de Caja</td>
-      <td>${dash()}</td>
-      <td>${dash()}</td>
-      <td><span class="${cls}">Q ${sf.toLocaleString('es-GT')}</span></td>
-    </tr>`;
-  }
-
-  document.getElementById('maq-tbody').innerHTML = html;
-}
-
-// INIT
-render();
-
-// Expose functions globally for HTML onclick attributes
-window.maqSetMes = function(idx) { if (typeof setMes === 'function') setMes(idx); };
-window.maqRender = function() { if (typeof render === 'function') render(); };
-// Auto-init
-try { if (typeof render === 'function') render(); } catch(e) {}
-})();
-</script>
+      <div class="slide-footer"><span>Flujos · Detalle</span><span class="meta-period" data-period></span></div>
     </section>
+
     <!-- ═══════════ SLIDE 23 — DIVIDER PCV ═══════════ -->
-    <section class="slide" data-screen-label="22 Divider PCV" data-seccion="pcv">
+    <section class="slide" data-screen-label="22 Divider PCV">
       <div class="divider">
         <div class="divider-num">06</div>
         <div class="divider-content">
@@ -1262,7 +927,7 @@ try { if (typeof render === 'function') render(); } catch(e) {}
     </section>
 
     <!-- ═══════════ SLIDE 23 — PCV ═══════════ -->
-    <section class="slide" data-screen-label="23 PCV Cumplimiento" data-seccion="pcv">
+    <section class="slide" data-screen-label="23 PCV Cumplimiento">
       <div class="slide-pad">
         <div class="slide-header">
           <div class="slide-header-left">
@@ -1275,7 +940,7 @@ try { if (typeof render === 'function') render(); } catch(e) {}
         <div class="kpi-grid cols-4" style="margin-bottom:24px">
           <div class="kpi-card"><div class="kpi-label">Total ventas</div><div class="kpi-value" id="pcvTotal">—</div><div class="kpi-sub">histórico</div></div>
           <div class="kpi-card green"><div class="kpi-label">Con PCV firmado</div><div class="kpi-value green" id="pcvCon">—</div><div class="kpi-sub" id="pcvPct">—</div></div>
-          <div class="kpi-card red"><div class="kpi-label">Sin PCV firmado a la fecha</div><div class="kpi-value red" id="pcvSin">—</div><div class="kpi-sub" id="pcvSin2026">—</div></div>
+          <div class="kpi-card red"><div class="kpi-label">Sin PCV firmado</div><div class="kpi-value red" id="pcvSin">—</div><div class="kpi-sub" id="pcvSin2026">—</div></div>
           <div class="kpi-card amber"><div class="kpi-label">Tiempo prom. gestión</div><div class="kpi-value amber" id="pcvDias">—</div><div class="kpi-sub">días desde venta</div></div>
         </div>
         <h3 class="h-3" style="margin:20px 0 14px">Distribución por antigüedad sin firmar</h3>
@@ -1290,7 +955,7 @@ try { if (typeof render === 'function') render(); } catch(e) {}
     </section>
 
     <!-- ═══════════ SLIDE 24 — REGISTROS A REVISAR ═══════════ -->
-    <section class="slide" data-screen-label="24 Registros a Revisar" data-seccion="pcv">
+    <section class="slide" data-screen-label="24 Registros a Revisar">
       <div class="slide-pad">
         <div class="slide-header">
           <div class="slide-header-left">
@@ -1318,190 +983,36 @@ try { if (typeof render === 'function') render(); } catch(e) {}
 
     <!-- ═══════════ SLIDE 25 — CIERRE ═══════════ -->
     <!-- ═══════════ SLIDE MINUTAS — ACUERDOS Y SEGUIMIENTO ═══════════ -->
-    <!-- ═══════════ SLIDE 29 — CXP DIVIDER ═══════════ -->
-    <section class="slide" data-screen-label="29 Divider CXP" data-seccion="cxp">
-      <div class="divider">
-        <div class="divider-num">08</div>
-        <div class="divider-content">
-          <div class="divider-rule"></div>
-          <span class="divider-eyebrow">Sección 08</span>
-          <h2 class="divider-title">Cuentas por pagar</h2>
-          <p class="divider-desc">Obligaciones pendientes por sociedad y proveedor · 279 registros · Total Q 6,448,125.70</p>
-        </div>
-      </div>
-    </section>
-
-    <!-- ═══════════ SLIDE 30 — CXP CONSOLIDADO ═══════════ -->
-    <!-- ═══════════ SLIDE 30 — CXP CONSOLIDADO ═══════════ -->
-    <section class="slide" data-screen-label="30 CXP Cuentas por Pagar" data-seccion="cxp">
-      <div class="slide-pad" style="display:flex;flex-direction:column;height:100%;overflow:hidden">
-        <div class="slide-header" style="flex-shrink:0">
+    <section class="slide" data-screen-label="Minutas JD">
+      <div class="slide-pad" style="display:flex;flex-direction:column;height:100%">
+        <div class="slide-header">
           <div class="slide-header-left">
-            <span class="slide-section-tag">08 · Cuentas por pagar</span>
-            <h2 class="slide-title">Cuentas por pagar consolidada</h2>
-            <p class="slide-subtitle">Obligaciones pendientes por sociedad · fuente: SAP · 272 registros</p>
+            <span class="slide-section-tag">07 · Minutas</span>
+            <h2 class="slide-title">Acuerdos y seguimiento</h2>
+            <p class="slide-subtitle" id="minutasPeriodoSub">Minuta de reunión · —</p>
           </div>
-          <div class="slide-header-right"><span class="slide-num" id="slideNumCXP"></span></div>
+          <div class="slide-header-right"><span class="slide-num"></span></div>
         </div>
-        <!-- 5 KPI aging buckets — valores en MM -->
-        <div style="display:grid;grid-template-columns:1fr repeat(5,1.1fr);gap:10px;margin-bottom:12px;flex-shrink:0">
-          <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:8px;padding:10px 14px;border-top:3px solid var(--dorado)">
-            <div style="font-size:11px;font-weight:700;color:var(--muted);letter-spacing:.05em;text-transform:uppercase;margin-bottom:4px">Total CXP</div>
-            <div style="font-size:24px;font-weight:800;color:var(--dorado);line-height:1">Q 6.45MM</div>
-            <div style="font-size:11px;color:var(--muted);margin-top:3px">272 documentos</div>
-          </div>
-            <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:8px;padding:10px 14px;border-top:3px solid #2c7a4e">
-              <div style="font-size:11px;font-weight:700;color:var(--muted);letter-spacing:.05em;text-transform:uppercase;margin-bottom:4px">Al día</div>
-              <div style="font-size:24px;font-weight:800;color:#2c7a4e;line-height:1">Q 52K</div>
-              <div style="font-size:11px;color:var(--muted);margin-top:3px">7 docs · 1%</div>
-            </div>
-            <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:8px;padding:10px 14px;border-top:3px solid #e0a030">
-              <div style="font-size:11px;font-weight:700;color:var(--muted);letter-spacing:.05em;text-transform:uppercase;margin-bottom:4px">0-30 días</div>
-              <div style="font-size:24px;font-weight:800;color:#e0a030;line-height:1">Q 819K</div>
-              <div style="font-size:11px;color:var(--muted);margin-top:3px">43 docs · 13%</div>
-            </div>
-            <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:8px;padding:10px 14px;border-top:3px solid #e06030">
-              <div style="font-size:11px;font-weight:700;color:var(--muted);letter-spacing:.05em;text-transform:uppercase;margin-bottom:4px">31-60 días</div>
-              <div style="font-size:24px;font-weight:800;color:#e06030;line-height:1">Q 187K</div>
-              <div style="font-size:11px;color:var(--muted);margin-top:3px">7 docs · 3%</div>
-            </div>
-            <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:8px;padding:10px 14px;border-top:3px solid #c03030">
-              <div style="font-size:11px;font-weight:700;color:var(--muted);letter-spacing:.05em;text-transform:uppercase;margin-bottom:4px">61-90 días</div>
-              <div style="font-size:24px;font-weight:800;color:#c03030;line-height:1">Q 243K</div>
-              <div style="font-size:11px;color:var(--muted);margin-top:3px">13 docs · 4%</div>
-            </div>
-            <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:8px;padding:10px 14px;border-top:3px solid #900000">
-              <div style="font-size:11px;font-weight:700;color:var(--muted);letter-spacing:.05em;text-transform:uppercase;margin-bottom:4px">+91 días</div>
-              <div style="font-size:24px;font-weight:800;color:#900000;line-height:1">Q 5.15MM</div>
-              <div style="font-size:11px;color:var(--muted);margin-top:3px">202 docs · 80%</div>
-            </div>
-        </div>
-        <!-- Resumen por sociedad - full width, sorted by total desc -->
-        <div style="overflow:auto;flex:1;min-height:0">
-          <div style="font-size:9px;font-weight:700;color:var(--muted);letter-spacing:.1em;text-transform:uppercase;margin-bottom:6px">Resumen por sociedad / proyecto</div>
-          <table class="exec-table" style="font-size:12px;width:100%;border-collapse:collapse">
+        <div style="flex:1;overflow-y:auto;margin-top:8px">
+          <table class="exec-table" id="minutasTable" style="width:100%">
             <thead><tr>
-              <th style="white-space:nowrap;padding:5px 8px">Sociedad / Proyecto</th>
-              <th style="text-align:center;padding:5px 8px">Docs</th>
-              <th style="text-align:right;padding:5px 8px;white-space:nowrap">Total (Q)</th>
-              <th style="text-align:center;padding:5px 8px">Estado</th>
+              <th style="width:35%">Acuerdo / Tema</th>
+              <th style="width:20%">Responsable</th>
+              <th style="width:35%">Observación</th>
+              <th style="width:10%">Fecha</th>
             </tr></thead>
-            <tbody>
-              <tr>
-                <td style="padding:6px 10px;font-size:12px;font-weight:600;white-space:nowrap">Eficiencia Urbana — Hacienda Jumay</td>
-                <td style="padding:6px 10px;text-align:center;font-size:11px">43</td>
-                <td style="padding:6px 10px;text-align:right;font-weight:700;font-size:12px;white-space:nowrap">Q 2,106,903</td>
-                <td style="padding:6px 10px;text-align:center"><span style="background:rgba(192,48,48,.15);color:#c03030;padding:2px 6px;border-radius:3px;font-size:9px;font-weight:700;white-space:nowrap">41 venc.</span></td>
-              </tr>
-              <tr>
-                <td style="padding:6px 10px;font-size:12px;font-weight:600;white-space:nowrap">Utilica — Condado Jutiapa</td>
-                <td style="padding:6px 10px;text-align:center;font-size:11px">56</td>
-                <td style="padding:6px 10px;text-align:right;font-weight:700;font-size:12px;white-space:nowrap">Q 1,094,457</td>
-                <td style="padding:6px 10px;text-align:center"><span style="background:rgba(192,48,48,.15);color:#c03030;padding:2px 6px;border-radius:3px;font-size:9px;font-weight:700;white-space:nowrap">56 venc.</span></td>
-              </tr>
-              <tr>
-                <td style="padding:6px 10px;font-size:12px;font-weight:600;white-space:nowrap">Tezzoli — Club Campestre Jumay</td>
-                <td style="padding:6px 10px;text-align:center;font-size:11px">29</td>
-                <td style="padding:6px 10px;text-align:right;font-weight:700;font-size:12px;white-space:nowrap">Q 1,086,799</td>
-                <td style="padding:6px 10px;text-align:center"><span style="background:rgba(192,48,48,.15);color:#c03030;padding:2px 6px;border-radius:3px;font-size:9px;font-weight:700;white-space:nowrap">29 venc.</span></td>
-              </tr>
-              <tr>
-                <td style="padding:6px 10px;font-size:12px;font-weight:600;white-space:nowrap">Servicios Generales — La Ceiba</td>
-                <td style="padding:6px 10px;text-align:center;font-size:11px">54</td>
-                <td style="padding:6px 10px;text-align:right;font-weight:700;font-size:12px;white-space:nowrap">Q 922,682</td>
-                <td style="padding:6px 10px;text-align:center"><span style="background:rgba(192,48,48,.15);color:#c03030;padding:2px 6px;border-radius:3px;font-size:9px;font-weight:700;white-space:nowrap">54 venc.</span></td>
-              </tr>
-              <tr>
-                <td style="padding:6px 10px;font-size:12px;font-weight:600;white-space:nowrap">Frugalex — Oasis Zacapa</td>
-                <td style="padding:6px 10px;text-align:center;font-size:11px">17</td>
-                <td style="padding:6px 10px;text-align:right;font-weight:700;font-size:12px;white-space:nowrap">Q 452,429</td>
-                <td style="padding:6px 10px;text-align:center"><span style="background:rgba(192,48,48,.15);color:#c03030;padding:2px 6px;border-radius:3px;font-size:9px;font-weight:700;white-space:nowrap">17 venc.</span></td>
-              </tr>
-              <tr>
-                <td style="padding:6px 10px;font-size:12px;font-weight:600;white-space:nowrap">Garbatella — Club Residencial El Progreso</td>
-                <td style="padding:6px 10px;text-align:center;font-size:11px">11</td>
-                <td style="padding:6px 10px;text-align:right;font-weight:700;font-size:12px;white-space:nowrap">Q 326,464</td>
-                <td style="padding:6px 10px;text-align:center"><span style="background:rgba(192,48,48,.15);color:#c03030;padding:2px 6px;border-radius:3px;font-size:9px;font-weight:700;white-space:nowrap">10 venc.</span></td>
-              </tr>
-              <tr>
-                <td style="padding:6px 10px;font-size:12px;font-weight:600;white-space:nowrap">Rossio — Hacienda el Sol</td>
-                <td style="padding:6px 10px;text-align:center;font-size:11px">13</td>
-                <td style="padding:6px 10px;text-align:right;font-weight:700;font-size:12px;white-space:nowrap">Q 266,791</td>
-                <td style="padding:6px 10px;text-align:center"><span style="background:rgba(192,48,48,.15);color:#c03030;padding:2px 6px;border-radius:3px;font-size:9px;font-weight:700;white-space:nowrap">13 venc.</span></td>
-              </tr>
-              <tr>
-                <td style="padding:6px 10px;font-size:12px;font-weight:600;white-space:nowrap">Capipos — Arboleda Santa Elena</td>
-                <td style="padding:6px 10px;text-align:center;font-size:11px">5</td>
-                <td style="padding:6px 10px;text-align:right;font-weight:700;font-size:12px;white-space:nowrap">Q 76,947</td>
-                <td style="padding:6px 10px;text-align:center"><span style="background:rgba(192,48,48,.15);color:#c03030;padding:2px 6px;border-radius:3px;font-size:9px;font-weight:700;white-space:nowrap">4 venc.</span></td>
-              </tr>
-              <tr>
-                <td style="padding:6px 10px;font-size:12px;font-weight:600;white-space:nowrap">Ovest — Hacienda Santa Lucia</td>
-                <td style="padding:6px 10px;text-align:center;font-size:11px">6</td>
-                <td style="padding:6px 10px;text-align:right;font-weight:700;font-size:12px;white-space:nowrap">Q 49,425</td>
-                <td style="padding:6px 10px;text-align:center"><span style="background:rgba(192,48,48,.15);color:#c03030;padding:2px 6px;border-radius:3px;font-size:9px;font-weight:700;white-space:nowrap">5 venc.</span></td>
-              </tr>
-              <tr>
-                <td style="padding:6px 10px;font-size:12px;font-weight:600;white-space:nowrap">Ottavia — Cañadas de Jalapa</td>
-                <td style="padding:6px 10px;text-align:center;font-size:11px">5</td>
-                <td style="padding:6px 10px;text-align:right;font-weight:700;font-size:12px;white-space:nowrap">Q 27,199</td>
-                <td style="padding:6px 10px;text-align:center"><span style="background:rgba(192,48,48,.15);color:#c03030;padding:2px 6px;border-radius:3px;font-size:9px;font-weight:700;white-space:nowrap">5 venc.</span></td>
-              </tr>
-              <tr>
-                <td style="padding:6px 10px;font-size:12px;font-weight:600;white-space:nowrap">Corcolle — Hacienda El Cafetal Fase I</td>
-                <td style="padding:6px 10px;text-align:center;font-size:11px">5</td>
-                <td style="padding:6px 10px;text-align:right;font-weight:700;font-size:12px;white-space:nowrap">Q 16,300</td>
-                <td style="padding:6px 10px;text-align:center"><span style="background:rgba(192,48,48,.15);color:#c03030;padding:2px 6px;border-radius:3px;font-size:9px;font-weight:700;white-space:nowrap">3 venc.</span></td>
-              </tr>
-              <tr>
-                <td style="padding:6px 10px;font-size:12px;font-weight:600;white-space:nowrap">Vilet — Celajes De Tecpan</td>
-                <td style="padding:6px 10px;text-align:center;font-size:11px">3</td>
-                <td style="padding:6px 10px;text-align:right;font-weight:700;font-size:12px;white-space:nowrap">Q 8,579</td>
-                <td style="padding:6px 10px;text-align:center"><span style="background:rgba(192,48,48,.15);color:#c03030;padding:2px 6px;border-radius:3px;font-size:9px;font-weight:700;white-space:nowrap">3 venc.</span></td>
-              </tr>
-              <tr>
-                <td style="padding:6px 10px;font-size:12px;font-weight:600;white-space:nowrap">Urbiva — Club del Bosque</td>
-                <td style="padding:6px 10px;text-align:center;font-size:11px">3</td>
-                <td style="padding:6px 10px;text-align:right;font-weight:700;font-size:12px;white-space:nowrap">Q 6,290</td>
-                <td style="padding:6px 10px;text-align:center"><span style="background:rgba(192,48,48,.15);color:#c03030;padding:2px 6px;border-radius:3px;font-size:9px;font-weight:700;white-space:nowrap">3 venc.</span></td>
-              </tr>
-              <tr>
-                <td style="padding:6px 10px;font-size:12px;font-weight:600;white-space:nowrap">Leofreni — Hacienda El Cafetal Fase II</td>
-                <td style="padding:6px 10px;text-align:center;font-size:11px">9</td>
-                <td style="padding:6px 10px;text-align:right;font-weight:700;font-size:12px;white-space:nowrap">Q 2,484</td>
-                <td style="padding:6px 10px;text-align:center"><span style="background:rgba(192,48,48,.15);color:#c03030;padding:2px 6px;border-radius:3px;font-size:9px;font-weight:700;white-space:nowrap">9 venc.</span></td>
-              </tr>
-              <tr>
-                <td style="padding:6px 10px;font-size:12px;font-weight:600;white-space:nowrap">Talocci — Hacienda El Cafetal Fase IV</td>
-                <td style="padding:6px 10px;text-align:center;font-size:11px">9</td>
-                <td style="padding:6px 10px;text-align:right;font-weight:700;font-size:12px;white-space:nowrap">Q 2,484</td>
-                <td style="padding:6px 10px;text-align:center"><span style="background:rgba(192,48,48,.15);color:#c03030;padding:2px 6px;border-radius:3px;font-size:9px;font-weight:700;white-space:nowrap">9 venc.</span></td>
-              </tr>
-              <tr>
-                <td style="padding:6px 10px;font-size:12px;font-weight:600;white-space:nowrap">Gibraleón — Hacienda El Cafetal Fase III</td>
-                <td style="padding:6px 10px;text-align:center;font-size:11px">4</td>
-                <td style="padding:6px 10px;text-align:right;font-weight:700;font-size:12px;white-space:nowrap">Q 1,895</td>
-                <td style="padding:6px 10px;text-align:center"><span style="background:rgba(192,48,48,.15);color:#c03030;padding:2px 6px;border-radius:3px;font-size:9px;font-weight:700;white-space:nowrap">4 venc.</span></td>
-              </tr>
+            <tbody id="minutasTbody">
+              <tr><td colspan="4" style="text-align:center;color:var(--muted);padding:40px">Sin acuerdos registrados para este período</td></tr>
             </tbody>
-            <tfoot><tr style="background:var(--bg-section);font-weight:700">
-              <td style="padding:5px 8px;font-size:11px">TOTAL</td>
-              <td style="padding:5px 8px;text-align:center;font-size:11px">272</td>
-              <td style="padding:5px 8px;text-align:right;font-size:11px;color:var(--dorado)">Q 6,448,126</td>
-              <td></td>
-            </tr></tfoot>
           </table>
         </div>
+        <div style="margin-top:12px;font-size:11px;color:var(--muted);text-align:right" id="minutasLastMod"></div>
       </div>
-      <div class="slide-footer"><span>Cuentas por Pagar · Consolidado · SAP</span><span class="meta-period" data-period></span></div>
+      <div class="slide-footer"><span>Minutas · Acuerdos JD</span><span class="meta-period" data-period></span></div>
     </section>
 
-
-
-
-
-    <!-- ═══════════ SLIDE 33 — CIERRE ═══════════ -->
-    <section class="slide" data-screen-label="33 Cierre" data-seccion="cierre">
+    <!-- ═══════════ SLIDE 25 — CIERRE ═══════════ -->
+    <section class="slide" data-screen-label="25 Cierre">
       <div class="cover">
         <div class="cover-content" style="justify-content:center">
           <div class="close-content">
