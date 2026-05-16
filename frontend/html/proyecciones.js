@@ -402,7 +402,7 @@ function renderEgresosOp(d) {
   if (!container) return;
   const anosEgr = d.anos_distribucion || 0;
   container.innerHTML = `
-    ${renderSeccion(d.urbanizacion, '🏗️ Urbanización')}
+    ${renderSeccion(d.urbanizacion, '🏗️ Urbanización + Movimiento de Tierras')}
     ${renderSeccion(d.administracion, '🏢 Administración')}
     <div class="egr-total-row">
       <span>Total Presupuesto: <strong>${fmtQ(d.total.presupuesto)}</strong></span>
@@ -477,7 +477,82 @@ function renderFinancieros(d) {
     }
   }
 
-  if (icEl) {
+  // ── Cuadre ejecutado real vs tabla + proyección por año ──────────
+  const ejec = d.ejecutado_financiamiento || {};
+  const porAnio = d.cuotas_por_anio || {};
+  const aniosKeys = Object.keys(porAnio).sort();
+  const ejec_prest_real = ejec.por_categoria?.['Prestamo Bancario'] || 0;
+  const p = d.prestamo_bancario;
+
+  if (prestEl && p) {
+    const tablaPagado = p.pagado_total || 0;
+    const diferencia  = ejec_prest_real - tablaPagado;
+    const difColor    = Math.abs(diferencia) < 500 ? 'var(--green)' : diferencia > 0 ? 'var(--amber)' : 'var(--red)';
+    const difLabel    = Math.abs(diferencia) < 500 ? '✓ Cuadra con la tabla' : diferencia > 0 ? '⚠ Flujo mayor que tabla' : '⚠ Flujo menor que tabla';
+
+    // Append cuadre block after existing content
+    const cuadreHtml = `
+      <div style="margin-top:16px;border:1px solid var(--borde);border-radius:8px;padding:14px 16px;background:var(--gris)">
+        <div style="font-size:10px;font-weight:700;color:var(--muted);letter-spacing:.1em;text-transform:uppercase;margin-bottom:10px">
+          Verificación: Flujo Real SAP vs Tabla de Amortización
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:12px">
+          <div class="kpi">
+            <div class="kpi-val" style="font-size:15px">${fmtQ(ejec_prest_real)}</div>
+            <div class="kpi-lbl">Flujo real SAP</div>
+            <div class="kpi-sub">FINANCIAMIENTO · Prestamo</div>
+          </div>
+          <div class="kpi">
+            <div class="kpi-val" style="font-size:15px">${fmtQ(tablaPagado)}</div>
+            <div class="kpi-lbl">Tabla amortización</div>
+            <div class="kpi-sub">${p.cuotas_pagadas} cuotas acumuladas</div>
+          </div>
+          <div class="kpi" style="border-color:${difColor}40">
+            <div class="kpi-val" style="font-size:15px;color:${difColor}">${fmtQ(Math.abs(diferencia))}</div>
+            <div class="kpi-lbl">Diferencia</div>
+            <div class="kpi-sub" style="color:${difColor};font-weight:600">${difLabel}</div>
+          </div>
+        </div>
+        ${aniosKeys.length ? `
+        <div style="font-size:10px;font-weight:700;color:var(--muted);letter-spacing:.1em;text-transform:uppercase;margin-bottom:8px">
+          Proyección cuotas pendientes por año
+        </div>
+        <div style="overflow-x:auto">
+          <table style="width:100%;border-collapse:collapse;font-size:11px;min-width:450px">
+            <thead><tr style="background:var(--azul);color:#fff">
+              <th style="padding:6px 10px;text-align:left">Año</th>
+              <th style="padding:6px 10px;text-align:center">Cuotas</th>
+              <th style="padding:6px 10px;text-align:right">Capital</th>
+              <th style="padding:6px 10px;text-align:right">Intereses</th>
+              <th style="padding:6px 10px;text-align:right">Total cuota</th>
+            </tr></thead>
+            <tbody>
+              ${aniosKeys.map(yr => {
+                const data = porAnio[yr];
+                return `<tr style="border-bottom:1px solid var(--borde-lt)">
+                  <td style="padding:5px 10px;font-weight:700;color:var(--azul)">${yr}</td>
+                  <td style="padding:5px 10px;text-align:center;color:var(--muted)">${data.n}</td>
+                  <td style="padding:5px 10px;text-align:right">${fmtQ(data.capital)}</td>
+                  <td style="padding:5px 10px;text-align:right;color:var(--amber)">${fmtQ(data.interes)}</td>
+                  <td style="padding:5px 10px;text-align:right;font-weight:700">${fmtQ(data.cuota)}</td>
+                </tr>`;
+              }).join('')}
+            </tbody>
+            <tfoot><tr style="background:var(--azul);color:#fff;font-weight:700">
+              <td style="padding:6px 10px">TOTAL PENDIENTE</td>
+              <td style="padding:6px 10px;text-align:center">${Object.values(porAnio).reduce((s,d)=>s+d.n,0)}</td>
+              <td style="padding:6px 10px;text-align:right">${fmtQ(Object.values(porAnio).reduce((s,d)=>s+d.capital,0))}</td>
+              <td style="padding:6px 10px;text-align:right">${fmtQ(Object.values(porAnio).reduce((s,d)=>s+d.interes,0))}</td>
+              <td style="padding:6px 10px;text-align:right">${fmtQ(Object.values(porAnio).reduce((s,d)=>s+d.cuota,0))}</td>
+            </tr></tfoot>
+          </table>
+        </div>` : '<div style="font-size:11px;color:var(--muted)">Sin cuotas pendientes registradas</div>'}
+      </div>`;
+
+    prestEl.innerHTML += cuadreHtml;
+  }
+
+    if (icEl) {
     const ic = d.intercompany;
     icEl.innerHTML = `
       <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-start">

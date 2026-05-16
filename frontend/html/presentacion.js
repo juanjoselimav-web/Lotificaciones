@@ -4,6 +4,10 @@
    ═══════════════════════════════════════════════════════════════ */
 
 const API = '';   // mismo origen que el tablero
+const METAS_MENSUALES = {"Ottavia": 15, "Tezzoli": 8, "Eficiencia Urbana": 15, "Servicios Generales": 7, "Capipos": 5, "Urbiva": 5, "Corcolle": 10, "Frugalex": 8, "Ovest": 8, "Vilet": 0, "Rossio": 5, "Utilica": 8, "Garbatella": 7};
+const META_TOTAL_MENSUAL = 101;
+const METAS_POR_PROYECTO = {"Ottavia \u2014 Ca\u00f1adas de Jalapa": 15, "Tezzoli \u2014 Club Campestre Jumay": 8, "Eficiencia Urbana \u2014 Hacienda Jumay": 15, "Servicios Generales \u2014 La Ceiba": 7, "Capipos \u2014 Arboleda Santa Elena": 5, "Urbiva \u2014 Club del Bosque": 5, "Corcolle \u2014 Hacienda El Cafetal Fase I": 10, "Frugalex \u2014 Oasis Zacapa": 8, "Ovest \u2014 Hacienda Santa Lucia": 8, "Rossio \u2014 Hacienda el Sol": 5, "Utilica \u2014 Condado Jutiapa": 8, "Garbatella \u2014 Club Residencial El Progreso": 7};
+const PROYECTO_DISPLAY_MAP = {"Ottavia": "Ottavia \u2014 Ca\u00f1adas de Jalapa", "Tezzoli": "Tezzoli \u2014 Club Campestre Jumay", "Eficiencia Urbana": "Eficiencia Urbana \u2014 Hacienda Jumay", "Hacienda Jumay": "Eficiencia Urbana \u2014 Hacienda Jumay", "Servicios Generales": "Servicios Generales \u2014 La Ceiba", "La Ceiba": "Servicios Generales \u2014 La Ceiba", "Capipos": "Capipos \u2014 Arboleda Santa Elena", "Arboleda Santa Elena": "Capipos \u2014 Arboleda Santa Elena", "Urbiva": "Urbiva \u2014 Club del Bosque", "Club del Bosque": "Urbiva \u2014 Club del Bosque", "Corcolle": "Corcolle \u2014 Hacienda El Cafetal Fase I", "Frugalex": "Frugalex \u2014 Oasis Zacapa", "Oasis Zacapa": "Frugalex \u2014 Oasis Zacapa", "Ovest": "Ovest \u2014 Hacienda Santa Lucia", "Hacienda Santa Lucia": "Ovest \u2014 Hacienda Santa Lucia", "Rossio": "Rossio \u2014 Hacienda el Sol", "Hacienda el Sol": "Rossio \u2014 Hacienda el Sol", "Utilica": "Utilica \u2014 Condado Jutiapa", "Condado Jutiapa": "Utilica \u2014 Condado Jutiapa", "Garbatella": "Garbatella \u2014 Club Residencial El Progreso", "Club Residencial Progreso": "Garbatella \u2014 Club Residencial El Progreso"}; // suma de metas por proyecto = 101
 const MESES = ['','Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
 
 /* ── Estado global ──────────────────────────────── */
@@ -23,7 +27,7 @@ function getToken() {
   return localStorage.getItem('token');
 }
 
-async function apiFetch(path) {
+async function apiFetch(path, _retry = 0) {
   const token = getToken();
   if (!token) {
     setStatus('error', 'Sin sesión activa — abrir desde el tablero');
@@ -41,6 +45,11 @@ async function apiFetch(path) {
     }
     return r.json();
   } catch (e) {
+    // Retry up to 2 times on network errors (ERR_NETWORK_CHANGED, connection drops)
+    if (_retry < 2) {
+      await new Promise(res => setTimeout(res, 500 * (_retry + 1)));
+      return apiFetch(path, _retry + 1);
+    }
     console.error('Fetch error:', path, e);
     return null;
   }
@@ -306,6 +315,65 @@ async function descargarPresentacion(formato) {
 
 
 /* ── Navegación ─────────────────────────────────── */
+/* ── Flujos: split Intercompany from Financiamiento + sort ── */
+function procesarFilasFlujos(filas, secciones, icOverride) {
+  const out = [];
+  for (const f of filas) {
+    if (f.seccion === 'FINANCIAMIENTO') {
+      let icIng = 0, icEgr = 0;
+      let canSplit = false;
+
+      if (icOverride) {
+        // CONSOLIDADO: only split if IC values are within FINANCIAMIENTO bounds
+        // to avoid negative egreso rows that break totals
+        icIng = icOverride.ingreso || 0;
+        icEgr = icOverride.egreso  || 0;
+        canSplit = (icIng <= f.ingreso + 1) && (icEgr <= f.egreso + 1);
+      } else {
+        // Single society: find Intercompany in secciones
+        const secData = (secciones || []).find(s => s.seccion === 'FINANCIAMIENTO');
+        const cats = secData?.categorias || [];
+        const icCat = cats.find(c => c.categoria?.toLowerCase().includes('intercompany'));
+        if (icCat) {
+          Object.values(icCat.montos || {}).forEach(m => {
+            icIng += m.ingreso || 0;
+            icEgr += m.egreso  || 0;
+          });
+          canSplit = (icIng <= f.ingreso + 1) && (icEgr <= f.egreso + 1);
+        }
+      }
+
+      if (canSplit && (icIng > 0 || icEgr > 0)) {
+        const icNeto = icIng - icEgr;
+        const finRow = { seccion:'FINANCIAMIENTO', ingreso:f.ingreso-icIng, egreso:f.egreso-icEgr, neto:f.neto-icNeto };
+        const icRow  = { seccion:'INTERCOMPANY',   ingreso:icIng,           egreso:icEgr,          neto:icNeto };
+        if (Math.abs(finRow.ingreso)+Math.abs(finRow.egreso) > 0) out.push(finRow);
+        if (Math.abs(icRow.ingreso) +Math.abs(icRow.egreso)  > 0) out.push(icRow);
+      } else {
+        // Can't split cleanly — show as single FINANCIAMIENTO row
+        // but rename to show IC is included
+        out.push({ ...f, seccion: 'FINANCIAMIENTO (inc. Intercompany)' });
+      }
+    } else {
+      out.push(f);
+    }
+  }
+  // Sort: INGRESOS always first, then positives desc, then negatives desc by |neto|
+  const sectionRank = sec => {
+    if (sec === 'INGRESOS') return 0;
+    return 1;
+  };
+  out.sort((a, b) => {
+    const rankDiff = sectionRank(a.seccion) - sectionRank(b.seccion);
+    if (rankDiff !== 0) return rankDiff;
+    const aPos = a.neto >= 0, bPos = b.neto >= 0;
+    if (aPos && !bPos) return -1;
+    if (!aPos && bPos) return 1;
+    return Math.abs(b.neto) - Math.abs(a.neto);
+  });
+  return out;
+}
+
 function showSlide(idx) {
   const slides = [...document.querySelectorAll('.slide')].filter(s => !s.dataset.hidden);
   state.total = slides.length;
@@ -408,6 +476,18 @@ async function loadInventario() {
   setText('invProyectos', `${proyectos.length} proyectos activos`);
   setText('invDisp', fmtNum(t.disponibles));
   setText('invDispVal', fmtQ(t.valor_disponible));
+  // "Valor venta al contado" subtitle below disponibles value
+  const invDispValEl = document.getElementById('invDispVal');
+  if (invDispValEl) {
+    const existing = document.getElementById('invDispSubLabel');
+    if (!existing) {
+      const sub = document.createElement('div');
+      sub.id = 'invDispSubLabel';
+      sub.style.cssText = 'font-size:10px;color:var(--muted);font-weight:600;letter-spacing:.05em;margin-top:2px';
+      sub.textContent = 'Valor venta al contado';
+      invDispValEl.parentNode.insertBefore(sub, invDispValEl.nextSibling);
+    }
+  }
   setText('invVend', fmtNum(t.vendidos));
   setText('invVendVal', fmtQ(t.valor_vendido));
   setText('invBloq', fmtNum(t.bloqueados));
@@ -525,7 +605,42 @@ async function reloadTendencia() {
   const proyParam = proy ? `&proyecto=${encodeURIComponent(proy)}` : '';
   const tend = await apiFetch(`/api/ventas/tendencia-mensual?meses_atras=12&año=${state.anio}${state.mes > 0 ? '&mes='+state.mes : ''}${proyParam}`);
   if (tend && tend.length) {
-    drawTendencia(tend);
+    const proy2 = document.getElementById('tendenciaProyecto')?.value || '';
+    let metaVal = 0;
+    if (!proy2) {
+      metaVal = META_TOTAL_MENSUAL; // consolidated = 101
+    } else {
+      // proy2 = nombre BD (e.g. "Hacienda Jumay"). METAS_MENSUALES usa sociedad short (e.g. "Eficiencia Urbana").
+      // First try direct key match (sociedad short names like "Ottavia"), then partial
+      const NOMBRE_BD_A_META_KEY = {
+        'Hacienda Jumay':              'Eficiencia Urbana',
+        'La Ceiba':                    'Servicios Generales',
+        'Hacienda el Sol':             'Rossio',
+        'Oasis Zacapa':                'Frugalex',
+        'Cañadas de Jalapa':           'Ottavia',
+        'Condado Jutiapa':             'Utilica',
+        'Club Campestre Jumay':        'Tezzoli',
+        'Club del Bosque':             'Urbiva',
+        'Club Residencial Progreso':   'Garbatella',
+        'Club Residencial El Progreso':'Garbatella',
+        'Arboleda Santa Elena':        'Capipos',
+        'Hacienda Santa Lucia':        'Ovest',
+        'Hacienda El Cafetal Fase I':  'Corcolle',
+        'Celajes De Tecpan':           'Vilet',
+      };
+      // Try direct BD name lookup first
+      const metaKey = NOMBRE_BD_A_META_KEY[proy2];
+      if (metaKey) {
+        metaVal = METAS_MENSUALES[metaKey] || 0;
+      } else {
+        // Fallback: partial match against METAS_MENSUALES keys
+        const match = Object.entries(METAS_MENSUALES).find(([k]) =>
+          proy2.toLowerCase().includes(k.toLowerCase()) || k.toLowerCase().includes(proy2.toLowerCase())
+        );
+        metaVal = match ? match[1] : 0;
+      }
+    }
+    drawTendencia(tend, metaVal);
   } else {
     const el = document.getElementById('tendenciaChart');
     if (el) el.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:300px;color:var(--muted);font-size:14px">Sin datos de tendencia para este proyecto</div>';
@@ -555,6 +670,12 @@ async function loadVentas() {
     setText('vtTasaDes', `Tasa ${fmtPct(k.tasa_desistimiento)}`);
     setText('vtTicket', fmtQ(k.ticket_promedio));
     setText('vtPlazo', `Plazo prom. ${Number(k.plazo_promedio||0).toFixed(0)} meses`);
+    // Compute intereses sin cobrar (oportunidad) using new formula:
+    // (contado + sin_interés) × ticket_promedio × 10% anual × (plazo_promedio / 12)
+    const udsNoInt    = (k.contado||0) + (k.sin_interes||0);
+    const montoNoInt  = udsNoInt * (k.ticket_promedio||0);
+    const plazoAnios  = (k.plazo_promedio||0) / 12;
+    window._oportunidadCalculada = Math.round(montoNoInt * 0.10 * plazoAnios);
     const subtxt = state.mes === 0
       ? `Año ${state.anio} · ${k.ventas_brutas} ventas brutas · ${k.desistimientos} desistimientos`
       : `${MESES[state.mes]} ${state.anio} · ${k.ventas_brutas} ventas brutas`;
@@ -586,10 +707,10 @@ async function loadVentas() {
           <div style="height:10px;background:var(--border-soft);border-radius:4px;overflow:hidden"><div style="height:100%;background:var(--blue);width:${pctOf(fin.capital_contado||0, cap_total)}%"></div></div>
         </div>
         <div><div style="display:flex;justify-content:space-between;font-size:12px;font-weight:600;color:var(--green);margin-bottom:4px"><span>Intereses x cobrar</span><span>${fmtQ(fin.intereses_cobrados)}</span></div>
-          <div style="height:10px;background:var(--border-soft);border-radius:4px;overflow:hidden"><div style="height:100%;background:var(--green);width:${pctOf(fin.intereses_cobrados, fin.intereses_cobrados+fin.intereses_no_cobrados)}%"></div></div>
+          <div style="height:10px;background:var(--border-soft);border-radius:4px;overflow:hidden"><div style="height:100%;background:var(--green);width:${pctOf(fin.intereses_cobrados, fin.intereses_cobrados+(window._oportunidadCalculada||fin.intereses_no_cobrados||0))}%"></div></div>
         </div>
-        <div><div style="display:flex;justify-content:space-between;font-size:12px;font-weight:600;color:var(--red);margin-bottom:4px"><span>Intereses sin cobrar (oportunidad)</span><span>${fmtQ(fin.intereses_no_cobrados)}</span></div>
-          <div style="height:10px;background:var(--border-soft);border-radius:4px;overflow:hidden"><div style="height:100%;background:var(--red);width:${pctOf(fin.intereses_no_cobrados, fin.intereses_cobrados+fin.intereses_no_cobrados)}%"></div></div>
+        <div><div style="display:flex;justify-content:space-between;font-size:12px;font-weight:600;color:var(--red);margin-bottom:4px"><span>Intereses sin cobrar (oportunidad)</span><span>${fmtQ((window._oportunidadCalculada||fin.intereses_no_cobrados||0))}</span></div>
+          <div style="height:10px;background:var(--border-soft);border-radius:4px;overflow:hidden"><div style="height:100%;background:var(--red);width:${pctOf((window._oportunidadCalculada||fin.intereses_no_cobrados||0), fin.intereses_cobrados+(window._oportunidadCalculada||fin.intereses_no_cobrados||0))}%"></div></div>
         </div>
         <div style="padding-top:8px;border-top:1px solid var(--border);font-size:12px;color:var(--muted);font-weight:500">Tasa anual implícita: <strong style="color:var(--dorado)">${fmtPct(fin.tasa_anual_implicita)}</strong> · Captura: <strong>${fmtPct(fin.ratio_cobrado_vs_oportunidad)}</strong></div>
       </div>`;
@@ -599,10 +720,10 @@ async function loadVentas() {
     setText('finTasa', fmtPct(fin.tasa_anual_implicita));
     setText('finCobrados', fmtQ(fin.intereses_cobrados));  // label updated in HTML to 'Intereses x Cobrar'
     setText('finCobLotes', `${fmtNum(fin.lotes_con_int)} contratos con interés`);
-    setText('finNoCobrados', fmtQ(fin.intereses_no_cobrados));
+    setText('finNoCobrados', fmtQ((window._oportunidadCalculada||fin.intereses_no_cobrados||0)));
     setText('finNoCobLotes', `${fmtNum(fin.lotes_sin_int)} contratos sin interés`);
 
-    const lect = `La tasa implícita anual de los contratos con interés es ${fmtPct(fin.tasa_anual_implicita)}. De aplicarla a los contratos sin interés, generaría ${fmtQM(fin.intereses_no_cobrados)} adicionales — la captura actual es del ${fmtPct(fin.ratio_cobrado_vs_oportunidad)}.`;
+    const lect = `La tasa implícita anual de los contratos con interés es ${fmtPct(fin.tasa_anual_implicita)}. De aplicarla a los contratos sin interés, generaría ${fmtQM((window._oportunidadCalculada||fin.intereses_no_cobrados||0))} adicionales — la captura actual es del ${fmtPct(fin.ratio_cobrado_vs_oportunidad)}.`;
     setText('finLectura', lect);
 
     setHTML('finBreakdown', `
@@ -655,56 +776,147 @@ async function loadVentas() {
     setHTML('vendedoresTbody', `<tr><td colspan="8" style="text-align:center;color:var(--muted);padding:40px">Sin datos de vendedores en el período</td></tr>`);
   }
 
-  // Slide 13 — Metas
+  // Slide 13 — Metas vs Avance (tabla por proyecto × mes, sin CONSERSA)
   if (metas && metas.length) {
-    setText('metasSub', state.mes > 0
-      ? `Cumplimiento de metas ${MESES[state.mes]} ${state.anio} · CONSERSA + RV4`
-      : `Cumplimiento de metas anuales ${state.anio} · CONSERSA + RV4`);
-    // Filter: skip projects with no meta; when month selected, also skip those with 0 movement
-    const filtered = metas.filter(m => {
-      if ((m.meta_total||0) === 0) return false;
-      if (state.mes > 0 && (m.ventas_total||0) === 0) return false;
-      return true;
+    const todoAnio = !state.mes || state.mes === 0;
+    setText('metasSub', todoAnio
+      ? `Cumplimiento de metas anuales · ${state.anio}`
+      : `Cumplimiento de metas · ${MESES[state.mes]} ${state.anio}`);
+
+    const hoy = new Date();
+    const ultimoMes = (state.anio === hoy.getFullYear()) ? hoy.getMonth() + 1 : 12;
+    const mesesVisibles = state.mes && state.mes > 0
+      ? [state.mes]
+      : Array.from({length: ultimoMes}, (_, i) => i + 1);
+    const mesNombres = ['','Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+
+    // MAPA OFICIAL de metas por mes (definido por el usuario, no del API que suma consersa+rv4)
+    // Clave = proyecto_display que devuelve el API en campo "proyecto_display"
+    const META_MES_OFICIAL = {
+      'Ottavia — Cañadas de Jalapa':                15,
+      'Tezzoli — Club Campestre Jumay':              8,
+      'Eficiencia Urbana — Hacienda Jumay':          15,
+      'Servicios Generales — La Ceiba':              7,
+      'Capipos — Arboleda Santa Elena':              5,
+      'Urbiva — Club del Bosque':                    5,
+      'Corcolle — Hacienda El Cafetal Fase I':       10,
+      'Frugalex — Oasis Zacapa':                     8,
+      'Ovest — Hacienda Santa Lucia':                8,
+      'Vilet — Celajes De Tecpan':                   0,
+      'Rossio — Hacienda el Sol':                    5,
+      'Utilica — Condado Jutiapa':                   8,
+      'Garbatella — Club Residencial El Progreso':   7,
+    };
+
+    // Incluir proyectos con meta oficial O con ventas en el período
+    const proyectosFiltrados = metas.filter(m => {
+      const displayName = m.proyecto_display || m.proyecto || m.nombre_proyecto_bd || '';
+      const metaOficial = META_MES_OFICIAL[displayName] ?? META_MES_OFICIAL[m.proyecto] ?? null;
+      return metaOficial !== null || (m.ventas_total||0) > 0;
     });
-    const compact = filtered.length > 8;
-    setHTML('metasRows', filtered.map(m => {
-      const ventasTeam = (m.ventas_consersa||0) + (m.ventas_rv4||0);
-      const pct  = m.meta_total > 0 ? ventasTeam / m.meta_total * 100 : 0;
-      const pctC = Number(m.cumplimiento_consersa_pct||0);
-      const pctR = Number(m.cumplimiento_rv4_pct||0);
-      const col  = pct>=80?'var(--green)':pct>=50?'var(--dorado)':'var(--red)';
-      const colC = pctC>=80?'var(--green)':pctC>=50?'var(--dorado)':'var(--red)';
-      const colR = pctR>=80?'var(--green)':pctR>=50?'var(--dorado)':'var(--red)';
-      const vs   = m.ventas_sin_asignar||0;
-      const pad = compact ? '8px 14px' : '12px 18px';
-      const mb  = compact ? '6px' : '10px';
-      const nameSize = compact ? '12px' : '14px';
-      return `<div style="background:var(--bg-card);border:1px solid var(--border);border-radius:8px;padding:${pad};margin-bottom:${mb};display:grid;grid-template-columns:170px 1fr 130px;gap:14px;align-items:center">
-        <div style="font-size:${nameSize};font-weight:700">${m.proyecto}</div>
-        <div>
-          <div style="display:grid;grid-template-columns:70px 1fr 55px;gap:6px;align-items:center;margin-bottom:5px">
-            <span style="font-size:10px;color:var(--blue);font-weight:700">CONSERSA</span>
-            <div style="height:9px;background:var(--border-soft);border-radius:3px;overflow:hidden"><div style="height:100%;background:${colC};width:${Math.min(pctC,100)}%"></div></div>
-            <span style="font-size:11px;font-weight:700;color:${colC};text-align:right">${m.ventas_consersa||0}/${m.meta_consersa}</span>
-          </div>
-          <div style="display:grid;grid-template-columns:70px 1fr 55px;gap:6px;align-items:center">
-            <span style="font-size:10px;color:var(--dorado);font-weight:700">RV4</span>
-            <div style="height:9px;background:var(--border-soft);border-radius:3px;overflow:hidden"><div style="height:100%;background:${colR};width:${Math.min(pctR,100)}%"></div></div>
-            <span style="font-size:11px;font-weight:700;color:${colR};text-align:right">${m.ventas_rv4||0}/${m.meta_rv4}</span>
-          </div>
-          ${vs>0?`<div style="font-size:10px;color:var(--amber);font-weight:600;margin-top:3px">⚠ Sin asignar: <strong>${vs}</strong></div>`:''}
-        </div>
-        <div style="text-align:right">
-          <div style="font-size:${compact?'16px':'20px'};font-weight:700;color:${col}">${fmtPct(pct)}</div>
-          <div style="font-size:11px;font-weight:600;color:var(--text)">${(m.ventas_consersa||0)+(m.ventas_rv4||0)}/${m.meta_total}</div>
-        </div>
-      </div>`;
-    }).join(''));
+    proyectosFiltrados.sort((a,b) => {
+      const nameA = a.proyecto_display || a.proyecto || '';
+      const nameB = b.proyecto_display || b.proyecto || '';
+      const ma = META_MES_OFICIAL[nameA] ?? 0, mb = META_MES_OFICIAL[nameB] ?? 0;
+      if (mb !== ma) return mb - ma;
+      return (b.ventas_total||0) - (a.ventas_total||0);
+    });
+
+    const colsHeader = mesesVisibles.map(m =>
+      `<th style="padding:6px 7px;text-align:center;font-size:11px;color:var(--muted);min-width:60px">${mesNombres[m]}</th>`
+    ).join('');
+
+    // Totales por mes (para el tfoot)
+    const totMes = {};
+    mesesVisibles.forEach(m => { totMes[m] = 0; });
+    let totalMetaPeriodo = 0, totalRealPeriodo = 0;
+
+    const rows = proyectosFiltrados.map(m => {
+      const displayName = m.proyecto_display || m.proyecto || m.nombre_proyecto_bd || '—';
+      // Usar meta oficial del mapa hardcodeado (no del API)
+      const metaMensual = META_MES_OFICIAL[displayName] ?? META_MES_OFICIAL[m.proyecto] ?? 0;
+      const porMes = m.por_mes || {};
+      const mesCells = mesesVisibles.map(mes => {
+        const real = Number(porMes[mes] || 0);
+        totMes[mes] = (totMes[mes]||0) + real;
+        const meta = metaMensual;
+        const cumple = meta > 0 ? real >= meta : real > 0;
+        const realColor = meta === 0 ? 'var(--blue)' : (cumple ? 'var(--green)' : 'var(--red)');
+        return `<td style="padding:5px 7px;text-align:center">
+          <div style="color:var(--muted);font-size:10px;line-height:1">M ${meta}</div>
+          <div style="color:${realColor};font-weight:700;font-size:13px;line-height:1.2">${real}</div>
+        </td>`;
+      }).join('');
+      const metaTotalProy = metaMensual * mesesVisibles.length;
+      const realTotalProy = mesesVisibles.reduce((s,mes) => s + Number(porMes[mes]||0), 0);
+      totalMetaPeriodo += metaTotalProy;
+      totalRealPeriodo += realTotalProy;
+      const pct = metaTotalProy > 0 ? Math.round(realTotalProy / metaTotalProy * 100) : 0;
+      const barColor = pct >= 80 ? 'var(--green)' : pct >= 50 ? 'var(--dorado)' : 'var(--red)';
+      return `<tr style="border-bottom:1px solid var(--border)">
+        <td style="padding:7px 12px;font-size:12px;font-weight:600;white-space:nowrap;min-width:260px">${displayName}</td>
+        ${mesCells}
+        <td style="padding:7px 9px;text-align:center;font-weight:700;font-size:13px;color:var(--dorado)">${metaTotalProy}</td>
+        <td style="padding:7px 9px;text-align:center;font-weight:700;font-size:13px;color:var(--blue)">${realTotalProy}</td>
+        <td style="padding:7px 9px;min-width:120px">
+          <div style="height:8px;background:rgba(255,255,255,.08);border-radius:4px;overflow:hidden"><div style="height:100%;background:${barColor};width:${Math.min(pct,100)}%"></div></div>
+          <div style="font-size:11px;font-weight:700;color:${barColor};text-align:right;margin-top:2px">${pct}%</div>
+        </td>
+      </tr>`;
+    }).join('');
+
+    const totMesCells = mesesVisibles.map(m =>
+      `<td style="padding:6px 7px;text-align:center;font-weight:700;font-size:13px;color:var(--blue)">${totMes[m]||0}</td>`
+    ).join('');
+    const totalPct = totalMetaPeriodo > 0 ? Math.round(totalRealPeriodo/totalMetaPeriodo*100) : 0;
+    const totColor = totalPct>=80?'var(--green)':totalPct>=50?'var(--dorado)':'var(--red)';
+
+    setHTML('metasRows', `<table style="width:100%;border-collapse:collapse;font-size:12px">
+      <thead><tr style="background:var(--azul-marino,#0d2340)">
+        <th style="padding:7px 12px;text-align:left;font-size:12px;color:#fff;white-space:nowrap">Sociedad / Proyecto</th>
+        ${colsHeader}
+        <th style="padding:7px 9px;text-align:center;font-size:11px;color:var(--dorado)">Meta</th>
+        <th style="padding:7px 9px;text-align:center;font-size:11px;color:var(--blue)">Real</th>
+        <th style="padding:7px 9px;text-align:center;font-size:11px;color:var(--muted)">Avance</th>
+      </tr></thead>
+      <tbody>${rows}</tbody>
+      <tfoot><tr style="background:var(--bg-section);font-weight:700">
+        <td style="padding:7px 12px;font-size:13px">TOTAL</td>
+        ${totMesCells}
+        <td style="padding:7px 9px;text-align:center;color:var(--dorado);font-size:13px">${totalMetaPeriodo}</td>
+        <td style="padding:7px 9px;text-align:center;color:var(--blue);font-size:13px">${totalRealPeriodo}</td>
+        <td style="padding:7px 9px"><div style="height:8px;background:rgba(255,255,255,.08);border-radius:4px;overflow:hidden"><div style="height:100%;background:${totColor};width:${Math.min(totalPct,100)}%"></div></div><div style="font-size:11px;font-weight:700;color:${totColor};text-align:right;margin-top:2px">${totalPct}%</div></td>
+      </tr></tfoot>
+    </table>`);
   } // end metas block
 
   // Slide 10 — Tendencia mensual (chart)
   if (tend && tend.length) {
-    drawTendencia(tend);
+    const proy2 = document.getElementById('tendenciaProyecto')?.value || '';
+    let metaVal = 0;
+    if (!proy2) {
+      metaVal = META_TOTAL_MENSUAL; // consolidated = 101
+    } else {
+      const NOMBRE_BD_A_META_KEY = {
+        'Hacienda Jumay':'Eficiencia Urbana','La Ceiba':'Servicios Generales',
+        'Hacienda el Sol':'Rossio','Oasis Zacapa':'Frugalex',
+        'Cañadas de Jalapa':'Ottavia','Condado Jutiapa':'Utilica',
+        'Club Campestre Jumay':'Tezzoli','Club del Bosque':'Urbiva',
+        'Club Residencial Progreso':'Garbatella','Club Residencial El Progreso':'Garbatella',
+        'Arboleda Santa Elena':'Capipos','Hacienda Santa Lucia':'Ovest',
+        'Hacienda El Cafetal Fase I':'Corcolle','Celajes De Tecpan':'Vilet',
+      };
+      const metaKey = NOMBRE_BD_A_META_KEY[proy2];
+      if (metaKey) {
+        metaVal = METAS_MENSUALES[metaKey] || 0;
+      } else {
+        const match = Object.entries(METAS_MENSUALES).find(([k]) =>
+          proy2.toLowerCase().includes(k.toLowerCase()) || k.toLowerCase().includes(proy2.toLowerCase())
+        );
+        metaVal = match ? match[1] : 0;
+      }
+    }
+    drawTendencia(tend, metaVal);
   } else {
     const el = document.getElementById('tendenciaChart');
     if (el) el.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:300px;color:var(--muted);font-size:14px">Sin datos de tendencia para el período seleccionado</div>';
@@ -841,8 +1053,39 @@ async function loadFlujos() {
           secMap[sec.seccion].ingreso += t.ingreso || 0;
           secMap[sec.seccion].egreso  += t.egreso  || 0;
         }
+        // Track Intercompany totals for split display
+        if (sec.seccion === 'FINANCIAMIENTO') {
+          (sec.categorias || []).filter(c => c.categoria?.toLowerCase().includes('intercompany')).forEach(cat => {
+            for (const tp of targetPeriodos) {
+              const m = cat.montos?.[tp];
+              if (m) {
+                if (!secMap['_IC']) secMap['_IC'] = { ingreso:0, egreso:0 };
+                secMap['_IC'].ingreso += m.ingreso||0;
+                secMap['_IC'].egreso  += m.egreso ||0;
+              }
+            }
+          });
+        }
       });
     });
+    // Also aggregate IC from API intercompany_por_periodo (more reliable than category extraction)
+    let icIngAPI = 0, icEgrAPI = 0;
+    results.forEach(r => {
+      if (!r?.intercompany_por_periodo) return;
+      const tps = r.periodos ? (state.mes > 0
+        ? [r.periodos.find(p => p === `${state.anio}-${String(state.mes).padStart(2,'0')}`)]
+        : r.periodos.filter(p => p.startsWith(String(state.anio))))
+        : [];
+      tps.filter(Boolean).forEach(tp => {
+        const m = r.intercompany_por_periodo[tp];
+        if (m) { icIngAPI += m.ingreso||0; icEgrAPI += m.egreso||0; }
+      });
+    });
+    // Use API-computed IC if available, fall back to category extraction
+    const icOverride = (icIngAPI > 0 || icEgrAPI > 0)
+      ? { ingreso: icIngAPI, egreso: icEgrAPI }
+      : (secMap['_IC'] ? { ingreso: secMap['_IC'].ingreso, egreso: secMap['_IC'].egreso } : null);
+    delete secMap['_IC'];
     const neto = totalIng - totalEgr;
     const filas = Object.entries(secMap).map(([sec, t]) => {
       const isFinanc = sec.toUpperCase().includes('FINANCIAMIENTO');
@@ -859,13 +1102,17 @@ async function loadFlujos() {
     setText('flSaldoFin', fmtQM(totalFin));
     setText('flNeto', `Neto del período: ${neto>=0?'+':''}${fmtQM(neto)}`);
     setText('flujoSub', `CONSOLIDADO · ${periodoFormal()}`);
+    const filasProc = procesarFilasFlujos(filas, [], icOverride);
     setHTML('flujosTbody', [
-      ...filas.map(f => `<tr>
-        <td class="bold">${f.seccion}</td>
+      ...filasProc.map(f => {
+        const _sl = (f.seccion === 'EGRESOS / MOVIMIENTO DE TIERRAS') ? 'EGRESOS / MOV. TIERRAS / MAQUINARIA' : f.seccion;
+        return `<tr>
+        <td class="bold">${_sl}</td>
         <td class="right" style="color:var(--green)">${f.ingreso > 0 ? fmtQ(f.ingreso) : '—'}</td>
         <td class="right" style="color:var(--red)">${f.egreso > 0 ? fmtQ(f.egreso) : '—'}</td>
         <td class="right bold" style="color:${f.neto>=0?'var(--green)':'var(--red)'}">${fmtQ(f.neto)}</td>
-      </tr>`),
+      </tr>`;
+      }),
       `<tr class="total"><td>TOTAL</td><td class="right">${fmtQ(netTotalIng)}</td><td class="right">${fmtQ(netTotalEgr)}</td><td class="right">${fmtQ(neto)}</td></tr>`
     ].join(''));
     return;
@@ -940,13 +1187,25 @@ async function loadFlujos() {
   const periodoLabel = state.mes > 0 ? lastTarget : `${state.anio} · a ${hoyStr}`;
   setText('flujoSub', `${socSel} · ${periodoLabel}`);
 
+  // Compute IC totals from API's intercompany_por_periodo field
+  const icPorPeriodo = r?.intercompany_por_periodo || {};
+  let icIngNC = 0, icEgrNC = 0;
+  for (const tp of targetPeriodos) {
+    const m = icPorPeriodo[tp];
+    if (m) { icIngNC += m.ingreso||0; icEgrNC += m.egreso||0; }
+  }
+  const icOverrideNC = (icIngNC > 0 || icEgrNC > 0) ? { ingreso: icIngNC, egreso: icEgrNC } : null;
+  const filasProcNC = procesarFilasFlujos(filas, r?.secciones || [], icOverrideNC);
   setHTML('flujosTbody', [
-    ...filas.map(f => `<tr>
-      <td class="bold">${f.seccion}</td>
+    ...filasProcNC.map(f => {
+        const _slnc = (f.seccion === 'EGRESOS / MOVIMIENTO DE TIERRAS') ? 'EGRESOS / MOV. TIERRAS / MAQUINARIA' : f.seccion;
+        return `<tr>
+      <td class="bold">${_slnc}</td>
       <td class="right" style="color:var(--green)">${f.ingreso > 0 ? fmtQ(f.ingreso) : '—'}</td>
       <td class="right" style="color:var(--red)">${f.egreso > 0 ? fmtQ(f.egreso) : '—'}</td>
       <td class="right bold" style="color:${f.neto>=0?'var(--green)':'var(--red)'}">${fmtQ(f.neto)}</td>
-    </tr>`),
+    </tr>`;
+      }),
     `<tr class="total"><td>TOTAL</td><td class="right">${fmtQ(netTotalIng)}</td><td class="right">${fmtQ(netTotalEgr)}</td><td class="right">${fmtQ(neto)}</td></tr>`
   ].join(''));
 }
@@ -1027,7 +1286,7 @@ async function loadPCV() {
     setText('pcvCon', fmtNum(k.con_pcv));
     setText('pcvPct', `${fmtPct(k.pct_cumplimiento)} de cumplimiento`);
     setText('pcvSin', fmtNum(k.sin_pcv));
-    setText('pcvSin2026', `${fmtNum(k.sin_pcv_2026)} en ${state.anio} · ${fmtPct(k.pct_sin_pcv_2026)} de las ventas del período`);
+    setText('pcvSin2026', '57 Sin PCV firmado a la fecha');
     setText('pcvDias', `${Number(k.dias_prom_gestion||0).toFixed(0)}`);
     setText('pcv0', fmtNum(k.sin_pcv_0_15));
     setText('pcv15', fmtNum(k.sin_pcv_16_30));
@@ -1078,8 +1337,8 @@ function renderResumenEjecutivo() {
   setText('rsmMoraTasa', fmtPct(car.tasa_mora));
   setText('rsmMoraMonto', fmtQM(car.mora_total));
   setText('rsmCobro30', fmtQM(car.cobro_30d));
-  setText('rsmSinPCV', fmtNum(pcv.sin_pcv));
-  setText('rsmPCVPct', `${fmtPct(100 - (pcv.pct_cumplimiento||0))} de las ventas del período`);
+  setText('rsmSinPCV', '57');
+  setText('rsmPCVPct', '');
   setText('resumenSub', `Consolidado de las ${state.data.inventario?.proyectos?.length || 13} sociedades · ${periodoFormal()}`);
 }
 
@@ -1118,7 +1377,7 @@ function drawLegend(elId, segs, total) {
   }).join('');
 }
 
-function drawTendencia(data) {
+function drawTendencia(data, metaVal) {
   const container = document.getElementById('tendenciaChart');
   if (!container || !data || !data.length) return;
   const W = 1600, H = 480, pad = { l: 60, r: 30, t: 30, b: 60 };
@@ -1151,7 +1410,15 @@ function drawTendencia(data) {
     return `<text x="${x(i)}" y="${H-pad.b+24}" text-anchor="middle" font-size="13" fill="var(--muted)" font-weight="600" style="font-family:Montserrat">${lbl}</text>`;
   }).join('');
 
-  const svgContent = grid + xLabels +
+  // Meta reference line (horizontal dashed)
+  let metaLine = '';
+  if (metaVal > 0) {
+    const yMeta = y(metaVal);
+    metaLine = `<line x1="${pad.l}" y1="${yMeta}" x2="${W - pad.r}" y2="${yMeta}" stroke="var(--dorado)" stroke-width="2" stroke-dasharray="8,5" opacity="0.8"/>` +
+               `<text x="${W - pad.r + 4}" y="${yMeta + 4}" font-size="12" font-weight="700" fill="var(--dorado)" style="font-family:Montserrat">Meta ${metaVal}</text>`;
+  }
+
+  const svgContent = grid + xLabels + metaLine +
     linePath('ventas_brutas', 'var(--blue)') +
     linePath('ventas_netas',  'var(--green)') +
     data.map((d,i) => {
@@ -1411,6 +1678,8 @@ async function loadAll() {
     renderResumenEjecutivo();
     renderVentasAnio();
     renderCXP();
+    renderInteresesSinCobrar();
+    renderVentasPorPlazo();
     updateAllPeriodLabels();
     return;
   }
@@ -1422,6 +1691,8 @@ async function loadAll() {
     renderResumenEjecutivo();
     renderVentasAnio();
     renderCXP();
+    renderInteresesSinCobrar();
+    renderVentasPorPlazo();
     updateAllPeriodLabels();
     const loadEnd = Date.now();
     setStatus('ok', `Datos en vivo · ${periodoFormal()}`);
@@ -1443,6 +1714,18 @@ async function renderInventarioSlides() {
   setText('invProyectos', `${proyectos.length} proyectos activos`);
   setText('invDisp', fmtNum(t.disponibles));
   setText('invDispVal', fmtQ(t.valor_disponible));
+  // "Valor venta al contado" subtitle below disponibles value
+  const invDispValEl = document.getElementById('invDispVal');
+  if (invDispValEl) {
+    const existing = document.getElementById('invDispSubLabel');
+    if (!existing) {
+      const sub = document.createElement('div');
+      sub.id = 'invDispSubLabel';
+      sub.style.cssText = 'font-size:10px;color:var(--muted);font-weight:600;letter-spacing:.05em;margin-top:2px';
+      sub.textContent = 'Valor venta al contado';
+      invDispValEl.parentNode.insertBefore(sub, invDispValEl.nextSibling);
+    }
+  }
   setText('invVend', fmtNum(t.vendidos));
   setText('invVendVal', fmtQ(t.valor_vendido));
   setText('invBloq', fmtNum(t.bloqueados));
@@ -1509,6 +1792,12 @@ async function renderVentasSlides() {
     setText('vtTasaDes', `Tasa ${fmtPct(k.tasa_desistimiento)}`);
     setText('vtTicket', fmtQ(k.ticket_promedio));
     setText('vtPlazo', `Plazo prom. ${Number(k.plazo_promedio||0).toFixed(0)} meses`);
+    // Compute intereses sin cobrar (oportunidad) using new formula:
+    // (contado + sin_interés) × ticket_promedio × 10% anual × (plazo_promedio / 12)
+    const udsNoInt    = (k.contado||0) + (k.sin_interes||0);
+    const montoNoInt  = udsNoInt * (k.ticket_promedio||0);
+    const plazoAnios  = (k.plazo_promedio||0) / 12;
+    window._oportunidadCalculada = Math.round(montoNoInt * 0.10 * plazoAnios);
     setText('ventasSub', `${periodoFormal()} · ${k.ventas_brutas} ventas brutas · ${k.desistimientos} desistimientos`);
 
     const total = (k.contado||0)+(k.sin_interes||0)+(k.con_interes||0);
@@ -1533,10 +1822,10 @@ async function renderVentasSlides() {
       <div style="display:flex;flex-direction:column;gap:14px">
         <div><div style="display:flex;justify-content:space-between;font-size:13px;font-weight:600;margin-bottom:6px"><span>Capital total</span><span>${fmtQ(cap_total)}</span></div></div>
         <div><div style="display:flex;justify-content:space-between;font-size:13px;font-weight:600;color:var(--green);margin-bottom:6px"><span>Intereses cobrados</span><span>${fmtQ(fin.intereses_cobrados)}</span></div>
-          <div style="height:14px;background:var(--border-soft);border-radius:4px;overflow:hidden"><div style="height:100%;background:var(--green);width:${pctOf(fin.intereses_cobrados,fin.intereses_cobrados+fin.intereses_no_cobrados)}%"></div></div>
+          <div style="height:14px;background:var(--border-soft);border-radius:4px;overflow:hidden"><div style="height:100%;background:var(--green);width:${pctOf(fin.intereses_cobrados,fin.intereses_cobrados+(window._oportunidadCalculada||fin.intereses_no_cobrados||0))}%"></div></div>
         </div>
-        <div><div style="display:flex;justify-content:space-between;font-size:13px;font-weight:600;color:var(--red);margin-bottom:6px"><span>Intereses no cobrados</span><span>${fmtQ(fin.intereses_no_cobrados)}</span></div>
-          <div style="height:14px;background:var(--border-soft);border-radius:4px;overflow:hidden"><div style="height:100%;background:var(--red);width:${pctOf(fin.intereses_no_cobrados,fin.intereses_cobrados+fin.intereses_no_cobrados)}%"></div></div>
+        <div><div style="display:flex;justify-content:space-between;font-size:13px;font-weight:600;color:var(--red);margin-bottom:6px"><span>Intereses no cobrados</span><span>${fmtQ((window._oportunidadCalculada||fin.intereses_no_cobrados||0))}</span></div>
+          <div style="height:14px;background:var(--border-soft);border-radius:4px;overflow:hidden"><div style="height:100%;background:var(--red);width:${pctOf((window._oportunidadCalculada||fin.intereses_no_cobrados||0),fin.intereses_cobrados+(window._oportunidadCalculada||fin.intereses_no_cobrados||0))}%"></div></div>
         </div>
         <div style="padding-top:10px;border-top:1px solid var(--border);font-size:13px;color:var(--muted);font-weight:500">Tasa anual implícita: <strong style="color:var(--dorado)">${fmtPct(fin.tasa_anual_implicita)}</strong> · Captura: <strong>${fmtPct(fin.ratio_cobrado_vs_oportunidad)}</strong></div>
       </div>`);
@@ -1544,9 +1833,9 @@ async function renderVentasSlides() {
     setText('finTasa', fmtPct(fin.tasa_anual_implicita));
     setText('finCobrados', fmtQ(fin.intereses_cobrados));  // label updated in HTML to 'Intereses x Cobrar'
     setText('finCobLotes', `${fmtNum(fin.lotes_con_int)} contratos con interés`);
-    setText('finNoCobrados', fmtQ(fin.intereses_no_cobrados));
+    setText('finNoCobrados', fmtQ((window._oportunidadCalculada||fin.intereses_no_cobrados||0)));
     setText('finNoCobLotes', `${fmtNum(fin.lotes_sin_int)} contratos sin interés`);
-    setText('finLectura', `La tasa implícita anual de los contratos con interés es ${fmtPct(fin.tasa_anual_implicita)}. De aplicarla a los contratos sin interés, generaría ${fmtQM(fin.intereses_no_cobrados)} adicionales — la captura actual es del ${fmtPct(fin.ratio_cobrado_vs_oportunidad)}.`);
+    setText('finLectura', `La tasa implícita anual de los contratos con interés es ${fmtPct(fin.tasa_anual_implicita)}. De aplicarla a los contratos sin interés, generaría ${fmtQM((window._oportunidadCalculada||fin.intereses_no_cobrados||0))} adicionales — la captura actual es del ${fmtPct(fin.ratio_cobrado_vs_oportunidad)}.`);
 
     setHTML('finBreakdown', `
       <tr><td class="bold">Contado</td><td class="right">${fmtNum(fin.lotes_contado)}</td><td class="right">${fmtQ(fin.capital_contado)}</td><td class="right">—</td><td class="right">—</td></tr>
@@ -1570,16 +1859,97 @@ async function renderVentasSlides() {
   }
 
   if (v.metas && v.metas.length) {
-    setHTML('metasRows', v.metas.map(m=>{
-      const pct = Number(m.cumplimiento_pct||0);
+    // Determine months to show based on filter
+    const metasMeses = state.mes > 0
+      ? [state.mes]
+      : [1,2,3,4,5,6,7,8,9,10,11,12].filter(m => m <= new Date().getMonth()+1);
+    const mesNombres = ['','Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+
+    // Build project rows: use API data + fixed metas
+    // Group metas by display project
+    const metasByProy = {};
+    v.metas.forEach(m => {
+      const rawName = m.proyecto || m.responsable || '';
+      // Find display name
+      let displayName = rawName;
+      for (const [k,v2] of Object.entries(PROYECTO_DISPLAY_MAP)) {
+        if (rawName.toLowerCase().includes(k.toLowerCase()) || k.toLowerCase().includes(rawName.toLowerCase())) {
+          displayName = v2; break;
+        }
+      }
+      if (!metasByProy[displayName]) metasByProy[displayName] = { ventas: 0, meses: {} };
+      metasByProy[displayName].ventas += Number(m.ventas_total||0);
+      // per-mes data if available
+      if (m.por_mes) {
+        Object.entries(m.por_mes).forEach(([mes, val]) => {
+          metasByProy[displayName].meses[mes] = (metasByProy[displayName].meses[mes]||0) + Number(val||0);
+        });
+      }
+    });
+
+    // Add projects with metas but no sales
+    Object.keys(METAS_POR_PROYECTO).forEach(p => {
+      if (!metasByProy[p]) metasByProy[p] = { ventas: 0, meses: {} };
+    });
+
+    const colsHeader = metasMeses.map(m => `<th style="padding:5px 8px;text-align:center;font-size:10px;color:var(--muted)">${mesNombres[m]}</th>`).join('');
+    const totalMeta = Object.values(METAS_POR_PROYECTO).reduce((s,v)=>s+v,0);
+    let totalReal = 0;
+
+    const rows = Object.entries(metasByProy).sort((a,b)=>{
+      const ma = METAS_POR_PROYECTO[a[0]]||0, mb = METAS_POR_PROYECTO[b[0]]||0;
+      return mb - ma;
+    }).map(([proy, data]) => {
+      const metaMes = METAS_POR_PROYECTO[proy] || 0;
+      const metaTotal = state.mes > 0 ? metaMes : metaMes * metasMeses.length;
+      const realTotal = data.ventas;
+      totalReal += realTotal;
+      const pct = metaTotal > 0 ? Math.round(realTotal/metaTotal*100) : 0;
       const color = pct>=80?'var(--green)':pct>=50?'var(--dorado)':'var(--red)';
-      return `<div style="background:var(--bg-card);border:1px solid var(--border);border-radius:8px;padding:18px 24px;margin-bottom:12px;display:grid;grid-template-columns:280px 200px 1fr 120px;gap:18px;align-items:center">
-        <div><div style="font-size:15px;font-weight:700">${m.responsable}</div><div style="font-size:12px;color:var(--muted);font-weight:500">${m.proyecto}</div></div>
-        <div style="font-size:13px"><div><strong>${fmtNum(m.ventas_total)}</strong> / ${fmtNum(m.meta_total)}</div><div style="font-size:11px;color:var(--muted);margin-top:2px">CONS: ${fmtNum(m.ventas_consersa||0)} · RV4: ${fmtNum(m.ventas_rv4||0)}</div></div>
-        <div style="height:14px;background:var(--border-soft);border-radius:4px;overflow:hidden"><div style="height:100%;background:${color};width:${Math.min(pct,100)}%"></div></div>
-        <div style="text-align:right;font-size:18px;font-weight:700;color:${color}">${fmtPct(pct)}</div>
-      </div>`;
-    }).join(''));
+      const mesCells = metasMeses.map(m => {
+        const realMes = data.meses[m] || 0;
+        const rColor = metaMes > 0 ? (realMes >= metaMes ? 'var(--green)' : 'var(--red)') : 'var(--muted)';
+        return `<td style="padding:4px 8px;text-align:center;font-size:10px">
+          <div style="color:var(--muted);font-size:9px">Meta: ${metaMes}</div>
+          <div style="color:${rColor};font-weight:700">${realMes||0}</div>
+        </td>`;
+      }).join('');
+      const barW = Math.min(pct, 100);
+      return `<tr style="border-bottom:1px solid var(--border)">
+        <td style="padding:6px 10px;font-size:11px;font-weight:600;white-space:nowrap;min-width:200px">${proy}</td>
+        ${mesCells}
+        <td style="padding:6px 8px;text-align:center;font-weight:700;font-size:12px;color:var(--dorado)">${metaTotal}</td>
+        <td style="padding:6px 8px;text-align:center;font-weight:700;font-size:12px">${realTotal}</td>
+        <td style="padding:6px 8px;min-width:100px">
+          <div style="height:8px;background:rgba(255,255,255,.08);border-radius:4px;overflow:hidden">
+            <div style="height:100%;background:${color};width:${barW}%"></div>
+          </div>
+          <div style="font-size:10px;font-weight:700;color:${color};text-align:right;margin-top:2px">${pct}%</div>
+        </td>
+      </tr>`;
+    }).join('');
+
+    const totalMetaConsol = state.mes > 0 ? totalMeta : totalMeta * metasMeses.length;
+    const totalPct = totalMetaConsol > 0 ? Math.round(totalReal/totalMetaConsol*100) : 0;
+    const totColor = totalPct>=80?'var(--green)':totalPct>=50?'var(--dorado)':'var(--red)';
+
+    setHTML('metasRows', `<table style="width:100%;border-collapse:collapse">
+      <thead><tr style="background:var(--azul-marino,#0d2340)">
+        <th style="padding:6px 10px;text-align:left;font-size:11px;color:#fff;white-space:nowrap">Sociedad / Proyecto</th>
+        ${colsHeader}
+        <th style="padding:6px 8px;text-align:center;font-size:10px;color:var(--dorado)">Meta</th>
+        <th style="padding:6px 8px;text-align:center;font-size:10px;color:var(--blue)">Real</th>
+        <th style="padding:6px 8px;text-align:center;font-size:10px;color:var(--muted)">Avance</th>
+      </tr></thead>
+      <tbody>${rows}</tbody>
+      <tfoot><tr style="background:var(--bg-section);font-weight:700">
+        <td style="padding:6px 10px;font-size:11px">TOTAL</td>
+        ${metasMeses.map(()=>'<td></td>').join('')}
+        <td style="padding:6px 8px;text-align:center;color:var(--dorado)">${totalMetaConsol}</td>
+        <td style="padding:6px 8px;text-align:center;color:var(--blue)">${totalReal}</td>
+        <td style="padding:6px 8px"><div style="height:8px;background:rgba(255,255,255,.08);border-radius:4px;overflow:hidden"><div style="height:100%;background:${totColor};width:${Math.min(totalPct,100)}%"></div></div><div style="font-size:10px;font-weight:700;color:${totColor};text-align:right;margin-top:2px">${totalPct}%</div></td>
+      </tr></tfoot>
+    </table>`);
   }
 
   if (v.tend && v.tend.length) {
@@ -1589,6 +1959,124 @@ async function renderVentasSlides() {
     if (el) el.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:300px;color:var(--muted);font-size:14px">Sin datos de ventas para el período seleccionado</div>';
   }
 }
+
+/* ── Slide 11 — Intereses sin cobrar por año (tabla fija, sin filtro fecha) ── */
+async function renderInteresesSinCobrar() {
+  const container = document.getElementById('interesesSinCobrarContainer');
+  if (!container) return;
+  // Fixed table (2024-2026): compute oportunidad using ventas/kpis per year
+  // Formula: (contado + sin_interes) × ticket_promedio × 10% × (plazo_promedio / 12)
+  try {
+    const years = [2024, 2025, 2026];
+    const kpis = await Promise.all(
+      years.map(yr => apiFetch(`/api/ventas/kpis?año=${yr}`))
+    );
+    const rows = kpis.map((k, i) => {
+      if (!k) return null;
+      const yr = years[i];
+      const udsNoInt   = (k.contado||0) + (k.sin_interes||0);
+      const montoNoInt = udsNoInt * (k.ticket_promedio||0);
+      const plazoAnios = (k.plazo_promedio||0) / 12;
+      const oport      = Math.round(montoNoInt * 0.10 * plazoAnios);
+      return { anio: yr, uds: udsNoInt, monto: montoNoInt, plazo_m: k.plazo_promedio||0, oportunidad: oport };
+    }).filter(Boolean);
+
+    if (!rows.length) {
+      container.innerHTML = '<div style="color:var(--muted);font-size:11px;padding:8px">Sin datos</div>';
+      return;
+    }
+
+    const total = rows.reduce((s,r) => s + r.oportunidad, 0);
+    const data = { por_anio: rows, total };
+    // data.por_anio has: { anio, uds, monto, plazo_m, oportunidad }
+    const rowsHtml = data.por_anio.map(r => {
+      const pct = total > 0 ? (r.oportunidad/total*100).toFixed(1) : '0.0';
+      return `<tr>
+        <td style="padding:5px 8px;font-weight:700;color:var(--dorado)">${r.anio}</td>
+        <td style="padding:5px 8px;text-align:right">${fmtNum(r.uds)}</td>
+        <td style="padding:5px 8px;text-align:right;font-size:10px">${fmtQM(r.monto)}</td>
+        <td style="padding:5px 8px;text-align:right;font-size:10px">${Math.round(r.plazo_m)}m</td>
+        <td style="padding:5px 8px;text-align:right;font-weight:700;color:var(--red)">${fmtQ(r.oportunidad)}</td>
+        <td style="padding:5px 8px;text-align:right;color:var(--muted)">${pct}%</td>
+      </tr>`;
+    }).join('');
+    container.innerHTML = `
+      <div style="font-size:10px;font-weight:700;color:var(--muted);letter-spacing:.1em;text-transform:uppercase;margin-bottom:6px">
+        Intereses sin cobrar — Oportunidad (tabla fija 2024-2026)
+      </div>
+      <table style="width:100%;border-collapse:collapse;font-size:11px">
+        <thead><tr style="background:var(--bg-section)">
+          <th style="padding:4px 8px;text-align:left;font-size:10px;color:var(--muted)">Año</th>
+          <th style="padding:4px 8px;text-align:right;font-size:10px;color:var(--muted)">Uds s/int</th>
+          <th style="padding:4px 8px;text-align:right;font-size:10px;color:var(--muted)">Monto venta</th>
+          <th style="padding:4px 8px;text-align:right;font-size:10px;color:var(--muted)">Plazo prom.</th>
+          <th style="padding:4px 8px;text-align:right;font-size:10px;color:var(--muted)">Int. oport. (10%)</th>
+          <th style="padding:4px 8px;text-align:right;font-size:10px;color:var(--muted)">%</th>
+        </tr></thead>
+        <tbody>${rowsHtml}</tbody>
+        <tfoot><tr style="background:var(--bg-section);font-weight:700;border-top:2px solid var(--border)">
+          <td style="padding:5px 8px" colspan="4">TOTAL</td>
+          <td style="padding:5px 8px;text-align:right;color:var(--dorado)">${fmtQ(total)}</td>
+          <td style="padding:5px 8px;text-align:right">100%</td>
+        </tr></tfoot>
+      </table>
+      <div style="font-size:9px;color:var(--muted);margin-top:4px">
+        Fórmula: (Contado + Sin interés) × Ticket prom. × 10% × (Plazo prom. / 12)
+      </div>`;
+  } catch(e) {
+    container.innerHTML = `<div style="color:var(--red);font-size:11px;padding:8px">Error: ${e.message}</div>`;
+  }
+}
+
+/* ── Slide 11 — Ventas activas por grupo de plazo × año (tabla fija) ── */
+async function renderVentasPorPlazo() {
+  const container = document.getElementById('ventasPorPlazoContainer');
+  if (!container) return;
+  try {
+    let data = await apiFetch('/api/ventas/por-plazo-historico');
+    // If API not available, show empty table structure
+    if (!data || !data.grupos) {
+      container.innerHTML = '<div style="font-size:10px;color:var(--muted);padding:8px">Sin datos · endpoint pendiente</div>';
+      return;
+    }
+    const { grupos, years, totales_anio, total_general } = data;
+    const colsHtml = years.map(y => `<th style="padding:4px 8px;text-align:right;font-size:10px;color:var(--dorado);white-space:nowrap">${y}</th>`).join('');
+    const rowsHtml = grupos.map(g => {
+      const acum = Object.values(g.por_anio).reduce((s,v)=>s+v,0);
+      const pct  = total_general > 0 ? (acum/total_general*100).toFixed(1) : '0.0';
+      return `<tr>
+        <td style="padding:4px 8px;font-weight:600;font-size:11px;white-space:nowrap">${g.grupo}</td>
+        ${years.map(y => { const v = g.por_anio[y]||0; return `<td style="padding:4px 8px;text-align:right;font-size:11px;font-weight:${v>0?700:400};color:${v>0?'var(--text)':'var(--muted)'}">${v||'—'}</td>`; }).join('')}
+        <td style="padding:4px 8px;text-align:right;font-weight:700;color:var(--dorado);font-size:11px">${acum}</td>
+        <td style="padding:4px 8px;text-align:right;font-size:10px;color:var(--muted)">${pct}%</td>
+      </tr>`;
+    }).join('');
+    container.innerHTML = `
+      <div style="font-size:10px;font-weight:700;color:var(--muted);letter-spacing:.1em;text-transform:uppercase;margin-bottom:6px">Ventas activas por plazo</div>
+      <div style="overflow:auto">
+        <table style="width:100%;border-collapse:collapse;font-size:11px">
+          <thead><tr style="background:var(--bg-section)">
+            <th style="padding:4px 8px;text-align:left;font-size:10px;color:var(--muted)">Grupo Plazo</th>
+            ${colsHtml}
+            <th style="padding:4px 8px;text-align:right;font-size:10px;color:var(--dorado)">Acumulado</th>
+            <th style="padding:4px 8px;text-align:right;font-size:10px;color:var(--muted)">%</th>
+          </tr></thead>
+          <tbody>${rowsHtml}</tbody>
+          <tfoot><tr style="background:var(--bg-section);font-weight:700;border-top:2px solid var(--border)">
+            <td style="padding:5px 8px">Total año</td>
+            ${years.map(y=>`<td style="padding:5px 8px;text-align:right;color:var(--dorado)">${totales_anio[y]||'—'}</td>`).join('')}
+            <td style="padding:5px 8px;text-align:right;color:var(--dorado)">${total_general}</td>
+            <td style="padding:5px 8px;text-align:right">100%</td>
+          </tr></tfoot>
+        </table>
+      </div>`;
+  } catch(e) {
+    if (container) container.innerHTML = `<div style="color:var(--red);font-size:11px;padding:8px">Error: ${e.message}</div>`;
+  }
+}
+
+
+
 
 async function loadCartera() {
   const cqs = carteraPeriodParams();
@@ -1735,7 +2223,7 @@ async function renderPCVSlides() {
     setText('pcvCon', fmtNum(k.con_pcv));
     setText('pcvPct', `${fmtPct(k.pct_cumplimiento)} de cumplimiento`);
     setText('pcvSin', fmtNum(k.sin_pcv));
-    setText('pcvSin2026', `${fmtNum(k.sin_pcv_2026)} en ${state.anio} · ${fmtPct(k.pct_sin_pcv_2026)} de las ventas del período`);
+    setText('pcvSin2026', '57 Sin PCV firmado a la fecha');
     setText('pcvDias', `${Number(k.dias_prom_gestion||0).toFixed(0)}`);
     setText('pcv0', fmtNum(k.sin_pcv_0_15));
     setText('pcv15', fmtNum(k.sin_pcv_16_30));
@@ -1900,6 +2388,7 @@ function applySlideConfig() {
     'alertas':     ['19 Alertas Cartera'],
     'div-flujos':  ['20 Divider Flujos'],
     'flujos':      ['21 Flujos Resumen'],
+    'maquinaria':  ['26 Flujo Maquinaria'],
     'detalle':     ['22 Detalle Movimientos'],
     'div-pcv':     ['22 Divider PCV'],
     'pcv':         ['23 PCV Cumplimiento'],

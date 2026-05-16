@@ -938,11 +938,17 @@ async def get_metas(
     db: Session = Depends(get_db),
     current_user=Depends(get_current_user)
 ):
-    """Metas vs avance por PROYECTO (sin responsable), mensual. Lee metas del Excel."""
+    """Metas vs avance por PROYECTO. Devuelve breakdown por mes para todos los proyectos
+    con ventas en el período (no solo los que tienen metas configuradas).
+
+    Para cuadrar con la Mezcla por forma de pago del slide 9 (ventas brutas), se usan
+    los mismos filtros que en /kpis: estatus en VENTA/RESERVADO/CANJE + es_venta_where().
+    """
     import pandas as pd
     from pathlib import Path
     settings = get_settings()
 
+    # ── 1) Leer metas mensuales del Excel ─────────────────────────
     metas_excel = []
     try:
         df_m = pd.read_excel(Path(settings.path_ov_cartera), sheet_name="METAS VENTAS", header=0)
@@ -958,11 +964,16 @@ async def get_metas(
     except Exception as e:
         import logging; logging.getLogger(__name__).warning(f"No se pudo leer metas Excel: {e}")
 
-    date_filter = "DATE_TRUNC('month', l.fecha_venta) = make_date(:año, :mes, 1)" if mes else "EXTRACT(YEAR FROM l.fecha_venta) = :año"
-    params = {"año": año, **({"mes": mes} if mes else {})}
+    # ── 2) Filtro de fecha y query con desglose por MES (always) ─
+    # Filtramos por año siempre para tener todos los meses del año disponibles.
+    # El cliente decide si muestra solo un mes (filtro mes>0) o todo el año.
+    params = {"año": año}
+
+    es_v = es_venta_where()
 
     ventas_rows = db.execute(text(f"""
         SELECT p.nombre_proyecto AS proyecto,
+               EXTRACT(MONTH FROM l.fecha_venta)::int AS mes,
                CASE
                    WHEN l.vendedor IS NULL OR l.vendedor = '-Ningún empleado del departamento de ventas-'
                        THEN 'SIN_ASIGNAR'
@@ -974,20 +985,17 @@ async def get_metas(
         LEFT JOIN vendedores v ON v.nombre = l.vendedor
         WHERE l.estatus IN ('VENTA','RESERVADO','CANJE')
           AND l.fecha_venta IS NOT NULL
-          AND {date_filter}
-          AND COALESCE(l.vendedor,'') NOT IN (
-              'Canje A','Bloqueado','Bloqueo Municipal','Apartado Proyecto Aptos','Ansak, S.A.','Ansak S.A.'
-          )
-          AND COALESCE(l.plazo_raw,'') NOT IN (
-              'Canje A','Casa Modelo','Ansak, S.A.','Ansak S.A.','Ansak','Apartado Proyecto Aptos','Bloqueo Municipal','Bloqueado'
-          )
-        GROUP BY p.nombre_proyecto, CASE
-                   WHEN l.vendedor IS NULL OR l.vendedor = '-Ningún empleado del departamento de ventas-'
-                       THEN 'SIN_ASIGNAR'
-                   ELSE COALESCE(v.equipo, 'SIN_ASIGNAR')
-               END
+          AND EXTRACT(YEAR FROM l.fecha_venta) = :año
+          AND {es_v}
+        GROUP BY p.nombre_proyecto, EXTRACT(MONTH FROM l.fecha_venta),
+                 CASE
+                     WHEN l.vendedor IS NULL OR l.vendedor = '-Ningún empleado del departamento de ventas-'
+                         THEN 'SIN_ASIGNAR'
+                     ELSE COALESCE(v.equipo, 'SIN_ASIGNAR')
+                 END
     """), params).fetchall()
 
+    # ── 3) Mapa proyecto Excel → proyecto BD ──────────────────────
     PROY_MAP = {
         "Ottavia":"Cañadas de Jalapa","Tezzoli":"Club Campestre Jumay",
         "Eficiencia Urbana":"Hacienda Jumay","Servicios Generales":"La Ceiba",
@@ -997,41 +1005,232 @@ async def get_metas(
         "Rossio":"Hacienda el Sol","Utilica":"Condado Jutiapa",
         "Garbatella":"Club Residencial El Progreso",
     }
+    # Inverso para encontrar el "display" Excel a partir del nombre BD
+    PROY_MAP_INV = {bd: excel for excel, bd in PROY_MAP.items()}
+    PROYECTO_DISPLAY = {
+        "Cañadas de Jalapa": "Ottavia — Cañadas de Jalapa",
+        "Club Campestre Jumay": "Tezzoli — Club Campestre Jumay",
+        "Hacienda Jumay": "Eficiencia Urbana — Hacienda Jumay",
+        "La Ceiba": "Servicios Generales — La Ceiba",
+        "Arboleda Santa Elena": "Capipos — Arboleda Santa Elena",
+        "Club del Bosque": "Urbiva — Club del Bosque",
+        "Hacienda El Cafetal Fase I": "Corcolle — Hacienda El Cafetal Fase I",
+        "Oasis Zacapa": "Frugalex — Oasis Zacapa",
+        "Hacienda Santa Lucia": "Ovest — Hacienda Santa Lucia",
+        "Celajes De Tecpan": "Vilet — Celajes De Tecpan",
+        "Hacienda el Sol": "Rossio — Hacienda el Sol",
+        "Condado Jutiapa": "Utilica — Condado Jutiapa",
+        "Club Residencial El Progreso": "Garbatella — Club Residencial El Progreso",
+    }
 
-    ventas_map = {}
+    # ── 4) Aggregate ventas por (proyecto BD, mes, equipo) ────────
+    ventas_proy = {}  # { proy_bd: { 'meses_consersa': {1..12}, 'meses_rv4': {1..12}, 'meses_sin_asig': {...}, 'total_c', 'total_r', 'total_s' } }
     for r in ventas_rows:
         p = r.proyecto
-        if p not in ventas_map: ventas_map[p] = {"consersa":0,"rv4":0,"sin_asignar":0}
-        eq = r.equipo.upper()
-        if eq == "CONSERSA": ventas_map[p]["consersa"] += r.ventas
-        elif eq == "RV4":    ventas_map[p]["rv4"]      += r.ventas
-        else:                ventas_map[p]["sin_asignar"] += r.ventas
+        m_int = int(r.mes)
+        eq = (r.equipo or "").upper()
+        cnt = int(r.ventas)
+        if p not in ventas_proy:
+            ventas_proy[p] = {
+                "meses_consersa": {}, "meses_rv4": {}, "meses_sin_asig": {},
+                "total_c": 0, "total_r": 0, "total_s": 0
+            }
+        bucket = ventas_proy[p]
+        if eq == "CONSERSA":
+            bucket["meses_consersa"][m_int] = bucket["meses_consersa"].get(m_int, 0) + cnt
+            bucket["total_c"] += cnt
+        elif eq == "RV4":
+            bucket["meses_rv4"][m_int] = bucket["meses_rv4"].get(m_int, 0) + cnt
+            bucket["total_r"] += cnt
+        else:
+            bucket["meses_sin_asig"][m_int] = bucket["meses_sin_asig"].get(m_int, 0) + cnt
+            bucket["total_s"] += cnt
 
-    result = []
+    # ── 5) Construir resultado: UNION de proyectos con meta + proyectos con ventas ─
+    metas_por_proy_bd = {}  # {proy_bd: {'meta_c', 'meta_r', 'excel_desc'}}
     for m in metas_excel:
         desc = m["proyecto"]
         bd_nombre = PROY_MAP.get(desc, desc)
-        v = ventas_map.get(bd_nombre, {"consersa":0,"rv4":0,"sin_asignar":0})
-        vc, vr, vs = v["consersa"], v["rv4"], v["sin_asignar"]
+        metas_por_proy_bd[bd_nombre] = {
+            "meta_c": m["meta_consersa"],
+            "meta_r": m["meta_rv4"],
+            "excel_desc": desc,
+        }
+
+    todos_los_proy = set(ventas_proy.keys()) | set(metas_por_proy_bd.keys())
+
+    # Filtrar por mes si se especificó (para el output de totales)
+    # Pero seguimos enviando por_mes con todos los meses del año.
+    result = []
+    for proy_bd in todos_los_proy:
+        meta_info = metas_por_proy_bd.get(proy_bd, {"meta_c": 0, "meta_r": 0, "excel_desc": proy_bd})
+        v = ventas_proy.get(proy_bd, {"meses_consersa": {}, "meses_rv4": {}, "meses_sin_asig": {}, "total_c": 0, "total_r": 0, "total_s": 0})
+        # Si filtro mes específico, totales = solo ese mes
+        if mes:
+            vc = v["meses_consersa"].get(mes, 0)
+            vr = v["meses_rv4"].get(mes, 0)
+            vs = v["meses_sin_asig"].get(mes, 0)
+        else:
+            vc, vr, vs = v["total_c"], v["total_r"], v["total_s"]
         vt = vc + vr + vs
-        mt = m["meta_consersa"] + m["meta_rv4"]
-        if mt == 0: continue
+        mt = meta_info["meta_c"] + meta_info["meta_r"]
+
+        # Skip si NO tiene meta NI ventas en el período
+        if mt == 0 and vt == 0:
+            continue
+
+        # Por_mes: total combinado consersa+rv4+sin_asignar por mes
+        por_mes = {}
+        for mm in range(1, 13):
+            por_mes[mm] = (v["meses_consersa"].get(mm, 0)
+                           + v["meses_rv4"].get(mm, 0)
+                           + v["meses_sin_asig"].get(mm, 0))
+
+        display_name = PROYECTO_DISPLAY.get(proy_bd, meta_info["excel_desc"])
+
         result.append({
-            "proyecto": desc,
-            "nombre_proyecto_bd": bd_nombre,
-            "meta_consersa": m["meta_consersa"],
-            "meta_rv4": m["meta_rv4"],
+            "proyecto": meta_info["excel_desc"],
+            "proyecto_display": display_name,
+            "nombre_proyecto_bd": proy_bd,
+            "meta_consersa": meta_info["meta_c"],
+            "meta_rv4": meta_info["meta_r"],
             "meta_total": mt,
             "ventas_consersa": vc,
             "ventas_rv4": vr,
             "ventas_sin_asignar": vs,
             "ventas_total": vt,
+            "por_mes": por_mes,
             "cumplimiento_pct": round(vt/mt*100, 1) if mt > 0 else 0.0,
-            "cumplimiento_consersa_pct": round(vc/m["meta_consersa"]*100,1) if m["meta_consersa"] > 0 else 0.0,
-            "cumplimiento_rv4_pct": round(vr/m["meta_rv4"]*100,1) if m["meta_rv4"] > 0 else 0.0,
+            "cumplimiento_consersa_pct": round(vc/meta_info["meta_c"]*100,1) if meta_info["meta_c"] > 0 else 0.0,
+            "cumplimiento_rv4_pct": round(vr/meta_info["meta_r"]*100,1) if meta_info["meta_r"] > 0 else 0.0,
         })
 
+    # Ordenar: primero proyectos con meta (mayor meta primero), luego los demás por ventas
+    result.sort(key=lambda r: (-(r["meta_total"]), -(r["ventas_total"])))
     return result
+
+
+@router.get("/por-plazo-historico")
+async def get_ventas_por_plazo_historico(
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user)
+):
+    """Ventas activas por grupo de plazo × año (tabla fija sin filtro de fecha).
+
+    Cruza contra `lotes` (mismas reglas que se usan en /kpis ventas brutas),
+    para que el TOTAL del consolidado coincida con las ventas brutas del slide 6
+    (Inventario Consolidado · 1,258 unidades).
+    """
+    PLAZO_MAP = {
+        'Contado': 'Contado',
+        '3': '3 a 18 meses', '5': '3 a 18 meses', '6': '3 a 18 meses',
+        '10': '3 a 18 meses', '12': '3 a 18 meses', '18': '3 a 18 meses',
+        '24': '2 a 4 años', '36': '2 a 4 años', '48': '2 a 4 años',
+        '60': '5 años', '72': '6 años', '84': '7 años',
+        '96': '8 años', '120': '10 años'
+    }
+    GROUP_ORDER = ['Contado','3 a 18 meses','2 a 4 años','5 años','6 años','7 años','8 años','10 años']
+
+    es_v = es_venta_where()
+    rows = db.execute(text(f"""
+        SELECT
+            COALESCE(NULLIF(TRIM(l.plazo_raw), ''), 'SIN_PLAZO') AS plazo_raw,
+            EXTRACT(YEAR FROM l.fecha_venta)::int AS anio_venta,
+            COUNT(l.id) AS unidades
+        FROM lotes l
+        WHERE l.estatus IN ('VENTA','RESERVADO','CANJE')
+          AND l.fecha_venta IS NOT NULL
+          AND {es_v}
+        GROUP BY 1, 2
+        ORDER BY 2 NULLS LAST
+    """)).fetchall()
+
+    from collections import defaultdict
+    data = defaultdict(lambda: defaultdict(int))
+    years_set = set()
+    sin_plazo_total = 0
+    for r in rows:
+        plazo_val = str(r.plazo_raw or '').strip()
+        # Manejar valores numéricos con .0 o sin
+        plazo_norm = plazo_val.replace('.0','') if plazo_val.endswith('.0') else plazo_val
+        # Texto "Contado" o variantes
+        if plazo_norm.lower() in ('contado','cash','de contado'):
+            grupo = 'Contado'
+        else:
+            grupo = PLAZO_MAP.get(plazo_norm, None)
+        anio = int(r.anio_venta) if r.anio_venta else 0
+        if not anio or anio < 2020:
+            continue
+        years_set.add(anio)
+        cnt = int(r.unidades or 0)
+        if not grupo:
+            sin_plazo_total += cnt
+            continue
+        data[grupo][anio] += cnt
+
+    years = sorted(years_set)
+    grupos_out = []
+    total_general = 0
+    totales_anio = {yr: 0 for yr in years}
+
+    for grupo in GROUP_ORDER:
+        if grupo not in data:
+            continue
+        por_anio = {yr: data[grupo].get(yr, 0) for yr in years}
+        acum = sum(por_anio.values())
+        if acum == 0:
+            continue
+        grupos_out.append({"grupo": grupo, "por_anio": por_anio, "acumulado": acum})
+        total_general += acum
+        for yr in years:
+            totales_anio[yr] += por_anio[yr]
+
+    return {
+        "grupos": grupos_out,
+        "years": years,
+        "totales_anio": totales_anio,
+        "total_general": total_general,
+        "sin_plazo": sin_plazo_total,
+    }
+
+
+@router.get("/intereses-sin-cobrar")
+async def get_intereses_sin_cobrar(
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user)
+):
+    """Intereses sin cobrar por año (tabla fija — sin filtro fecha).
+
+    Tipo línea 'S' (interés) con line_status='O' (pendiente). Agrupado por año
+    de fecha_programada_cobro (cuándo debería cobrarse cada cuota de interés).
+    """
+    try:
+        rows = db.execute(text("""
+            SELECT EXTRACT(YEAR FROM fecha_programada_cobro)::int AS anio,
+                   SUM(saldo_pendiente) AS total
+            FROM ov_cartera
+            WHERE tipo_linea = 'S'
+              AND line_status = 'O'
+              AND fecha_programada_cobro IS NOT NULL
+              AND COALESCE(saldo_pendiente, 0) > 0
+            GROUP BY 1
+            ORDER BY 1
+        """)).fetchall()
+        por_anio = []
+        total = 0.0
+        for r in rows:
+            yr = int(r.anio) if r.anio else 0
+            if yr < 2020: continue
+            monto = float(r.total or 0)
+            por_anio.append({"anio": yr, "intereses": round(monto, 2)})
+            total += monto
+        return {
+            "por_anio": por_anio,
+            "total": round(total, 2),
+        }
+    except Exception as e:
+        import logging; logging.getLogger(__name__).warning(f"intereses-sin-cobrar error: {e}")
+        return {"por_anio": [], "total": 0.0}
 
 
 @router.get("/pcv/kpis")

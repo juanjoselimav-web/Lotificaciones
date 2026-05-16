@@ -276,51 +276,99 @@ def get_resumen_flujos(
     if granularidad == "mes":
         reclas = db.execute(text("""
             SELECT TO_CHAR(DATE_TRUNC('month', fecha_contable), 'YYYY-MM') AS periodo,
-                   seccion_origen, seccion_destino, SUM(monto) AS monto
+                   seccion_origen, seccion_destino,
+                   COALESCE(nombre_destino, '') AS nombre_destino,
+                   COALESCE(subseccion, '') AS subseccion,
+                   SUM(monto) AS monto
             FROM flujos_reclasificaciones
             WHERE sociedad=:soc
               AND TO_CHAR(DATE_TRUNC('month', fecha_contable), 'YYYY-MM') = ANY(:periodos)
-            GROUP BY 1,2,3
+            GROUP BY 1,2,3,4,5
         """), {"soc": sociedad, "periodos": periodos}).fetchall()
     elif granularidad == "semana":
         reclas = db.execute(text("""
             SELECT CONCAT(anio, '-S', LPAD(EXTRACT(WEEK FROM fecha_contable)::text, 2, '0')) AS periodo,
-                   seccion_origen, seccion_destino, SUM(monto) AS monto
+                   seccion_origen, seccion_destino,
+                   COALESCE(nombre_destino, '') AS nombre_destino,
+                   COALESCE(subseccion, '') AS subseccion,
+                   SUM(monto) AS monto
             FROM flujos_reclasificaciones
             WHERE sociedad=:soc
               AND CONCAT(anio, '-S', LPAD(EXTRACT(WEEK FROM fecha_contable)::text, 2, '0')) = ANY(:periodos)
-            GROUP BY 1,2,3
+            GROUP BY 1,2,3,4,5
         """), {"soc": sociedad, "periodos": periodos}).fetchall()
     else:
         reclas = db.execute(text("""
             SELECT anio::text AS periodo,
-                   seccion_origen, seccion_destino, SUM(monto) AS monto
+                   seccion_origen, seccion_destino,
+                   COALESCE(nombre_destino, '') AS nombre_destino,
+                   COALESCE(subseccion, '') AS subseccion,
+                   SUM(monto) AS monto
             FROM flujos_reclasificaciones
             WHERE sociedad=:soc AND anio::text = ANY(:periodos)
-            GROUP BY 1,2,3
+            GROUP BY 1,2,3,4,5
         """), {"soc": sociedad, "periodos": periodos}).fetchall()
 
     # Apply reclasificaciones: reduce origen section, increase destino section
     # Build lookup by seccion name for quick access
     sec_totales_map = {s["seccion"]: s["totales"] for s in secciones_out}
 
+    # Build a categoria-level map for reclasificaciones detail
+    # Maps: seccion → categoria → subseccion → periodo → monto
+    cat_map = {}  # seccion → lista de categorias (para detalle de Prestamo Bancario)
+    for sec in secciones_out:
+        cat_map[sec["seccion"]] = sec["categorias"]
+
     for r in reclas:
-        periodo, sec_ori, sec_dst, monto = r
+        periodo, sec_ori, sec_dst, nom_dst, subsec, monto = r
         monto = float(monto or 0)
-        if not monto or sec_ori == sec_dst:
+        if not monto:
             continue
-        # Reduce egreso in origen section
-        if sec_ori in sec_totales_map and periodo in sec_totales_map[sec_ori]:
-            sec_totales_map[sec_ori][periodo]["egreso"]  -= monto
-            sec_totales_map[sec_ori][periodo]["neto"]    += monto
-        # Increase egreso in destino section (create if needed)
-        if sec_dst not in sec_totales_map:
-            sec_totales_map[sec_dst] = {}
-            secciones_out.append({"seccion": sec_dst, "categorias": [], "totales": sec_totales_map[sec_dst]})
-        if periodo not in sec_totales_map[sec_dst]:
-            sec_totales_map[sec_dst][periodo] = {"ingreso": 0.0, "egreso": 0.0, "neto": 0.0}
-        sec_totales_map[sec_dst][periodo]["egreso"] += monto
-        sec_totales_map[sec_dst][periodo]["neto"]   -= monto
+
+        nom_dst  = nom_dst  or ""
+        subsec   = subsec   or ""
+
+        if sec_ori != sec_dst:
+            # ── Cross-section move: adjust totales ──────────────────
+            if sec_ori in sec_totales_map and periodo in sec_totales_map[sec_ori]:
+                sec_totales_map[sec_ori][periodo]["egreso"] -= monto
+                sec_totales_map[sec_ori][periodo]["neto"]   += monto
+            if sec_dst not in sec_totales_map:
+                sec_totales_map[sec_dst] = {}
+                new_sec = {"seccion": sec_dst, "categorias": [], "totales": sec_totales_map[sec_dst]}
+                secciones_out.append(new_sec)
+                cat_map[sec_dst] = new_sec["categorias"]
+            if periodo not in sec_totales_map[sec_dst]:
+                sec_totales_map[sec_dst][periodo] = {"ingreso": 0.0, "egreso": 0.0, "neto": 0.0}
+            sec_totales_map[sec_dst][periodo]["egreso"] += monto
+            sec_totales_map[sec_dst][periodo]["neto"]   -= monto
+
+        # ── Add categoria+subseccion detail in destino section ──────
+        # This works for both cross-section and intra-section reclas
+        # nom_dst = "Prestamo Bancario", subsec = "Cuota Capital" / "Intereses" / "Liberaciones"
+        if nom_dst:
+            dest_cats = cat_map.get(sec_dst, [])
+            # Find or create the categoria row for nom_dst
+            cat_row = next((c for c in dest_cats if c.get("categoria") == nom_dst), None)
+            if cat_row is None:
+                cat_row = {"categoria": nom_dst, "montos": {}, "subsecciones": {}}
+                dest_cats.append(cat_row)
+                if sec_dst not in cat_map:
+                    cat_map[sec_dst] = dest_cats
+            # Add to categoria totales
+            if periodo not in cat_row["montos"]:
+                cat_row["montos"][periodo] = {"ingreso": 0.0, "egreso": 0.0, "neto": 0.0}
+            cat_row["montos"][periodo]["egreso"] += monto
+            cat_row["montos"][periodo]["neto"]   -= monto
+            # Add subseccion detail if present
+            if subsec:
+                if "subsecciones" not in cat_row:
+                    cat_row["subsecciones"] = {}
+                if subsec not in cat_row["subsecciones"]:
+                    cat_row["subsecciones"][subsec] = {}
+                if periodo not in cat_row["subsecciones"][subsec]:
+                    cat_row["subsecciones"][subsec][periodo] = {"egreso": 0.0}
+                cat_row["subsecciones"][subsec][periodo]["egreso"] += monto
 
     # 7. Saldos finales = saldo_inicial + neto_total del período
     saldos_fin = {}
@@ -332,6 +380,19 @@ def get_resumen_flujos(
         )
         saldos_fin[p] = saldos_ini.get(p, 0.0) + neto_p
 
+    # ── Compute Intercompany breakdown per period (read-only, no totals changed) ──
+    intercompany_por_periodo = {}
+    fin_sec = next((s for s in secciones_out if s["seccion"] == "FINANCIAMIENTO"), None)
+    if fin_sec:
+        for cat in fin_sec.get("categorias", []):
+            if "intercompany" in (cat.get("categoria") or "").lower():
+                for p, m in (cat.get("montos") or {}).items():
+                    if p not in intercompany_por_periodo:
+                        intercompany_por_periodo[p] = {"ingreso": 0.0, "egreso": 0.0, "neto": 0.0}
+                    intercompany_por_periodo[p]["ingreso"] += m.get("ingreso", 0.0)
+                    intercompany_por_periodo[p]["egreso"]  += m.get("egreso",  0.0)
+                    intercompany_por_periodo[p]["neto"]    += m.get("neto",    m.get("ingreso",0) - m.get("egreso",0))
+
     return {
         "sociedad":       sociedad,
         "granularidad":   granularidad,
@@ -339,6 +400,7 @@ def get_resumen_flujos(
         "secciones":      secciones_out,
         "saldos_iniciales": saldos_ini,
         "saldos_finales":   saldos_fin,
+        "intercompany_por_periodo": intercompany_por_periodo,  # extra field for frontend split
     }
 
 

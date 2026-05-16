@@ -71,7 +71,9 @@ def sincronizar_reclasificaciones() -> dict:
     df = df.dropna(how="all")
     df['FECHA_CONTABLE'] = pd.to_datetime(df['FECHA_CONTABLE'], errors='coerce')
 
-    ins = 0
+    # Collect all valid rows first, then do TRUNCATE + bulk INSERT per sociedad
+    # This correctly handles multiple identical transactions (same cuenta, fecha, monto)
+    rows_by_sociedad: dict = {}
     omi = 0
 
     for _, row in df.iterrows():
@@ -89,42 +91,54 @@ def sincronizar_reclasificaciones() -> dict:
             omi += 1
             continue
 
-        try:
-            with engine.begin() as conn:
-                res = conn.execute(text("""
-                    INSERT INTO flujos_reclasificaciones
-                        (sociedad, cuenta, cuenta_nombre, monto, fecha_contable,
-                         anio, mes, seccion_origen, nombre_origen,
-                         seccion_destino, nombre_destino, concepto)
-                    VALUES
-                        (:sociedad, :cuenta, :cuenta_nombre, :monto, :fecha_contable,
-                         :anio, :mes, :seccion_origen, :nombre_origen,
-                         :seccion_destino, :nombre_destino, :concepto)
-                    ON CONFLICT (sociedad, cuenta, fecha_contable, seccion_origen, seccion_destino, monto)
-                    DO NOTHING
-                """), {
-                    "sociedad":      soc,
-                    "cuenta":        _clean(row.get("CUENTA_CONTRAPARTIDA")),
-                    "cuenta_nombre": _clean(row.get("CUENTA_CONTRAPARTIDA_NOMBRE")),
-                    "monto":         monto,
-                    "fecha_contable": fecha,
-                    "anio":          fecha.year,
-                    "mes":           fecha.month,
-                    "seccion_origen":  sec_ori,
-                    "nombre_origen":   _clean(row.get("NOMBRE")),
-                    "seccion_destino": sec_dst,
-                    "nombre_destino":  _clean(row.get("NOMBRE5")),
-                    "concepto":        _clean(row.get("CONCEPTO")),
-                })
-                if res.rowcount > 0:
+        if soc not in rows_by_sociedad:
+            rows_by_sociedad[soc] = []
+
+        rows_by_sociedad[soc].append({
+            "sociedad":       soc,
+            "cuenta":         _clean(row.get("CUENTA_CONTRAPARTIDA")),
+            "cuenta_nombre":  _clean(row.get("CUENTA_CONTRAPARTIDA_NOMBRE")),
+            "monto":          monto,
+            "fecha_contable": fecha,
+            "anio":           fecha.year,
+            "mes":            fecha.month,
+            "seccion_origen": sec_ori,
+            "nombre_origen":  _clean(row.get("NOMBRE")),
+            "seccion_destino":sec_dst,
+            "subseccion":     _clean(row.get("SUBSECCION")),
+            "nombre_destino": _clean(row.get("NOMBRE5")),
+            "concepto":       _clean(row.get("CONCEPTO")),
+        })
+
+    ins = 0
+    try:
+        with engine.begin() as conn:
+            for soc, filas in rows_by_sociedad.items():
+                # TRUNCATE this sociedad's reclasificaciones and re-insert all
+                # This preserves ALL rows including duplicates with same cuenta+fecha+monto
+                conn.execute(text(
+                    "DELETE FROM flujos_reclasificaciones WHERE sociedad = :soc"
+                ), {"soc": soc})
+
+                for params in filas:
+                    conn.execute(text("""
+                        INSERT INTO flujos_reclasificaciones
+                            (sociedad, cuenta, cuenta_nombre, monto, fecha_contable,
+                             anio, mes, seccion_origen, nombre_origen,
+                             seccion_destino, subseccion, nombre_destino, concepto)
+                        VALUES
+                            (:sociedad, :cuenta, :cuenta_nombre, :monto, :fecha_contable,
+                             :anio, :mes, :seccion_origen, :nombre_origen,
+                             :seccion_destino, :subseccion, :nombre_destino, :concepto)
+                    """), params)
                     ins += 1
-                else:
-                    omi += 1
-        except Exception as e:
-            omi += 1
-            logger.warning(f"Reclasificación omitida: {e}")
+
+                logger.info(f"[RECLASIF] {soc}: {len(filas)} registros insertados")
+    except Exception as e:
+        resultado["errores"].append(f"Error en bulk insert: {e}")
+        logger.error(f"[RECLASIF] Error: {e}")
 
     resultado["insertados"] = ins
     resultado["omitidos"]   = omi
-    logger.info(f"[RECLASIF] insertados={ins} omitidos={omi}")
+    logger.info(f"[RECLASIF] TOTAL insertados={ins} omitidos={omi}")
     return resultado

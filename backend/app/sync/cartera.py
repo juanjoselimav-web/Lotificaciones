@@ -511,7 +511,6 @@ async def get_alertas(
         "alertas": alertas
     }
 
-
 @router.get("/morosos")
 async def get_morosos(
     dias_min: int = Query(61),
@@ -551,8 +550,6 @@ async def get_morosos(
         "dias_min": dias_min,
         "clientes": [dict(r._mapping) for r in rows]
     }
-
-
 @router.get("/desistimientos")
 async def get_desistimientos(
     empresa: Optional[str] = Query(None),
@@ -588,4 +585,34 @@ async def get_desistimientos(
     return {
         "desistimientos": [dict(r._mapping) for r in rows],
         "total": total, "page": page, "pages": -(-total // page_size)
+    }
+
+@router.get("/intereses-sin-cobrar")
+async def get_intereses_sin_cobrar(
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user)
+):
+    """
+    Intereses sin cobrar (oportunidad) por año — tabla fija sin filtro de fecha.
+    Usa tipo_linea='S' AND line_status='O' (Gastos Administrativos / intereses pendientes).
+    """
+    rows = db.execute(text("""
+        SELECT
+            EXTRACT(YEAR FROM fecha_programada_cobro)::int AS anio,
+            SUM(saldo_pendiente) AS intereses
+        FROM ov_cartera
+        WHERE tipo_linea = 'S'
+          AND line_status = 'O'
+          AND saldo_pendiente > 0
+          AND fecha_programada_cobro IS NOT NULL
+        GROUP BY 1
+        ORDER BY 1
+    """)).fetchall()
+
+    por_anio = [{"anio": r.anio, "intereses": round(float(r.intereses or 0), 2)} for r in rows]
+    total = sum(r["intereses"] for r in por_anio)
+
+    return {
+        "por_anio": por_anio,
+        "total": round(total, 2),
     }
