@@ -514,18 +514,16 @@ select{background:var(--blanco);border:1px solid var(--borde);color:var(--texto)
 
           <div style="margin-top:20px">
             <div style="font-size:12px;font-weight:700;color:var(--azul);text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px">Distribución Anual del Flujo</div>
-            <div style="font-size:11px;color:var(--muted);margin-bottom:10px">Filas en rojo = año con flujo negativo (necesidad de financiamiento).</div>
-            <div class="flujo-table-wrap">
-              <table class="flujo-table">
-                <thead>
+            <div style="font-size:11px;color:var(--muted);margin-bottom:10px">Flujo real histórico + proyección al cierre. Scroll horizontal para ver todos los años.</div>
+            <div class="flujo-table-wrap" style="overflow-x:auto;max-width:100%">
+              <table class="flujo-table" style="min-width:800px">
+                <thead id="flujoAnualThead">
                   <tr>
-                    <th>Año</th><th>Ingresos</th><th>Egr.Op.</th><th>IVA</th>
-                    <th>Egr.Fin.</th><th>ISR</th><th>Tierra/Div.</th>
-                    <th>Flujo Neto</th><th>Acumulado</th>
+                    <th>Concepto</th><th>—</th>
                   </tr>
                 </thead>
                 <tbody id="flujoAnualTbody">
-                  <tr><td colspan="9" style="text-align:center;padding:20px;color:var(--muted)">Guardá los supuestos y hacé clic en "Calcular flujo".</td></tr>
+                  <tr><td colspan="2" style="text-align:center;padding:20px;color:var(--muted)">Guardá los supuestos y hacé clic en "Calcular flujo".</td></tr>
                 </tbody>
               </table>
             </div>

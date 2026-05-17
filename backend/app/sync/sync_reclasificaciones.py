@@ -85,7 +85,7 @@ def sincronizar_reclasificaciones() -> dict:
         fecha = _to_date(row.get("FECHA_CONTABLE"))
         monto = _sf(row.get("MONTO_PRORRATEADO"))
         sec_ori = _clean(row.get("SECCION"))
-        sec_dst = _clean(row.get("SECCION4"))
+        sec_dst = _clean(row.get("SECCION2") or row.get("SECCION4"))  # Excel usa SECCION2
 
         if not fecha or not sec_ori or not sec_dst or monto == 0:
             omi += 1

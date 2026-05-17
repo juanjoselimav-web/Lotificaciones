@@ -47,12 +47,6 @@ async function apiFetch(path, opts = {}) {
     headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json', ...opts.headers },
     ...opts
   });
-  if (res.status === 401) {
-    // Token expirado o inválido — limpiar sesión y redirigir al login
-    localStorage.clear();
-    window.location.href = '/index.html';
-    return;
-  }
   if (!res.ok) {
     const err = await res.json().catch(() => ({ detail: res.statusText }));
     throw new Error(err.detail || `HTTP ${res.status}`);
@@ -139,6 +133,8 @@ async function cargarSupuestos() {
       document.getElementById('inpAnos').value    = d.anos_proyecto || 5;
       document.getElementById('inpDesc').value    = d.tasa_descuento ? +(d.tasa_descuento * 100).toFixed(2) : 12;
       document.getElementById('inpISR').value     = d.pct_isr ? +(d.pct_isr * 100).toFixed(2) : '';
+      if (d.anos_ic && document.getElementById('inpAnosIC')) document.getElementById('inpAnosIC').value = d.anos_ic;
+      if (d.anos_egr && document.getElementById('inpAnosEgr')) document.getElementById('inpAnosEgr').value = d.anos_egr;
       S.anos     = d.anos_proyecto || 5;
       S.tasaDesc = d.tasa_descuento || 0.12;
       S.pctISR   = d.pct_isr || 0;
@@ -160,6 +156,8 @@ async function guardarTodo() {
     anos_proyecto:    parseInt(document.getElementById('inpAnos').value) || 5,
     tasa_descuento:   parseFloat(document.getElementById('inpDesc').value) / 100 || 0.12,
     pct_isr:          parseFloat(document.getElementById('inpISR').value) / 100 || 0,
+    anos_ic:          parseInt(document.getElementById('inpAnosIC')?.value) || 0,
+    anos_egr:         parseInt(document.getElementById('inpAnosEgr')?.value) || 0,
     plazos_venta:     S.plazosVenta,
     prestamos_manual: [],
     pagos_tierra_manual: [],
@@ -444,16 +442,21 @@ function renderFinancieros(d) {
       prestEl.innerHTML = '<div style="color:var(--muted);font-size:12px;padding:12px">No hay préstamo bancario registrado para este proyecto.</div>';
     } else {
       const pct_pag = p.monto_original > 0 ? (p.pagado_capital / p.monto_original * 100).toFixed(1) : 0;
+      // KPI superiores: pagado REAL del flujo (no de tabla de amortización)
+      const capitalPagadoReal = (p.pagado_cuota_capital || 0) + (p.pagado_liberaciones || 0);
+      const interesesPagadoReal = p.pagado_intereses || 0;
+      const capitalPendienteReal = p.monto_original - capitalPagadoReal;
+      const interesesPendientes = p.pendiente_interes || 0;
       prestEl.innerHTML = `
         <div class="prest-header">
           <div><span class="badge-info">${esc(p.banco)}</span> <span class="badge-info">No. ${esc(p.no_credito)}</span></div>
           <div style="font-size:11px;color:var(--muted)">Monto original: ${fmtQ(p.monto_original)} · Tasa: ${(p.tasa*100).toFixed(2)}%</div>
         </div>
         <div class="prest-kpis">
-          <div class="kpi green"><div class="kpi-val">${fmtQ(p.pagado_capital)}</div><div class="kpi-lbl">Capital pagado</div><div class="kpi-sub">${p.cuotas_pagadas} cuotas · ${pct_pag}%</div></div>
-          <div class="kpi amber"><div class="kpi-val">${fmtQ(p.pagado_interes)}</div><div class="kpi-lbl">Intereses pagados</div></div>
-          <div class="kpi red"><div class="kpi-val">${fmtQ(p.pendiente_capital)}</div><div class="kpi-lbl">Capital pendiente</div><div class="kpi-sub">${p.cuotas_pendientes.length} cuotas</div></div>
-          <div class="kpi red"><div class="kpi-val">${fmtQ(p.pendiente_interes)}</div><div class="kpi-lbl">Intereses pendientes</div></div>
+          <div class="kpi green"><div class="kpi-val">${fmtQ(capitalPagadoReal)}</div><div class="kpi-lbl">Capital pagado</div><div class="kpi-sub">${p.cuotas_pagadas} cuotas · ${pct_pag}%</div></div>
+          <div class="kpi amber"><div class="kpi-val">${fmtQ(interesesPagadoReal)}</div><div class="kpi-lbl">Intereses pagados</div></div>
+          <div class="kpi red"><div class="kpi-val">${fmtQ(capitalPendienteReal)}</div><div class="kpi-lbl">Capital pendiente</div><div class="kpi-sub">${p.cuotas_pendientes.length} cuotas</div></div>
+          <div class="kpi red"><div class="kpi-val">${fmtQ(interesesPendientes)}</div><div class="kpi-lbl">Intereses pendientes</div></div>
         </div>
         <button class="amort-toggle" onclick="toggleAmort('amortTableWrap')">
           <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" style="width:12px;height:12px"><polyline points="6 9 12 15 18 9"/></svg>
@@ -487,38 +490,55 @@ function renderFinancieros(d) {
   const ejec = d.ejecutado_financiamiento || {};
   const porAnio = d.cuotas_por_anio || {};
   const aniosKeys = Object.keys(porAnio).sort();
-  const ejec_prest_real = ejec.por_categoria?.['Prestamo Bancario'] || 0;
   const p = d.prestamo_bancario;
 
   if (prestEl && p) {
-    const tablaPagado = p.pagado_total || 0;
-    const diferencia  = ejec_prest_real - tablaPagado;
-    const difColor    = Math.abs(diferencia) < 500 ? 'var(--green)' : diferencia > 0 ? 'var(--amber)' : 'var(--red)';
-    const difLabel    = Math.abs(diferencia) < 500 ? '✓ Cuadra con la tabla' : diferencia > 0 ? '⚠ Flujo mayor que tabla' : '⚠ Flujo menor que tabla';
+    const capitalPagado    = (p.pagado_cuota_capital || 0) + (p.pagado_liberaciones || 0);
+    const interesesPagados = p.pagado_intereses || 0;
+    const capitalTabla     = p.pagado_capital  || 0;
+    const interesesTabla   = p.pagado_interes  || 0;
+    const diffCapital      = capitalPagado  - capitalTabla;
+    const diffIntereses    = interesesPagados - interesesTabla;
 
-    // Append cuadre block after existing content
+    const fmtDiff = (d) => {
+      if (Math.abs(d) < 500) return `<span style="color:var(--green)">✓ Cuadra</span>`;
+      if (d > 0) return `<span style="color:var(--amber)">+${fmtQ(d)} anticipado</span>`;
+      return `<span style="color:var(--red)">${fmtQ(Math.abs(d))} pendiente</span>`;
+    };
+
     const cuadreHtml = `
       <div style="margin-top:16px;border:1px solid var(--borde);border-radius:8px;padding:14px 16px;background:var(--gris)">
-        <div style="font-size:10px;font-weight:700;color:var(--muted);letter-spacing:.1em;text-transform:uppercase;margin-bottom:10px">
-          Verificación: Flujo Real SAP vs Tabla de Amortización
+        <div style="font-size:10px;font-weight:700;color:var(--muted);letter-spacing:.1em;text-transform:uppercase;margin-bottom:12px">
+          Cruce pagos reales vs tabla de amortización
         </div>
-        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:12px">
-          <div class="kpi">
-            <div class="kpi-val" style="font-size:15px">${fmtQ(ejec_prest_real)}</div>
-            <div class="kpi-lbl">Flujo real SAP</div>
-            <div class="kpi-sub">FINANCIAMIENTO · Prestamo</div>
-          </div>
-          <div class="kpi">
-            <div class="kpi-val" style="font-size:15px">${fmtQ(tablaPagado)}</div>
-            <div class="kpi-lbl">Tabla amortización</div>
-            <div class="kpi-sub">${p.cuotas_pagadas} cuotas acumuladas</div>
-          </div>
-          <div class="kpi" style="border-color:${difColor}40">
-            <div class="kpi-val" style="font-size:15px;color:${difColor}">${fmtQ(Math.abs(diferencia))}</div>
-            <div class="kpi-lbl">Diferencia</div>
-            <div class="kpi-sub" style="color:${difColor};font-weight:600">${difLabel}</div>
-          </div>
-        </div>
+        <table style="width:100%;border-collapse:collapse;font-size:12px;margin-bottom:14px">
+          <thead><tr style="background:var(--azul);color:#fff">
+            <th style="padding:7px 10px;text-align:left">Concepto</th>
+            <th style="padding:7px 10px;text-align:right">Pagado real (flujo)</th>
+            <th style="padding:7px 10px;text-align:right">Tabla amortización</th>
+            <th style="padding:7px 10px;text-align:right">Diferencia</th>
+          </tr></thead>
+          <tbody>
+            <tr style="border-bottom:1px solid var(--borde-lt)">
+              <td style="padding:6px 10px;font-weight:600">Capital<br><small style="color:var(--muted);font-weight:400">Cuota Capital + Liberaciones</small></td>
+              <td style="padding:6px 10px;text-align:right;font-weight:700">${fmtQ(capitalPagado)}</td>
+              <td style="padding:6px 10px;text-align:right">${fmtQ(capitalTabla)}</td>
+              <td style="padding:6px 10px;text-align:right">${fmtDiff(diffCapital)}</td>
+            </tr>
+            <tr style="border-bottom:1px solid var(--borde-lt)">
+              <td style="padding:6px 10px;font-weight:600">Intereses Préstamo</td>
+              <td style="padding:6px 10px;text-align:right;font-weight:700">${fmtQ(interesesPagados)}</td>
+              <td style="padding:6px 10px;text-align:right">${fmtQ(interesesTabla)}</td>
+              <td style="padding:6px 10px;text-align:right">${fmtDiff(diffIntereses)}</td>
+            </tr>
+            <tr style="background:var(--gris2,rgba(0,0,0,.04));font-weight:700">
+              <td style="padding:6px 10px">TOTAL</td>
+              <td style="padding:6px 10px;text-align:right">${fmtQ(capitalPagado + interesesPagados)}</td>
+              <td style="padding:6px 10px;text-align:right">${fmtQ(capitalTabla + interesesTabla)}</td>
+              <td style="padding:6px 10px;text-align:right">${fmtDiff(diffCapital + diffIntereses)}</td>
+            </tr>
+          </tbody>
+        </table>
         ${aniosKeys.length ? `
         <div style="font-size:10px;font-weight:700;color:var(--muted);letter-spacing:.1em;text-transform:uppercase;margin-bottom:8px">
           Proyección cuotas pendientes por año
@@ -686,39 +706,98 @@ function renderFlujo(d) {
     }
   }
 
-  // Flujo anual
+  // Flujo anual — tabla transpuesta según estructura del Excel:
+  // Saldo Inicial, Ingresos (sub: Reales, Vtas Activas, Proyectados),
+  // Egresos Op (sub: Urbanización, Administración), Egresos Fin (sub: Intercompany, Préstamo, Intereses),
+  // Impuestos (sub: IVA, ISR), Terreno, Dividendos, Saldo Final
   const tbody = document.getElementById('flujoAnualTbody');
+  const thead = document.getElementById('flujoAnualThead');
   const anual = d.flujo_anual || [];
-  if (!tbody || !anual.length) return;
+  const realAnual = d.flujo_real_anual || [];
+  if (!tbody) return;
 
-  const picoAno = pico?.anio;
-  tbody.innerHTML = anual.map(r => `
-    <tr class="${r.es_negativo || r.anio === picoAno ? 'neg' : ''}">
-      <td>${r.anio_cal || (new Date().getFullYear() + r.anio - 1)}${r.anio === picoAno ? ' ⚠️' : ''}</td>
-      <td>
-        <div style="font-size:11px">${fmtQ(r.ingresos)}</div>
-        ${r.ing_real > 0 ? `<div style="font-size:10px;color:var(--muted)">Real: ${fmtQ(r.ing_real)}</div>` : ''}
-        ${r.ing_proy > 0 ? `<div style="font-size:10px;color:var(--green)">Proy: ${fmtQ(r.ing_proy)}</div>` : ''}
-      </td>
-      <td>(${fmtQ(r.egresos_op)})</td>
-      <td>(${fmtQ(r.iva_neto)})</td>
-      <td>(${fmtQ(r.egresos_fin)})</td>
-      <td>(${fmtQ(r.isr)})</td>
-      <td>(${fmtQ(r.tierra_capital)})</td>
-      <td style="font-weight:800">${fmtQ(r.flujo_neto)}</td>
-      <td style="font-weight:700;color:${r.flujo_acumulado >= 0 ? 'inherit' : 'var(--red)'}">${fmtQ(r.flujo_acumulado)}</td>
-    </tr>`).join('') + `
-    <tr class="total-row">
-      <td>TOTAL</td>
-      <td>${fmtQ(anual.reduce((s,r)=>s+r.ingresos,0))}</td>
-      <td>(${fmtQ(anual.reduce((s,r)=>s+r.egresos_op,0))})</td>
-      <td>(${fmtQ(anual.reduce((s,r)=>s+r.iva_neto,0))})</td>
-      <td>(${fmtQ(anual.reduce((s,r)=>s+r.egresos_fin,0))})</td>
-      <td>(${fmtQ(anual.reduce((s,r)=>s+r.isr,0))})</td>
-      <td>(${fmtQ(anual.reduce((s,r)=>s+r.tierra_capital,0))})</td>
-      <td>${fmtQ(anual.reduce((s,r)=>s+r.flujo_neto,0))}</td>
-      <td>${fmtQ(anual[anual.length-1]?.flujo_acumulado||0)}</td>
+  // Combinar real + proyectado en orden cronológico
+  const allYears = [];
+  realAnual.forEach(r => allYears.push({...r, tipo: 'real'}));
+  anual.forEach(r => {
+    if (!allYears.find(a => a.anio_cal === r.anio_cal)) {
+      allYears.push({...r, tipo: 'proy'});
+    }
+  });
+  allYears.sort((a,b) => (a.anio_cal||0) - (b.anio_cal||0));
+  if (!allYears.length) return;
+
+  // Calcular saldo inicial por año (acumulado del año anterior)
+  // El primer año real usa su flujo_acumulado - flujo_neto como saldo inicial
+  for (let i = 0; i < allYears.length; i++) {
+    if (i === 0) {
+      allYears[i].saldo_ini = allYears[i].flujo_acumulado - allYears[i].flujo_neto;
+    } else {
+      allYears[i].saldo_ini = allYears[i-1].flujo_acumulado;
+    }
+  }
+
+  // Definir filas de la tabla
+  const rows = [
+    {key:'saldo_ini',       label:'Saldo Inicial',         level:0, bold:true, color:'var(--azul,#1e3a5f)'},
+    {key:'ingresos',        label:'Ingresos',              level:0, bold:true, color:'var(--green,#16a34a)'},
+    {key:'ing_real',        label:'Ingresos Reales',       level:1},
+    {key:'ing_proy',        label:'Ingreso Vtas. Activas / Proy.', level:1},
+    {key:'egresos_op',      label:'Egresos Operativos',    level:0, bold:true, color:'var(--red,#dc2626)', sign:'-'},
+    {key:'urbanizacion',    label:'Urbanización',          level:1, sign:'-'},
+    {key:'administracion',  label:'Administración',        level:1, sign:'-'},
+    {key:'egresos_fin',     label:'Egresos Financieros',   level:0, bold:true, color:'var(--amber,#d97706)', sign:'-'},
+    {key:'intercompany',    label:'Intercompany',          level:1, sign:'-'},
+    {key:'prestamo_capital', label:'Préstamo Bancario',    level:1, sign:'-'},
+    {key:'prestamo_interes', label:'Intereses Préstamo',   level:1, sign:'-'},
+    {key:'iva_neto',        label:'Impuestos',             level:0, bold:true, color:'var(--muted)', sign:'-'},
+    {key:'tierra',          label:'Terreno',               level:0, bold:true, color:'var(--blue,#2563eb)', sign:'-'},
+    {key:'dividendos',      label:'Dividendos',            level:0, bold:true, color:'var(--blue,#2563eb)', sign:'-'},
+    {key:'flujo_neto',      label:'Flujo Neto',            level:0, bold:true, special:true},
+    {key:'flujo_acumulado', label:'Saldo Final',           level:0, bold:true, special:true},
+  ];
+
+  // Header
+  if (thead) {
+    thead.innerHTML = `<tr style="background:var(--azul,#1e3a5f);color:#fff">
+      <th style="padding:8px 12px;text-align:left;min-width:180px;position:sticky;left:0;background:var(--azul,#1e3a5f);z-index:2">Concepto</th>
+      ${allYears.map(r => `<th style="padding:8px 8px;text-align:right;min-width:100px;font-size:11px">
+        ${r.anio_cal}${r.tipo==='real'?' <small style="font-size:9px;opacity:.7">Real</small>':''}
+      </th>`).join('')}
+      <th style="padding:8px 10px;text-align:right;min-width:110px;font-weight:800;background:var(--azul,#1e3a5f)">TOTAL</th>
     </tr>`;
+  }
+
+  // Body
+  const fmtCell = (val, sign) => {
+    if (Math.abs(val) < 0.5) return '<span style="color:#9ca3af">—</span>';
+    if (sign === '-' && val > 0) return `(${fmtQ(val)})`;
+    return fmtQ(val);
+  };
+
+  tbody.innerHTML = rows.map(r => {
+    const isSpecial = r.special;
+    const isSection = r.level === 0 && r.bold;
+    const isSub = r.level === 1;
+    const bgStyle = isSpecial ? 'background:var(--azul,#1e3a5f);color:#fff;' :
+                    isSection ? 'background:rgba(0,0,0,.03);' : '';
+    const labelStyle = isSub ? 'padding-left:28px;font-size:11px;color:var(--muted)' :
+                       `font-weight:${r.bold?700:400};color:${r.color||'inherit'};font-size:12px`;
+    const total = r.key === 'flujo_acumulado' || r.key === 'saldo_ini'
+      ? ''
+      : allYears.reduce((s, yr) => s + (yr[r.key] || 0), 0);
+
+    return `<tr style="${bgStyle}">
+      <td style="padding:5px 12px;${labelStyle};position:sticky;left:0;z-index:1;${isSpecial?'background:var(--azul,#1e3a5f);color:#fff;':'background:var(--bg,#fff);'}">${r.label}</td>
+      ${allYears.map(yr => {
+        const val = yr[r.key] || 0;
+        const neg = val < 0;
+        const cellColor = isSpecial ? (neg ? '#f87171' : '#4ade80') : '';
+        return `<td style="padding:5px 8px;text-align:right;font-size:${isSub?'10px':'11px'};${cellColor?'color:'+cellColor:''}${r.bold&&!isSub?';font-weight:600':''}">${fmtCell(val, r.sign)}</td>`;
+      }).join('')}
+      <td style="padding:5px 10px;text-align:right;font-weight:700;font-size:12px;${isSpecial?'background:var(--azul,#1e3a5f);color:'+(total<0?'#f87171':'#4ade80'):''}">${total !== '' ? fmtCell(total, r.sign) : ''}</td>
+    </tr>`;
+  }).join('');
 }
 
 function resetUI() {
