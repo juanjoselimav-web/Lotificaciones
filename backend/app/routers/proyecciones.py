@@ -1057,7 +1057,10 @@ async def get_flujo(empresa: str, db: Session = Depends(get_db), user=Depends(ge
     # Financiero
     prest = fin.get("prestamo_bancario") or {}
     egr_prest = prest.get("pendiente_total", 0)
-    egr_ic = fin["intercompany"]["saldo"]
+    # IC sign: "por pagar" = we owe them = outflow (+); "a favor" = they owe us = inflow (-)
+    _ic_saldo = fin["intercompany"]["saldo"]           # always positive (abs)
+    _ic_tipo  = fin["intercompany"].get("tipo", "por pagar")
+    egr_ic    = _ic_saldo if _ic_tipo == "por pagar" else -_ic_saldo
     egr_fin = egr_prest + egr_ic
 
     # Tierra y dividendos
@@ -1143,8 +1146,7 @@ async def get_flujo(empresa: str, db: Session = Depends(get_db), user=Depends(ge
     anos_egr_eff = anos_egr_saved if anos_egr_saved > 0 else anos
     anos_ic_eff  = anos_ic_saved if anos_ic_saved > 0 else anos
     egr_a  = egr_op_total / anos_egr_eff if anos_egr_eff else egr_op_total
-    iva_a  = iva_neto / anos if anos else iva_neto
-    isr_a  = isr / anos if anos else isr
+    # iva_a / isr_a removed: now computed per year inside the loop
 
     # Cuotas préstamo por año calendario
     cuotas_pend = prest.get("cuotas_pendientes", [])
@@ -1159,32 +1161,34 @@ async def get_flujo(empresa: str, db: Session = Depends(get_db), user=Depends(ge
     fin_yr_ic = egr_ic / anos_ic_eff if anos_ic_eff else egr_ic
 
     # Tierra y dividendos: distribuir por plan (fecha de cada pago pendiente → año calendario)
-    tier_por_anio = {}
-    for plan_t in PLAN_TIERRA:
-        plan_soc = plan_t["sociedad"].upper().strip()
-        if plan_soc not in sociedad_flujos.upper() and sociedad_flujos.upper() not in plan_soc:
-            continue
-        for f_str, monto in plan_t["pagos"].items():
-            try:
-                f_d = datetime.strptime(f_str, "%Y-%m-%d").date()
-                if f_d > hoy:
-                    yr_t = f_d.year - anio_actual + 1
-                    yr_t = max(1, yr_t)
-                    tier_por_anio[yr_t] = tier_por_anio.get(yr_t, 0) + monto
-            except: pass
-    div_por_anio = {}
-    for plan_d in PLAN_DIVIDENDOS:
-        plan_soc = plan_d["sociedad"].upper().strip()
-        if plan_soc not in sociedad_flujos.upper() and sociedad_flujos.upper() not in plan_soc:
-            continue
-        for f_str, monto in plan_d["pagos"].items():
-            try:
-                f_d = datetime.strptime(f_str, "%Y-%m-%d").date()
-                if f_d > hoy:
-                    yr_d = f_d.year - anio_actual + 1
-                    yr_d = max(1, yr_d)
-                    div_por_anio[yr_d] = div_por_anio.get(yr_d, 0) + monto
-            except: pass
+    def _dist_plan_scaled(plan_list, sociedad_flujos, hoy, anio_actual, pendiente_total):
+        """
+        Distribuye pendiente_total por año calendario usando el plan de pagos como pesos.
+        Si la suma de pagos futuros del plan difiere del pendiente (por pagos del plan
+        que ya vencieron pero no aparecen en flujos_efectivo), escala proporcionalmente.
+        """
+        raw = {}
+        for plan in plan_list:
+            plan_soc = plan["sociedad"].upper().strip()
+            if plan_soc not in sociedad_flujos.upper() and sociedad_flujos.upper() not in plan_soc:
+                continue
+            for f_str, monto in plan["pagos"].items():
+                try:
+                    f_d = datetime.strptime(f_str, "%Y-%m-%d").date()
+                    if f_d > hoy:
+                        yr_k = f_d.year - anio_actual + 1
+                        yr_k = max(1, yr_k)
+                        raw[yr_k] = raw.get(yr_k, 0) + monto
+                except: pass
+        raw_total = sum(raw.values())
+        if raw_total <= 0 or pendiente_total <= 0:
+            return raw
+        # Scale so distribution sums exactly to pendiente_total
+        factor = pendiente_total / raw_total
+        return {yr: round(v * factor, 2) for yr, v in raw.items()}
+
+    tier_por_anio = _dist_plan_scaled(PLAN_TIERRA, sociedad_flujos, hoy, anio_actual, egr_tierra)
+    div_por_anio  = _dist_plan_scaled(PLAN_DIVIDENDOS, sociedad_flujos, hoy, anio_actual, egr_div)
 
     # ── Desglose de cuotas préstamo por año: capital vs intereses ──
     prest_cap_por_anio = {}
@@ -1199,8 +1203,8 @@ async def get_flujo(empresa: str, db: Session = Depends(get_db), user=Depends(ge
         except: pass
 
     # ── Desglose egresos operativos: urbanización vs administración ──
-    egr_urb = egr.get("total", {}).get("urbanizacion", {})
-    egr_adm = egr.get("total", {}).get("administracion", {})
+    egr_urb = egr.get("urbanizacion", {})   # top-level key in egresos_operativos response
+    egr_adm = egr.get("administracion", {}) # top-level key in egresos_operativos response
     egr_urb_pend = float(egr_urb.get("pendiente", 0) if isinstance(egr_urb, dict) else 0)
     egr_adm_pend = float(egr_adm.get("pendiente", 0) if isinstance(egr_adm, dict) else 0)
     egr_urb_a = egr_urb_pend / anos_egr_eff if anos_egr_eff else 0
@@ -1219,8 +1223,18 @@ async def get_flujo(empresa: str, db: Session = Depends(get_db), user=Depends(ge
         adm_yr = egr_adm_a if yr <= anos_egr_eff else 0
         egr_yr = urb_yr + adm_yr
 
-        iva_yr = iva_a if yr <= anos else 0.0
-        isr_yr = isr_a if yr <= anos else 0.0
+        # IVA y ISR calculados por año según ingresos/egresos de ese año
+        # IVA débito = ingresos del año * 70% * 12%  (OV gravadas)
+        # IVA crédito = egresos op del año * 12%
+        # IVA neto = débito - crédito (si positivo = pagar, si negativo = crédito fiscal)
+        if yr <= anos:
+            iva_deb_yr  = ing_yr * 0.70 * 0.12
+            iva_cred_yr = (urb_yr + adm_yr) * 0.12
+            iva_yr = max(0, iva_deb_yr - iva_cred_yr)
+            isr_yr = ing_yr * pct_isr
+        else:
+            iva_yr = 0.0
+            isr_yr = 0.0
         tier_yr = tier_por_anio.get(yr, 0)
         div_yr  = div_por_anio.get(yr, 0)
 
@@ -1234,21 +1248,37 @@ async def get_flujo(empresa: str, db: Session = Depends(get_db), user=Depends(ge
         acum  = (flujo_anual[-1]["flujo_acumulado"] if flujo_anual else 0) + fn_yr
         flujo_anual.append({
             "anio": yr, "anio_cal": anio_cal,
+            # Ingresos
             "ingresos": round(ing_yr, 2),
             "ing_real": round(ing_real_yr, 2),
             "ing_proy": round(ing_proy_yr, 2),
-            "urbanizacion": round(urb_yr, 2),
-            "administracion": round(adm_yr, 2),
+            # Egresos operativos — para años reales (anio_cal < anio_actual) los valores
+            # provienen de flujo_real_anual; aquí solo va lo proyectado pendiente
+            "urbanizacion": round(urb_yr, 2),       # proyectado pendiente / año
+            "administracion": round(adm_yr, 2),     # proyectado pendiente / año
+            "urb_proy": round(urb_yr, 2),
+            "adm_proy": round(adm_yr, 2),
             "egresos_op": round(egr_yr, 2),
+            # Egresos financieros — desglose proyectado
             "intercompany": round(ic_yr, 2),
+            "ic_proy": round(ic_yr, 2),
             "prestamo_capital": round(prest_cap_yr, 2),
+            "prest_cap_proy": round(prest_cap_yr, 2),
             "prestamo_interes": round(prest_int_yr, 2),
+            "prest_int_proy": round(prest_int_yr, 2),
             "egresos_fin": round(efin_yr, 2),
+            # Impuestos — desglose proyectado
             "iva_neto": round(iva_yr, 2),
+            "iva_proy": round(iva_yr, 2),
             "isr": round(isr_yr, 2),
+            "isr_proy": round(isr_yr, 2),
+            # Tierra y dividendos — proyectado
             "tierra": round(tier_yr, 2),
+            "tierra_proy": round(tier_yr, 2),
             "dividendos": round(div_yr, 2),
+            "div_proy": round(div_yr, 2),
             "tierra_capital": round(tier_yr + div_yr, 2),
+            # Totales
             "flujo_neto": round(fn_yr, 2),
             "flujo_acumulado": round(acum, 2),
             "es_negativo": fn_yr < 0,
@@ -1266,21 +1296,103 @@ async def get_flujo(empresa: str, db: Session = Depends(get_db), user=Depends(ge
     lotes_pe = int((egr_op_total + iva_neto + egr_fin + isr + egr_tierra + egr_div) / ticket_prom) if ticket_prom > 0 else 0
     margen = round(flujo_neto / total_ing * 100, 2) if total_ing else 0
 
+    # ── Saldo inicial histórico (PARTIDA INICIAL / primer registro) ──
+    saldo_ini_row = db.execute(text("""
+        SELECT monto FROM flujos_saldo_inicial
+        WHERE sociedad ILIKE :s
+        ORDER BY id ASC LIMIT 1
+    """), {"s": f"%{sociedad_flujos}%"}).fetchone()
+    saldo_inicial_real = float(saldo_ini_row.monto if saldo_ini_row else 0)
+
     # ── Flujo real histórico desglosado por año ──
+    # Incluye el año actual (anio_actual) para mostrar real enero-a-hoy en el año mixto
+    # SQL con reclasificaciones aplicadas — idéntico a lo que produce flujos.py
+    # Esto garantiza que los valores reales de proyecciones cuadren con la sección
+    # Flujos de Efectivo del tablero, incluyendo todas las reclasificaciones.
     flujo_real_rows = db.execute(text("""
-        SELECT anio AS anio_cal,
-               COALESCE(SUM(CASE WHEN seccion = 'INGRESOS' THEN monto_ingreso ELSE 0 END), 0) AS ingresos,
-               COALESCE(SUM(CASE WHEN seccion = 'EGRESOS / URBANIZACION' THEN monto_egreso ELSE 0 END), 0) AS urbanizacion,
-               COALESCE(SUM(CASE WHEN seccion IN ('EGRESOS / ADMINISTRACION','EGRESOS / MOVIMIENTO DE TIERRAS','EGRESOS / MOV. TIERRAS / MAQUINARIA') THEN monto_egreso ELSE 0 END), 0) AS administracion,
-               COALESCE(SUM(CASE WHEN seccion = 'FINANCIAMIENTO' AND LOWER(nombre_categoria) LIKE '%intercompany%' THEN monto_egreso - monto_ingreso ELSE 0 END), 0) AS intercompany,
-               COALESCE(SUM(CASE WHEN seccion = 'FINANCIAMIENTO' AND LOWER(nombre_categoria) LIKE '%prestamo%' THEN monto_egreso - monto_ingreso ELSE 0 END), 0) AS prestamo_neto,
-               COALESCE(SUM(CASE WHEN seccion = 'FINANCIAMIENTO' AND (LOWER(nombre_categoria) LIKE '%interes%' OR LOWER(nombre_categoria) LIKE '%comisi%') THEN monto_egreso ELSE 0 END), 0) AS prestamo_interes,
-               COALESCE(SUM(CASE WHEN seccion = 'IMPUESTOS' THEN monto_egreso ELSE 0 END), 0) AS impuestos,
-               COALESCE(SUM(CASE WHEN seccion = 'TERRENO' THEN monto_egreso ELSE 0 END), 0) AS tierra
+        WITH base AS (
+            SELECT anio,
+                COALESCE(SUM(CASE WHEN seccion = 'INGRESOS'
+                    THEN monto_ingreso - monto_egreso ELSE 0 END), 0)                          AS ingresos,
+                COALESCE(SUM(CASE WHEN seccion = 'EGRESOS / URBANIZACION'
+                    THEN monto_egreso - monto_ingreso ELSE 0 END), 0)                          AS urb,
+                COALESCE(SUM(CASE WHEN seccion IN (
+                    'EGRESOS / MOVIMIENTO DE TIERRAS','EGRESOS / MOV. TIERRAS / MAQUINARIA')
+                    THEN monto_egreso - monto_ingreso ELSE 0 END), 0)                          AS mov,
+                COALESCE(SUM(CASE WHEN seccion = 'EGRESOS / ADMINISTRACION'
+                    THEN monto_egreso - monto_ingreso ELSE 0 END), 0)                          AS adm,
+                COALESCE(SUM(CASE WHEN seccion = 'FINANCIAMIENTO'
+                    THEN monto_egreso - monto_ingreso ELSE 0 END), 0)                          AS fin,
+                COALESCE(SUM(CASE WHEN seccion = 'IMPUESTOS'
+                    THEN monto_egreso - monto_ingreso ELSE 0 END), 0)                          AS impuestos,
+                COALESCE(SUM(CASE WHEN seccion = 'TERRENO'
+                    THEN monto_egreso - monto_ingreso ELSE 0 END), 0)                          AS tierra
+            FROM flujos_efectivo
+            WHERE sociedad ILIKE :s
+            GROUP BY anio
+        ),
+        adj AS (
+            SELECT EXTRACT(YEAR FROM fecha_contable)::int AS anio,
+                COALESCE(SUM(CASE WHEN seccion_destino='EGRESOS / URBANIZACION'   AND seccion_origen != seccion_destino THEN monto ELSE 0 END), 0)
+               -COALESCE(SUM(CASE WHEN seccion_origen ='EGRESOS / URBANIZACION'   AND seccion_origen != seccion_destino THEN monto ELSE 0 END), 0) AS urb_adj,
+                COALESCE(SUM(CASE WHEN seccion_destino='EGRESOS / ADMINISTRACION' AND seccion_origen != seccion_destino THEN monto ELSE 0 END), 0)
+               -COALESCE(SUM(CASE WHEN seccion_origen ='EGRESOS / ADMINISTRACION' AND seccion_origen != seccion_destino THEN monto ELSE 0 END), 0) AS adm_adj,
+                COALESCE(SUM(CASE WHEN seccion_destino='FINANCIAMIENTO'           AND seccion_origen != seccion_destino THEN monto ELSE 0 END), 0)
+               -COALESCE(SUM(CASE WHEN seccion_origen ='FINANCIAMIENTO'           AND seccion_origen != seccion_destino THEN monto ELSE 0 END), 0) AS fin_adj
+            FROM flujos_reclasificaciones
+            WHERE sociedad ILIKE :s
+            GROUP BY 1
+        )
+        SELECT b.anio                            AS anio_cal,
+               b.ingresos,
+               b.urb  + COALESCE(a.urb_adj, 0)  AS urbanizacion,
+               b.mov                             AS mov_tierras,
+               b.adm  + COALESCE(a.adm_adj, 0)  AS administracion,
+               b.fin  + COALESCE(a.fin_adj, 0)   AS financiamiento,
+               b.impuestos,
+               b.tierra
+        FROM base b
+        LEFT JOIN adj a ON a.anio = b.anio
+        ORDER BY b.anio
+    """), {"s": f"%{sociedad_flujos}%"}).fetchall()
+
+    # Intereses bancarios reales desde reclasificaciones (no están en flujos_efectivo directamente)
+    intereses_reclas_rows = db.execute(text("""
+        SELECT EXTRACT(YEAR FROM fecha_contable)::int AS anio,
+               SUM(monto) AS total
+        FROM flujos_reclasificaciones
+        WHERE sociedad ILIKE :s
+          AND seccion_destino = 'FINANCIAMIENTO'
+          AND (LOWER(nombre_destino) LIKE '%interes%' OR LOWER(nombre_destino) LIKE '%interés%')
+        GROUP BY 1
+    """), {"s": f"%{sociedad_flujos}%"}).fetchall()
+    intereses_reclas_por_anio = {int(r.anio): float(r.total or 0) for r in intereses_reclas_rows}
+
+    # Intercompany real por año — RAW desde flujos_efectivo (sub-fila de display)
+    # NO se resta IC→DIV porque eso ya está reflejado en fin_neto_real (sección total)
+    # La sub-fila IC muestra el flujo real de cuentas intercompany sin ajustes adicionales
+    ic_real_rows = db.execute(text("""
+        SELECT EXTRACT(YEAR FROM fecha_contable)::int AS anio,
+               COALESCE(SUM(monto_egreso - monto_ingreso), 0) AS ic_neto
         FROM flujos_efectivo
         WHERE sociedad ILIKE :s
-        GROUP BY anio ORDER BY anio
+          AND seccion = 'FINANCIAMIENTO'
+          AND LOWER(nombre_categoria) LIKE '%intercompany%'
+        GROUP BY 1
     """), {"s": f"%{sociedad_flujos}%"}).fetchall()
+    ic_real_por_anio = {int(r.anio): float(r.ic_neto or 0) for r in ic_real_rows}
+
+    # Préstamo bancario real neto por año (para sub-fila de display)
+    prest_real_rows = db.execute(text("""
+        SELECT EXTRACT(YEAR FROM fecha_contable)::int AS anio,
+               COALESCE(SUM(monto_egreso - monto_ingreso), 0) AS prest_neto
+        FROM flujos_efectivo
+        WHERE sociedad ILIKE :s
+          AND seccion = 'FINANCIAMIENTO'
+          AND LOWER(nombre_categoria) LIKE '%prestamo%'
+        GROUP BY 1
+    """), {"s": f"%{sociedad_flujos}%"}).fetchall()
+    prest_real_por_anio = {int(r.anio): float(r.prest_neto or 0) for r in prest_real_rows}
 
     div_real_rows = db.execute(text("""
         SELECT EXTRACT(YEAR FROM fecha_contable)::int AS anio, SUM(monto) AS total
@@ -1291,31 +1403,55 @@ async def get_flujo(empresa: str, db: Session = Depends(get_db), user=Depends(ge
     div_real_por_anio = {int(r.anio): float(r.total or 0) for r in div_real_rows}
 
     flujo_real_anual = []
-    acum_real = 0.0
+    acum_real = saldo_inicial_real   # inicia desde saldo inicial real (PARTIDA INICIAL)
     for r in flujo_real_rows:
         yr_cal = int(r.anio_cal)
-        if yr_cal >= anio_actual: continue
-        ing_r = float(r.ingresos or 0)
-        urb_r = float(r.urbanizacion or 0)
-        adm_r = float(r.administracion or 0)
-        ic_r  = float(r.intercompany or 0)
-        pcap_r = float(r.prestamo_neto or 0)
-        pint_r = float(r.prestamo_interes or 0)
-        imp_r = float(r.impuestos or 0)
-        tier_r = float(r.tierra or 0)
-        div_r = div_real_por_anio.get(yr_cal, 0)
-        egr_r = urb_r + adm_r
-        efin_r = ic_r + pcap_r + pint_r
-        fn_r = ing_r - egr_r - imp_r - efin_r - tier_r - div_r
+        if yr_cal > anio_actual: continue
+        ing_r  = float(r.ingresos      or 0)
+        urb_r  = float(r.urbanizacion  or 0)
+        mov_r  = float(r.mov_tierras   or 0)
+        adm_r  = float(r.administracion or 0)
+        # FINANCIAMIENTO: resultado neto post-reclasificaciones (ya incluye IC, prestamo, intereses, etc.)
+        # Positivo = egreso neto  |  Negativo = ingreso neto (ej. año que recibió préstamo grande)
+        fin_r  = float(r.financiamiento or 0)
+        # Intereses préstamo real vienen de flujos_reclasificaciones (sub-row para display)
+        pint_r_reclas = intereses_reclas_por_anio.get(yr_cal, 0)
+        imp_r  = float(r.impuestos or 0)
+        tier_r = float(r.tierra    or 0)
+        div_r  = div_real_por_anio.get(yr_cal, 0)
+        egr_r  = urb_r + mov_r + adm_r
+        fn_r   = ing_r - egr_r - fin_r - imp_r - tier_r - div_r
         acum_real += fn_r
+        es_anio_mixto = (yr_cal == anio_actual)
         flujo_real_anual.append({
-            "anio_cal": yr_cal, "ingresos": round(ing_r,2), "ing_real": round(ing_r,2), "ing_proy": 0,
-            "urbanizacion": round(urb_r,2), "administracion": round(adm_r,2), "egresos_op": round(egr_r,2),
-            "intercompany": round(ic_r,2), "prestamo_capital": round(pcap_r,2), "prestamo_interes": round(pint_r,2),
-            "egresos_fin": round(efin_r,2), "iva_neto": round(imp_r,2), "isr": 0,
-            "tierra": round(tier_r,2), "dividendos": round(div_r,2),
-            "tierra_capital": round(tier_r + div_r, 2),
-            "flujo_neto": round(fn_r,2), "flujo_acumulado": round(acum_real,2),
+            "anio_cal":         yr_cal,
+            "es_mixto":         es_anio_mixto,
+            # Ingresos
+            "ingresos":         round(ing_r, 2),
+            "ing_real":         round(ing_r, 2),
+            "ing_proy":         0,
+            # Egresos operativos (post-reclasificaciones, cuadran con flujos tablero)
+            "urbanizacion":     round(urb_r, 2),
+            "mov_tierras":      round(mov_r, 2),
+            "administracion":   round(adm_r, 2),
+            "egresos_op":       round(egr_r, 2),
+            # Egresos financieros — total neto post-reclasif (para cálculo de saldo)
+            "financiamiento_neto": round(fin_r, 2),
+            # Sub-filas de display (no afectan el saldo, solo presentación)
+            "prestamo_interes": round(pint_r_reclas, 2),
+            "intercompany":     round(ic_real_por_anio.get(yr_cal, 0), 2),
+            "prestamo_capital": round(prest_real_por_anio.get(yr_cal, 0), 2),
+            "otros_fin":        0,
+            "egresos_fin":      round(fin_r, 2),
+            # Impuestos, terreno, dividendos
+            "iva_neto":         round(imp_r, 2),
+            "isr":              0,
+            "tierra":           round(tier_r, 2),
+            "dividendos":       round(div_r, 2),
+            "tierra_capital":   round(tier_r + div_r, 2),
+            # Totales
+            "flujo_neto":       round(fn_r, 2),
+            "flujo_acumulado":  round(acum_real, 2),
         })
 
     # Ajustar acumulado de proyección para que continúe desde el real
@@ -1326,6 +1462,7 @@ async def get_flujo(empresa: str, db: Session = Depends(get_db), user=Depends(ge
 
     return {
         "empresa": empresa,
+        "saldo_inicial_real": round(saldo_inicial_real, 2),
         "resumen_ingresos": {"real": total_ing_real, "proyectado": total_ing_proyectado, "total": total_ing},
         "resumen_egresos_op": egr["total"],
         "iva": {"debito": round(iva_deb,2), "credito": round(iva_cred,2), "neto": round(iva_neto,2)},

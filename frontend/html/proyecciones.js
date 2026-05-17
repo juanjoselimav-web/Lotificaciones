@@ -1,6 +1,6 @@
 /* ═══════════════════════════════════════════════════════════
-   RV4 — Proyecciones al Cierre v3
-   proyecciones.js
+   RV4 — Proyecciones al Cierre v8
+   proyecciones.js  — build: 2026-05-17
    ═══════════════════════════════════════════════════════════ */
 
 const API = '';
@@ -142,6 +142,9 @@ async function cargarSupuestos() {
       document.getElementById('savedBadge').style.display = 'inline';
       document.getElementById('projMeta').textContent =
         `Empresa: ${S.empresa} · Guardado por ${d.actualizado_por || '—'} el ${d.actualizado_en ? d.actualizado_en.split('T')[0] : '—'}`;
+      // Auto-calcular flujo si el proyecto tiene supuestos guardados
+      // Se ejecuta para todos los usuarios sin necesidad de re-ingresar datos
+      setTimeout(() => cargarFlujo(), 300);
     }
     renderPlazosVenta();
   } catch (e) {
@@ -678,127 +681,299 @@ function renderFlujo(d) {
 
   const fn = d.flujo_neto_total || 0;
   const fnEl = document.getElementById('rsFlujoNeto');
-  if (fnEl) { fnEl.textContent = fmtQ(fn); fnEl.style.color = fn >= 0 ? '#4ade80' : '#f87171'; }
+  if (fnEl) { fnEl.textContent = fmtQ(fn); fnEl.style.color = fn >= 0 ? '#4ade80' : '#ff4444'; }
 
-  // Indicadores
   const ind = d.indicadores || {};
   setText('indTIR',    ind.tir !== null && ind.tir !== undefined ? `${ind.tir}%` : 'N/D');
   setText('indVAN',    fmtQM(ind.van));
   setText('indMargen', `${(ind.margen_neto || 0).toFixed(1)}%`);
   setText('indPE',     `${fmtNum(ind.punto_equilibrio_lotes)} lotes`);
-
   const tir = ind.tir;
-  document.getElementById('indTIR')?.closest('.ind-card')?.setAttribute('class',
-    'ind-card ' + (tir > 12 ? 'green' : tir > 0 ? 'amber' : 'red'));
-  document.getElementById('indVAN')?.closest('.ind-card')?.setAttribute('class',
-    'ind-card ' + ((ind.van || 0) > 0 ? 'green' : 'red'));
+  document.getElementById('indTIR')?.closest('.ind-card')?.setAttribute('class', 'ind-card ' + (tir > 12 ? 'green' : tir > 0 ? 'amber' : 'red'));
+  document.getElementById('indVAN')?.closest('.ind-card')?.setAttribute('class', 'ind-card ' + ((ind.van || 0) > 0 ? 'green' : 'red'));
 
-  // Pico negativo
   const pico = ind.pico_negativo;
   const picoEl = document.getElementById('picoAlert');
   if (picoEl) {
     if (pico && pico.anio) {
       picoEl.classList.add('show');
       setText('picoTitle', `⚠️ Pico de necesidad financiera en el Año ${pico.anio}`);
-      setText('picoSub', `Flujo neto: ${fmtQ(pico.flujo)} — considerar financiamiento adicional o adelantar ventas.`);
-    } else {
-      picoEl.classList.remove('show');
-    }
+      setText('picoSub', `Flujo neto: ${fmtQ(pico.flujo)} — considerar financiamiento adicional.`);
+    } else { picoEl.classList.remove('show'); }
   }
 
-  // Flujo anual — tabla transpuesta según estructura del Excel:
-  // Saldo Inicial, Ingresos (sub: Reales, Vtas Activas, Proyectados),
-  // Egresos Op (sub: Urbanización, Administración), Egresos Fin (sub: Intercompany, Préstamo, Intereses),
-  // Impuestos (sub: IVA, ISR), Terreno, Dividendos, Saldo Final
   const tbody = document.getElementById('flujoAnualTbody');
   const thead = document.getElementById('flujoAnualThead');
-  const anual = d.flujo_anual || [];
-  const realAnual = d.flujo_real_anual || [];
   if (!tbody) return;
 
-  // Combinar real + proyectado en orden cronológico
+  const anual      = d.flujo_anual      || [];
+  const realAnual  = d.flujo_real_anual || [];
+  const saldoIniReal = d.saldo_inicial_real || 0;
+
+  const proyMap = {};
+  anual.forEach(r => { proyMap[r.anio_cal] = r; });
+
   const allYears = [];
-  realAnual.forEach(r => allYears.push({...r, tipo: 'real'}));
-  anual.forEach(r => {
-    if (!allYears.find(a => a.anio_cal === r.anio_cal)) {
-      allYears.push({...r, tipo: 'proy'});
-    }
+  const realSet  = new Set();
+
+  realAnual.forEach(r => {
+    realSet.add(r.anio_cal);
+    const py    = proyMap[r.anio_cal] || {};
+    const isMix = !!r.es_mixto;
+
+    // Saldo fin para año mixto = acum_real + flujo_neto proyectado del año
+    const saldoFinMix = isMix
+      ? (r.flujo_acumulado || 0) + (py.flujo_neto || 0)
+      : (r.flujo_acumulado || 0);
+    const flujoNetoMix = isMix
+      ? (r.flujo_neto || 0) + (py.flujo_neto || 0)
+      : (r.flujo_neto || 0);
+
+    allYears.push({
+      anio_cal: r.anio_cal,
+      _tipo:    isMix ? 'mix' : 'real',
+      // Ingresos
+      ing_flujo:      r.ing_real     || 0,
+      ing_ov_activas: isMix ? (py.ing_real  || 0) : 0,
+      ing_premisas:   isMix ? (py.ing_proy  || 0) : 0,
+      // Egresos op reales
+      urb_real:       r.urbanizacion  || 0,
+      mov_real:       r.mov_tierras   || 0,
+      adm_real:       r.administracion || 0,
+      // Egresos op proyectados (año mixto = pendiente a distribuir)
+      urb_proy:       isMix ? (py.urb_proy || 0) : 0,
+      adm_proy:       isMix ? (py.adm_proy || 0) : 0,
+      // Financiamiento real — sub-filas de display
+      prest_int_real: r.prestamo_interes || 0,     // intereses (de reclasificaciones)
+      ic_real:        r.intercompany     || 0,     // IC neto post-reclasif div
+      prest_real:     r.prestamo_capital || 0,     // préstamo neto (puede ser negativo = recibimos préstamo)
+      fin_neto_real:  r.financiamiento_neto || 0,  // total neto para cálculo de saldo
+      // Financiamiento proyectado
+      ic_proy:        isMix ? (py.ic_proy        || 0) : 0,
+      prest_cap_proy: isMix ? (py.prest_cap_proy || 0) : 0,
+      prest_int_proy: isMix ? (py.prest_int_proy || 0) : 0,
+      // Impuestos
+      imp_real:       r.iva_neto   || 0,
+      iva_proy:       isMix ? (py.iva_proy  || 0) : 0,
+      isr_proy:       isMix ? (py.isr_proy  || 0) : 0,
+      // Terreno / Dividendos
+      tierra_real:    r.tierra     || 0,
+      tierra_proy:    isMix ? (py.tierra_proy || 0) : 0,
+      div_real:       r.dividendos || 0,
+      div_proy:       isMix ? (py.div_proy   || 0) : 0,
+      // Totales
+      flujo_neto:     flujoNetoMix,
+      flujo_acumulado: saldoFinMix,
+    });
   });
+
+  anual.forEach(r => {
+    if (realSet.has(r.anio_cal)) return;
+    allYears.push({
+      anio_cal: r.anio_cal,
+      _tipo: 'proy',
+      ing_flujo: 0,       ing_ov_activas: r.ing_real  || 0,    ing_premisas: r.ing_proy || 0,
+      urb_real: 0,        mov_real: 0,                          adm_real: 0,
+      urb_proy: r.urb_proy || 0,                                adm_proy: r.adm_proy || 0,
+      prest_int_real: 0,  ic_real: 0,                           prest_real: 0,
+      fin_neto_real: 0,
+      ic_proy:        r.ic_proy        || 0,
+      prest_cap_proy: r.prest_cap_proy || 0,
+      prest_int_proy: r.prest_int_proy || 0,
+      imp_real: 0,
+      iva_proy: r.iva_proy  || 0,   isr_proy: r.isr_proy  || 0,
+      tierra_real: 0,     tierra_proy: r.tierra_proy || 0,
+      div_real: 0,        div_proy:    r.div_proy    || 0,
+      flujo_neto: r.flujo_neto || 0,
+      flujo_acumulado: r.flujo_acumulado || 0,
+    });
+  });
+
   allYears.sort((a,b) => (a.anio_cal||0) - (b.anio_cal||0));
   if (!allYears.length) return;
 
-  // Calcular saldo inicial por año (acumulado del año anterior)
-  // El primer año real usa su flujo_acumulado - flujo_neto como saldo inicial
-  for (let i = 0; i < allYears.length; i++) {
-    if (i === 0) {
-      allYears[i].saldo_ini = allYears[i].flujo_acumulado - allYears[i].flujo_neto;
+  // Saldo inicial encadenado desde saldo_inicial_real
+  let lastSaldo = saldoIniReal;
+  allYears.forEach(yr => {
+    yr.saldo_ini = lastSaldo;
+    if (yr._tipo !== 'proy') {
+      lastSaldo = yr.flujo_acumulado;  // real/mix: backend accumulated + proy addon
     } else {
-      allYears[i].saldo_ini = allYears[i-1].flujo_acumulado;
+      yr.flujo_acumulado = yr.saldo_ini + yr.flujo_neto;
+      lastSaldo = yr.flujo_acumulado;
     }
-  }
+  });
 
-  // Definir filas de la tabla
-  const rows = [
-    {key:'saldo_ini',       label:'Saldo Inicial',         level:0, bold:true, color:'var(--azul,#1e3a5f)'},
-    {key:'ingresos',        label:'Ingresos',              level:0, bold:true, color:'var(--green,#16a34a)'},
-    {key:'ing_real',        label:'Ingresos Reales',       level:1},
-    {key:'ing_proy',        label:'Ingreso Vtas. Activas / Proy.', level:1},
-    {key:'egresos_op',      label:'Egresos Operativos',    level:0, bold:true, color:'var(--red,#dc2626)', sign:'-'},
-    {key:'urbanizacion',    label:'Urbanización',          level:1, sign:'-'},
-    {key:'administracion',  label:'Administración',        level:1, sign:'-'},
-    {key:'egresos_fin',     label:'Egresos Financieros',   level:0, bold:true, color:'var(--amber,#d97706)', sign:'-'},
-    {key:'intercompany',    label:'Intercompany',          level:1, sign:'-'},
-    {key:'prestamo_capital', label:'Préstamo Bancario',    level:1, sign:'-'},
-    {key:'prestamo_interes', label:'Intereses Préstamo',   level:1, sign:'-'},
-    {key:'iva_neto',        label:'Impuestos',             level:0, bold:true, color:'var(--muted)', sign:'-'},
-    {key:'tierra',          label:'Terreno',               level:0, bold:true, color:'var(--blue,#2563eb)', sign:'-'},
-    {key:'dividendos',      label:'Dividendos',            level:0, bold:true, color:'var(--blue,#2563eb)', sign:'-'},
-    {key:'flujo_neto',      label:'Flujo Neto',            level:0, bold:true, special:true},
-    {key:'flujo_acumulado', label:'Saldo Final',           level:0, bold:true, special:true},
-  ];
+  // ── Helpers ─────────────────────────────────────────────────────────────
+  const fmtC = (val, neg) => {
+    if (val === undefined || val === null) return '<span style="color:var(--muted)">—</span>';
+    if (Math.abs(val) < 0.5) return '<span style="color:var(--muted)">—</span>';
+    const s = Math.abs(Math.round(val)).toLocaleString('es-GT');
+    if (neg && val > 0) return `<span style="color:#c2410c">(Q ${s})</span>`;
+    if (val < 0)        return `<span style="color:#15803d">Q ${s}</span>`; // inflow
+    return `Q ${s}`;
+  };
+  const sum = arr => arr.reduce((s,v) => s+(v||0), 0);
+  const BADGE = {
+    real: '<span style="font-size:9px;padding:1px 5px;border-radius:3px;background:#dbeafe;color:#1d4ed8;font-weight:600;margin-left:4px">REAL</span>',
+    proy: '<span style="font-size:9px;padding:1px 5px;border-radius:3px;background:#dcfce7;color:#15803d;font-weight:600;margin-left:4px">PROY</span>',
+    mix:  '<span style="font-size:9px;padding:1px 5px;border-radius:3px;background:#fef9c3;color:#854d0e;font-weight:600;margin-left:4px">R+P</span>',
+  };
+  const C = { ing:'#15803d', egrOp:'#b91c1c', egrFin:'#92400e', imp:'#4b5563', tierra:'#1d4ed8', div:'#6d28d9' };
+  const BG_REAL = 'rgba(37,99,235,.04)';
+  const BG_PROY = 'rgba(22,163,74,.04)';
+  const ST = 'position:sticky;left:0;z-index:1';
 
-  // Header
-  if (thead) {
-    thead.innerHTML = `<tr style="background:var(--azul,#1e3a5f);color:#fff">
-      <th style="padding:8px 12px;text-align:left;min-width:180px;position:sticky;left:0;background:var(--azul,#1e3a5f);z-index:2">Concepto</th>
-      ${allYears.map(r => `<th style="padding:8px 8px;text-align:right;min-width:100px;font-size:11px">
-        ${r.anio_cal}${r.tipo==='real'?' <small style="font-size:9px;opacity:.7">Real</small>':''}
-      </th>`).join('')}
-      <th style="padding:8px 10px;text-align:right;min-width:110px;font-weight:800;background:var(--azul,#1e3a5f)">TOTAL</th>
+  const secToggle = (id, lbl, clr) =>
+    `<tr class="ft-section" style="border-top:1.5px solid rgba(0,0,0,.08);cursor:pointer" onclick="ftToggle('${id}')">
+      <td style="padding:6px 12px;font-weight:600;color:${clr};font-size:12px;${ST};background:var(--color-background-secondary,#f8f8f8)">
+        <span id="ft-ico-${id}" style="display:inline-block;width:14px;font-size:11px;transition:transform .2s">▶</span> ${lbl}
+      </td>
+      ${allYears.map(()=>'<td style="background:var(--color-background-secondary,#f8f8f8)"></td>').join('')}
+      <td style="background:var(--color-background-secondary,#f8f8f8)"></td>
     </tr>`;
-  }
 
-  // Body
-  const fmtCell = (val, sign) => {
-    if (Math.abs(val) < 0.5) return '<span style="color:#9ca3af">—</span>';
-    if (sign === '-' && val > 0) return `(${fmtQ(val)})`;
-    return fmtQ(val);
+  const totRow = (lbl, arr, neg, clr) => {
+    const tot = sum(arr);
+    return `<tr style="border-bottom:0.5px solid rgba(0,0,0,.06)">
+      <td style="padding:5px 12px 5px 20px;font-weight:600;color:${clr};font-size:11px;${ST};background:var(--color-background-primary,#fff)">${lbl}</td>
+      ${arr.map(v=>`<td style="padding:5px 8px;text-align:right;font-size:11px;font-weight:600;color:${clr}">${fmtC(v,neg)}</td>`).join('')}
+      <td style="padding:5px 10px;text-align:right;font-weight:700;font-size:12px;color:${clr}">${fmtC(tot,neg)}</td>
+    </tr>`;
   };
 
-  tbody.innerHTML = rows.map(r => {
-    const isSpecial = r.special;
-    const isSection = r.level === 0 && r.bold;
-    const isSub = r.level === 1;
-    const bgStyle = isSpecial ? 'background:var(--azul,#1e3a5f);color:#fff;' :
-                    isSection ? 'background:rgba(0,0,0,.03);' : '';
-    const labelStyle = isSub ? 'padding-left:28px;font-size:11px;color:var(--muted)' :
-                       `font-weight:${r.bold?700:400};color:${r.color||'inherit'};font-size:12px`;
-    const total = r.key === 'flujo_acumulado' || r.key === 'saldo_ini'
-      ? ''
-      : allYears.reduce((s, yr) => s + (yr[r.key] || 0), 0);
-
-    return `<tr style="${bgStyle}">
-      <td style="padding:5px 12px;${labelStyle};position:sticky;left:0;z-index:1;${isSpecial?'background:var(--azul,#1e3a5f);color:#fff;':'background:var(--bg,#fff);'}">${r.label}</td>
-      ${allYears.map(yr => {
-        const val = yr[r.key] || 0;
-        const neg = val < 0;
-        const cellColor = isSpecial ? (neg ? '#f87171' : '#4ade80') : '';
-        return `<td style="padding:5px 8px;text-align:right;font-size:${isSub?'10px':'11px'};${cellColor?'color:'+cellColor:''}${r.bold&&!isSub?';font-weight:600':''}">${fmtCell(val, r.sign)}</td>`;
-      }).join('')}
-      <td style="padding:5px 10px;text-align:right;font-weight:700;font-size:12px;${isSpecial?'background:var(--azul,#1e3a5f);color:'+(total<0?'#f87171':'#4ade80'):''}">${total !== '' ? fmtCell(total, r.sign) : ''}</td>
+  const sub = (gid, lbl, arr, neg, col, bg) => {
+    if (arr.every(v => Math.abs(v||0) < 0.5)) return '';
+    const tot = sum(arr);
+    return `<tr class="ft-sub ft-sub-${gid}" style="display:none">
+      <td style="padding:4px 12px 4px 32px;font-size:10px;color:${col};background:${bg};${ST}">${lbl}</td>
+      ${arr.map(v=>`<td style="padding:4px 8px;text-align:right;font-size:10px;color:${col};background:${bg}">${fmtC(v,neg)}</td>`).join('')}
+      <td style="padding:4px 10px;text-align:right;font-size:10px;color:${col};background:${bg}">${fmtC(tot,neg)}</td>
     </tr>`;
-  }).join('');
+  };
+
+  const specRow = (lbl, arr, bg) => {
+    const tot = sum(arr);
+    const cellClr = v => (v||0) < 0 ? '#ff4444' : '#ffffff';   // rojo si negativo, blanco si positivo
+    return `<tr>
+      <td style="padding:7px 12px;font-weight:700;font-size:12px;background:${bg};color:#fff;${ST}">${lbl}</td>
+      ${arr.map(v=>`<td style="padding:7px 8px;text-align:right;font-weight:600;font-size:11px;background:${bg};color:${cellClr(v)}">${fmtC(v,false)}</td>`).join('')}
+      <td style="padding:7px 10px;text-align:right;font-weight:700;font-size:12px;background:${bg};color:${cellClr(tot)}">${fmtC(tot,false)}</td>
+    </tr>`;
+  };
+
+  const saldoRow = (lbl, arr, bg) => {
+    const cellClr = v => (v||0) < 0 ? '#ff4444' : '#ffffff';   // rojo si negativo, blanco si positivo
+    return `<tr>
+      <td style="padding:7px 12px;font-weight:700;font-size:12px;background:${bg};color:#fff;${ST}">${lbl}</td>
+      ${arr.map(v=>`<td style="padding:7px 8px;text-align:right;font-weight:600;font-size:11px;background:${bg};color:${cellClr(v)}">${fmtC(v,false)}</td>`).join('')}
+      <td style="padding:7px 10px;background:${bg}"></td>
+    </tr>`;
+  };
+
+  // ── Arrays por columna ───────────────────────────────────────────────────
+  const g = k => allYears.map(yr => yr[k] || 0);
+
+  const ingFlujo    = g('ing_flujo');
+  const ingOv       = g('ing_ov_activas');
+  const ingPrem     = g('ing_premisas');
+  const ingTot      = allYears.map((_,i) => ingFlujo[i]+ingOv[i]+ingPrem[i]);
+
+  const urbReal     = g('urb_real');    const movReal     = g('mov_real');    const admReal = g('adm_real');
+  const urbProy     = g('urb_proy');    const admProy     = g('adm_proy');
+  const egrOpTot    = allYears.map((_,i) => urbReal[i]+movReal[i]+admReal[i]+urbProy[i]+admProy[i]);
+
+  const pintReal    = g('prest_int_real');
+  const icReal      = g('ic_real');
+  const prestReal   = g('prest_real');
+  const icProy      = g('ic_proy');
+  const pcapProy    = g('prest_cap_proy');
+  const pintProy    = g('prest_int_proy');
+  const finNetReal  = g('fin_neto_real');
+  // Total egresos fin = real neto + projected additions (for years with both)
+  const egrFinTot   = allYears.map((_,i) => (finNetReal[i]||0)+(icProy[i]||0)+(pcapProy[i]||0)+(pintProy[i]||0));
+
+  const impReal     = g('imp_real');
+  const ivaProy     = g('iva_proy');    const isrProy = g('isr_proy');
+  const impTot      = allYears.map((_,i) => impReal[i]+ivaProy[i]+isrProy[i]);
+
+  const tierReal    = g('tierra_real'); const tierProy = g('tierra_proy');
+  const tierTot     = allYears.map((_,i) => tierReal[i]+tierProy[i]);
+  const divReal     = g('div_real');    const divProy  = g('div_proy');
+  const divTot      = allYears.map((_,i) => divReal[i]+divProy[i]);
+
+  const flujoNeto   = g('flujo_neto');
+  const saldoIni    = g('saldo_ini');
+  const saldoFin    = g('flujo_acumulado');
+
+  // ── Header ───────────────────────────────────────────────────────────────
+  if (thead) {
+    thead.innerHTML = `<tr style="background:var(--azul,#1e3a5f);color:#fff">
+      <th style="padding:8px 12px;text-align:left;min-width:215px;position:sticky;left:0;background:var(--azul,#1e3a5f);z-index:3">Concepto</th>
+      ${allYears.map(r=>`<th style="padding:8px 8px;text-align:right;min-width:105px;font-size:10px">${r.anio_cal}${BADGE[r._tipo]||''}</th>`).join('')}
+      <th style="padding:8px 10px;text-align:right;min-width:115px;font-weight:700;background:#0f2744">TOTAL</th>
+    </tr>`;
+  }
+
+  // ── Render filas ─────────────────────────────────────────────────────────
+  let rows = '';
+
+  rows += saldoRow('Saldo Inicial', saldoIni, '#1e3a5f');
+
+  rows += secToggle('ing', 'Ingresos', C.ing);
+  rows += sub('ing', 'Ingresos reales (flujo ef.)',     ingFlujo, false, C.tierra, BG_REAL);
+  rows += sub('ing', 'Vtas. activas (OV cobro pend.)',  ingOv,    false, '#854d0e', 'rgba(202,138,4,.05)');
+  rows += sub('ing', 'Vtas. proyectadas (premisas)',    ingPrem,  false, C.ing,    BG_PROY);
+  rows += totRow('Total Ingresos', ingTot, false, C.ing);
+
+  rows += secToggle('egrop', 'Egresos operativos', C.egrOp);
+  rows += sub('egrop', 'Urbanización (flujo ef.)',       urbReal, true, C.tierra, BG_REAL);
+  rows += sub('egrop', 'Mov. de tierras (flujo ef.)',    movReal, true, C.tierra, BG_REAL);
+  rows += sub('egrop', 'Administración (flujo ef.)',     admReal, true, C.tierra, BG_REAL);
+  rows += sub('egrop', 'Urbanización pend. / año',       urbProy, true, C.ing,    BG_PROY);
+  rows += sub('egrop', 'Administración pend. / año',     admProy, true, C.ing,    BG_PROY);
+  rows += totRow('Total Egresos Operativos', egrOpTot, true, C.egrOp);
+
+  rows += secToggle('egrfin', 'Egresos financieros', C.egrFin);
+  rows += sub('egrfin', 'Intereses bancarios (reclasif.)', pintReal,  true, C.tierra, BG_REAL);
+  rows += sub('egrfin', 'Intercompany (flujo ef.)',         icReal,   true, C.tierra, BG_REAL);
+  rows += sub('egrfin', 'Préstamo bancario (flujo ef.)',    prestReal,true, C.tierra, BG_REAL);
+  rows += sub('egrfin', 'Intercompany proyectado',          icProy,   false, C.ing,    BG_PROY);  // neg=false: positivo=egreso visible, negativo=ingreso verde
+  rows += sub('egrfin', 'Préstamo bancario proyectado',     pcapProy, true, C.ing,    BG_PROY);
+  rows += sub('egrfin', 'Intereses préstamo proyect.',      pintProy, true, C.ing,    BG_PROY);
+  rows += totRow('Total Egresos Financieros', egrFinTot, true, C.egrFin);
+
+  rows += secToggle('imp', 'Impuestos', C.imp);
+  rows += sub('imp', 'Impuestos reales (flujo ef.)',     impReal, true, C.tierra, BG_REAL);
+  rows += sub('imp', 'IVA proyectado (12%×70% ing)',    ivaProy, true, C.ing,    BG_PROY);
+  rows += sub('imp', 'ISR proyectado',                  isrProy, true, C.ing,    BG_PROY);
+  rows += totRow('Total Impuestos', impTot, true, C.imp);
+
+  rows += secToggle('tierra', 'Terreno', C.tierra);
+  rows += sub('tierra', 'Terreno pagado (flujo ef.)',    tierReal, true, C.tierra, BG_REAL);
+  rows += sub('tierra', 'Terreno pend. (plan pago)',    tierProy, true, C.ing,    BG_PROY);
+  rows += totRow('Total Terreno', tierTot, true, C.tierra);
+
+  rows += secToggle('div', 'Dividendos', C.div);
+  rows += sub('div', 'Dividendos pagados (flujo ef.)',   divReal, true, C.tierra, BG_REAL);
+  rows += sub('div', 'Dividendos pend. (plan pago)',    divProy, true, C.ing,    BG_PROY);
+  rows += totRow('Total Dividendos', divTot, true, C.div);
+
+  rows += specRow('Flujo Neto', flujoNeto, '#1e3a5f');
+  rows += saldoRow('Saldo Final', saldoFin, '#0f2744');
+
+  tbody.innerHTML = rows;
 }
+
+
+function ftToggle(id) {
+  const subs = document.querySelectorAll(`.ft-sub-${id}`);
+  const ico  = document.getElementById(`ft-ico-${id}`);
+  const open = ico && ico.style.transform === 'rotate(90deg)';
+  subs.forEach(r => r.style.display = open ? 'none' : 'table-row');
+  if (ico) ico.style.transform = open ? '' : 'rotate(90deg)';
+}
+
 
 function resetUI() {
   ['ingRealSaldo','ingRealContratos','ingRealCapital','ingRealInteres',
@@ -854,6 +1029,12 @@ async function limpiarProyecto() {
     S.horizonteCalc = null;
     renderPlazosVenta();
     resetUI();
+    // Limpiar tabla de distribución anual del flujo
+    const _tb = document.getElementById('flujoAnualTbody');
+    const _th = document.getElementById('flujoAnualThead');
+    if (_tb) _tb.innerHTML = '';
+    if (_th) _th.innerHTML = '';
+    S.flujo = null;
     document.getElementById('savedBadge').style.display = 'none';
     document.getElementById('projMeta').textContent = `Empresa: ${S.empresa}`;
     document.getElementById('egresosOpContainer').innerHTML = '<div style="color:var(--muted);font-size:12px">Datos limpiados. Actualizá para ver el presupuesto vs ejecutado.</div>';
