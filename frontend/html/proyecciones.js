@@ -748,6 +748,7 @@ function renderFlujo(d) {
       ic_real:        r.intercompany     || 0,     // IC neto post-reclasif div
       prest_real:     r.prestamo_capital || 0,     // préstamo neto (puede ser negativo = recibimos préstamo)
       fin_neto_real:  r.financiamiento_neto || 0,  // total neto para cálculo de saldo
+      egresos_fin:    r.egresos_fin || 0,           // total financiero real
       // Financiamiento proyectado
       ic_proy:        isMix ? (py.ic_proy        || 0) : 0,
       prest_cap_proy: isMix ? (py.prest_cap_proy || 0) : 0,
@@ -780,6 +781,7 @@ function renderFlujo(d) {
       urb_proy: r.urb_proy || 0,                                adm_proy: r.adm_proy || 0,
       prest_int_real: 0,  ic_real: 0,                           prest_real: 0,
       fin_neto_real: 0,
+      egresos_fin:   r.egresos_fin || 0,
       ic_proy:        r.ic_proy        || 0,
       prest_cap_proy: r.prest_cap_proy || 0,
       prest_int_proy: r.prest_int_proy || 0,
@@ -838,8 +840,8 @@ function renderFlujo(d) {
       <td style="background:var(--color-background-secondary,#f8f8f8)"></td>
     </tr>`;
 
-  const totRow = (lbl, arr, neg, clr) => {
-    const tot = sum(arr);
+  const totRow = (lbl, arr, neg, clr, customTot) => {
+    const tot = customTot !== undefined ? customTot : sum(arr);
     return `<tr style="border-bottom:0.5px solid rgba(0,0,0,.06)">
       <td style="padding:5px 12px 5px 20px;font-weight:600;color:${clr};font-size:11px;${ST};background:var(--color-background-primary,#fff)">${lbl}</td>
       ${arr.map(v=>`<td style="padding:5px 8px;text-align:right;font-size:11px;font-weight:600;color:${clr}">${fmtC(v,neg)}</td>`).join('')}
@@ -857,9 +859,9 @@ function renderFlujo(d) {
     </tr>`;
   };
 
-  const specRow = (lbl, arr, bg) => {
-    const tot = sum(arr);
-    const cellClr = v => (v||0) < 0 ? '#ff4444' : '#ffffff';   // rojo si negativo, blanco si positivo
+  const specRow = (lbl, arr, bg, customTot) => {
+    const tot = customTot !== undefined ? customTot : sum(arr);
+    const cellClr = v => (v||0) < 0 ? '#ff4444' : '#ffffff';
     return `<tr>
       <td style="padding:7px 12px;font-weight:700;font-size:12px;background:${bg};color:#fff;${ST}">${lbl}</td>
       ${arr.map(v=>`<td style="padding:7px 8px;text-align:right;font-weight:600;font-size:11px;background:${bg};color:${cellClr(v)}">${fmtC(v,false,true)}</td>`).join('')}
@@ -868,11 +870,12 @@ function renderFlujo(d) {
   };
 
   const saldoRow = (lbl, arr, bg) => {
-    const cellClr = v => (v||0) < 0 ? '#ff4444' : '#ffffff';   // rojo si negativo, blanco si positivo
+    const cellClr = v => (v||0) < 0 ? '#ff4444' : '#ffffff';
+    const lastVal = arr[arr.length - 1] || 0;
     return `<tr>
       <td style="padding:7px 12px;font-weight:700;font-size:12px;background:${bg};color:#fff;${ST}">${lbl}</td>
       ${arr.map(v=>`<td style="padding:7px 8px;text-align:right;font-weight:600;font-size:11px;background:${bg};color:${cellClr(v)}">${fmtC(v,false,true)}</td>`).join('')}
-      <td style="padding:7px 10px;background:${bg}"></td>
+      <td style="padding:7px 10px;text-align:right;font-weight:700;font-size:12px;background:${bg};color:${cellClr(lastVal)}">${fmtC(lastVal,false,true)}</td>
     </tr>`;
   };
 
@@ -892,12 +895,21 @@ function renderFlujo(d) {
   const pintReal    = g('prest_int_real');
   const icReal      = g('ic_real');
   const prestReal   = g('prest_real');
-  const icProy      = g('ic_proy');
+  const icProyRaw   = g('ic_proy');
+  const icProy      = icProyRaw.map(v => -v);  // invertir: backend negativo=cobro→display positivo sin paréntesis, positivo=pago→display negativo con paréntesis
   const pcapProy    = g('prest_cap_proy');
   const pintProy    = g('prest_int_proy');
   const finNetReal  = g('fin_neto_real');
   // Total egresos fin = real neto + projected additions (for years with both)
-  const egrFinTot   = allYears.map((_,i) => (finNetReal[i]||0)+(icProy[i]||0)+(pcapProy[i]||0)+(pintProy[i]||0));
+  const egrFinTot   = allYears.map((_,i) =>
+    (pintReal[i]||0) + (icReal[i]||0) + (prestReal[i]||0)
+    - (icProy[i]||0)  + (pcapProy[i]||0) + (pintProy[i]||0)
+  );
+  // El total de columna excluye IC (real + proy se netean a 0)
+  // Total columna: mismos signos que egrFinTot pero sin IC (se netean)
+  const egrFinTotColTotal = allYears.reduce((acc,_,i) =>
+    acc + (pintReal[i]||0) + (prestReal[i]||0) + (pcapProy[i]||0) + (pintProy[i]||0)
+  , 0);
 
   const impReal     = g('imp_real');
   const ivaProy     = g('iva_proy');    const isrProy = g('isr_proy');
@@ -908,9 +920,18 @@ function renderFlujo(d) {
   const divReal     = g('div_real');    const divProy  = g('div_proy');
   const divTot      = allYears.map((_,i) => divReal[i]+divProy[i]);
 
-  const flujoNeto   = g('flujo_neto');
-  const saldoIni    = g('saldo_ini');
-  const saldoFin    = g('flujo_acumulado');
+  const flujoNeto   = allYears.map((_,i) =>
+    ingTot[i] - egrOpTot[i] - egrFinTot[i] - impTot[i] - tierTot[i] - divTot[i]
+  );
+  const saldoFin    = (() => {
+    const arr = [];
+    let acum = S.flujo.saldo_inicial_real || 0;
+    allYears.forEach((_,i) => { acum += flujoNeto[i]; arr.push(acum); });
+    return arr;
+  })();
+  const saldoIni    = allYears.map((_,i) =>
+    i === 0 ? (S.flujo.saldo_inicial_real || 0) : saldoFin[i-1]
+  );
 
   // ── Header ───────────────────────────────────────────────────────────────
   if (thead) {
@@ -945,10 +966,10 @@ function renderFlujo(d) {
   rows += sub('egrfin', 'Intereses bancarios (reclasif.)', pintReal,  true, C.tierra, BG_REAL);
   rows += sub('egrfin', 'Intercompany (flujo ef.)',         icReal,   true, C.tierra, BG_REAL);
   rows += sub('egrfin', 'Préstamo bancario (flujo ef.)',    prestReal,true, C.tierra, BG_REAL);
-  rows += sub('egrfin', 'Intercompany proyectado',          icProy,   false, C.ing,    BG_PROY);  // neg=false: positivo=egreso visible, negativo=ingreso verde
+  rows += sub('egrfin', 'Intercompany proyectado',          icProy, false, C.ing,    BG_PROY);
   rows += sub('egrfin', 'Préstamo bancario proyectado',     pcapProy, true, C.ing,    BG_PROY);
   rows += sub('egrfin', 'Intereses préstamo proyect.',      pintProy, true, C.ing,    BG_PROY);
-  rows += totRow('Total Egresos Financieros', egrFinTot, true, C.egrFin);
+  rows += totRow('Total Egresos Financieros', egrFinTot, true, C.egrFin, egrFinTotColTotal);
 
   rows += secToggle('imp', 'Impuestos', C.imp);
   rows += sub('imp', 'Impuestos reales (flujo ef.)',     impReal, true, C.tierra, BG_REAL);
@@ -966,7 +987,8 @@ function renderFlujo(d) {
   rows += sub('div', 'Dividendos pend. (plan pago)',    divProy, true, C.ing,    BG_PROY);
   rows += totRow('Total Dividendos', divTot, true, C.div);
 
-  rows += specRow('Flujo Neto', flujoNeto, '#1e3a5f');
+  const flujoNetoTotal = (saldoFin[saldoFin.length-1] || 0) - (S.flujo.saldo_inicial_real || 0);
+  rows += specRow('Flujo Neto', flujoNeto, '#1e3a5f', flujoNetoTotal);
   rows += saldoRow('Saldo Final', saldoFin, '#0f2744');
 
   tbody.innerHTML = rows;

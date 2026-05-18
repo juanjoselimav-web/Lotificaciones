@@ -257,24 +257,142 @@ PRESTAMOS_AMORT = {
 }
 
 
-PLAN_TIERRA = [
-    {"sociedad":"EFICIENCIA URBANA","concepto":"Pago de Tierra","pagos":{"2024-12-01":700000,"2025-01-01":100000,"2025-02-01":100000,"2025-03-01":100000,"2025-04-01":800000,"2025-05-01":211111.11,"2025-06-01":211111.11,"2025-07-01":261111.11,"2025-08-01":261111.11,"2025-09-01":261111.11,"2025-10-01":261111.11,"2025-11-01":261111.11,"2025-12-01":261111.11,"2026-01-01":261111.11,"2026-02-01":261111.11,"2026-03-01":261111.11,"2026-04-01":261111.11,"2026-05-01":261111.11,"2026-06-01":261111.11,"2026-07-01":261111.11,"2026-08-01":261111.11,"2026-09-01":261111.11,"2026-10-01":261111.11,"2026-11-01":150000,"2026-12-01":150000,"2027-01-01":150000,"2027-02-01":150000,"2027-03-01":150000,"2027-04-01":150000,"2027-05-01":150000,"2027-06-01":150000,"2027-07-01":150000,"2027-08-01":150000,"2027-09-01":150000,"2027-10-01":150000,"2027-11-01":150000,"2027-12-01":150000,"2028-01-01":150000,"2028-02-01":150000,"2028-03-01":150000,"2028-04-01":150000,"2028-05-01":150000,"2028-06-01":150000,"2028-07-01":150000,"2028-08-01":150000,"2028-09-01":150000,"2028-10-01":150000,"2028-11-01":150000,"2028-12-01":150000,"2029-01-01":150000,"2029-02-01":150000,"2029-03-01":150000,"2029-04-01":150000,"2029-05-01":150000,"2029-06-01":150000,"2029-07-01":1725000}},
-    {"sociedad":"UTILICA","concepto":"Pago de Tierra","pagos":{"2025-02-01":50000,"2025-03-01":700000,"2025-11-01":1222500,"2026-01-01":118541.66,"2026-02-01":118541.66,"2026-03-01":118541.66,"2026-04-01":118541.66,"2026-05-01":118541.66,"2026-06-01":118541.66,"2026-07-01":118541.66,"2026-08-01":118541.66,"2026-09-01":118541.66,"2026-10-01":118541.66,"2026-11-01":118541.66,"2026-12-01":118541.74}},
-    {"sociedad":"TEZZOLI","concepto":"Pago de Tierra","pagos":{"2025-08-01":200000,"2025-09-01":200000,"2025-10-01":200000,"2025-11-01":200000,"2025-12-01":200000,"2026-01-01":200000,"2026-02-01":200000,"2026-03-01":200000,"2026-04-01":200000,"2026-05-01":200000,"2026-06-01":200000,"2026-07-01":200000,"2026-08-01":200000,"2026-09-01":200000,"2026-10-01":200000,"2026-11-01":200000,"2026-12-01":200000,"2027-01-01":200000,"2027-02-01":200000,"2027-03-01":200000,"2027-04-01":200000,"2027-05-01":200000,"2027-06-01":200000,"2027-07-01":200000,"2027-08-01":200000,"2027-09-01":200000,"2027-10-01":200000,"2027-11-01":200000,"2027-12-01":200000,"2028-01-01":200000,"2028-02-01":200000,"2028-03-01":200000,"2028-04-01":200000,"2028-05-01":200000,"2028-06-01":200000,"2028-07-01":200000,"2028-08-01":200000,"2028-09-01":200000,"2028-10-01":200000,"2028-11-01":200000,"2028-12-01":200000,"2029-01-01":200000,"2029-02-01":200000,"2029-03-01":200000,"2029-04-01":200000,"2029-05-01":200000,"2029-06-01":200000,"2029-07-01":1200000,"2031-01-01":366666.67,"2031-02-01":366666.67,"2031-03-01":366666.67,"2031-04-01":366666.67,"2031-05-01":366666.67,"2031-06-01":366666.67,"2031-07-01":366666.67,"2031-08-01":366666.67,"2031-09-01":366666.67,"2031-10-01":366666.67,"2031-11-01":366666.67,"2031-12-01":366666.67,"2032-01-01":366666.67,"2032-02-01":366666.67,"2032-03-01":366666.67,"2032-04-01":366666.67,"2032-05-01":366666.67,"2032-06-01":366666.67,"2032-07-01":366666.67,"2032-08-01":366666.67,"2032-09-01":366666.67,"2032-10-01":366666.67,"2032-11-01":366666.67,"2032-12-01":366666.67}},
-    {"sociedad":"OTTAVIA","concepto":"Pago de Tierra","pagos":{"2025-07-01":250000,"2026-08-01":100000,"2026-09-01":100000,"2026-10-01":100000,"2026-11-01":100000,"2026-12-01":100000,"2027-01-01":100000,"2027-02-01":100000,"2027-03-01":100000,"2027-04-01":100000,"2027-05-01":100000,"2027-06-01":100000,"2027-07-01":100000,"2027-08-01":100000,"2027-09-01":100000,"2027-10-01":100000,"2027-11-01":100000,"2027-12-01":100000,"2028-01-01":100000,"2028-02-01":100000,"2028-03-01":100000,"2028-04-01":380851,"2028-05-01":380851,"2028-06-01":380851,"2028-07-01":380851,"2028-08-01":380851,"2028-09-01":380851,"2028-10-01":380851,"2028-11-01":380851,"2028-12-01":380851,"2029-01-01":380851,"2029-02-01":380851,"2029-03-01":380851,"2029-04-01":380851,"2029-05-01":380851,"2029-06-01":380851,"2029-07-01":380851,"2029-08-01":380851,"2029-09-01":380851,"2029-10-01":380851,"2029-11-01":380851,"2029-12-01":380851,"2030-01-01":380851,"2030-02-01":380851,"2030-03-01":380851,"2030-04-01":380851,"2030-05-01":380851,"2030-06-01":380851,"2030-07-01":380851,"2030-08-01":380851,"2030-09-01":380851,"2030-10-01":380851,"2030-11-01":380851,"2030-12-01":380851,"2031-01-01":380851,"2031-02-01":380851,"2031-03-01":380851,"2031-04-01":750003}},
-    {"sociedad":"ROSSIO","concepto":"Pago de Tierra","pagos":{"2025-01-01":300000,"2025-04-01":200000,"2025-06-01":25000,"2025-07-01":25000,"2025-08-01":25000,"2025-09-01":25000,"2025-10-01":25000,"2025-11-01":25000,"2025-12-01":25000,"2026-01-01":25000,"2026-02-01":25000,"2026-03-01":25000,"2026-04-01":100000,"2026-05-01":100000,"2026-06-01":100000,"2026-07-01":100000,"2026-08-01":100000,"2026-09-01":100000,"2026-10-01":100000,"2026-11-01":100000,"2026-12-01":100000,"2027-01-01":100000,"2027-02-01":100000,"2027-03-01":100000,"2027-04-01":150000,"2027-05-01":150000,"2027-06-01":150000,"2027-07-01":150000,"2027-08-01":150000,"2027-09-01":150000,"2027-10-01":150000,"2027-11-01":150000,"2027-12-01":150000,"2028-01-01":150000,"2028-02-01":150000,"2028-03-01":150000}},
-    {"sociedad":"OVEST","concepto":"Pago de Tierra","pagos":{"2025-08-01":65000,"2025-09-01":65000,"2025-10-01":65000,"2025-11-01":65000,"2025-12-01":65000,"2026-01-01":293450.79,"2026-02-01":293450.79,"2026-03-01":293450.79,"2026-04-01":293450.79,"2026-05-01":293450.79,"2026-06-01":293450.79,"2026-07-01":293450.79,"2026-08-01":293450.79,"2026-09-01":293450.79,"2026-10-01":293450.79,"2026-11-01":293450.79,"2026-12-01":293450.79,"2027-01-01":293450.79,"2027-02-01":293450.79,"2027-03-01":293450.79,"2027-04-01":293450.79,"2027-05-01":293450.79,"2027-06-01":293450.79,"2027-07-01":293450.79,"2027-08-01":293450.79,"2027-09-01":293450.79,"2027-10-01":293450.79,"2027-11-01":293450.79,"2027-12-01":293450.79,"2028-01-01":293450.79,"2028-02-01":293450.79,"2028-03-01":293450.79,"2028-04-01":293450.79,"2028-05-01":293450.79,"2028-06-01":293450.79,"2028-07-01":293450.79,"2028-08-01":293450.79,"2028-09-01":293450.79,"2028-10-01":293450.79,"2028-11-01":293450.79,"2028-12-01":262722.35}},
-    {"sociedad":"VILET","concepto":"Pago de Tierra","pagos":{"2025-07-01":150000,"2026-03-01":301388.89,"2026-04-01":301388.89,"2026-05-01":301388.89,"2026-06-01":301388.89,"2026-07-01":301388.89,"2026-08-01":301388.89,"2026-09-01":301388.89,"2026-10-01":301388.89,"2026-11-01":301388.89,"2026-12-01":301388.89,"2027-01-01":301388.89,"2027-02-01":301388.89,"2027-03-01":301388.89,"2027-04-01":301388.89,"2027-05-01":301388.89,"2027-06-01":301388.89,"2027-07-01":301388.89,"2027-08-01":301388.89,"2027-09-01":301388.89,"2027-10-01":301388.89,"2027-11-01":301388.89,"2027-12-01":301388.89,"2028-01-01":301388.89,"2028-02-01":301388.89,"2028-03-01":301388.89,"2028-04-01":301388.89,"2028-05-01":301388.89,"2028-06-01":301388.89,"2028-07-01":301388.89,"2028-08-01":301388.89,"2028-09-01":301388.89,"2028-10-01":301388.89,"2028-11-01":301388.89,"2028-12-01":301388.89,"2029-01-01":301388.89,"2029-02-01":301388.89}},
-    {"sociedad":"GARBATELLA","concepto":"Pago de Tierra","pagos":{"2025-11-01":2000000,"2026-01-01":1000000,"2026-02-01":2318750,"2026-03-01":318750,"2026-04-01":318750,"2026-05-01":318750,"2026-06-01":318750,"2026-07-01":318750,"2026-08-01":318750,"2026-09-01":318750,"2026-10-01":318750,"2026-11-01":318750,"2027-01-01":318750,"2027-02-01":318750,"2027-03-01":318750,"2027-04-01":318750,"2027-05-01":318750}},
-]
+# ─────────────────────────────────────────────
+# LECTURA DINÁMICA DE PLAN TIERRA Y DIVIDENDOS DESDE EXCEL
+# Fuente: PRESUPUESTO_PRESTAMOS_Y_TIERRA.xlsx
+# Se lee en cada llamada al endpoint para reflejar cambios automáticamente.
+# ─────────────────────────────────────────────
 
-# Plan dividendos/utilidades
-PLAN_DIVIDENDOS = [
-    {"sociedad":"EFICIENCIA URBANA","cuenta":"3 Holdings","pagos":{"2025-09-01":950000.02,"2025-11-01":47500.04,"2025-12-01":47500,"2026-01-01":100000.04,"2026-02-01":950000.05,"2026-03-01":47500,"2026-04-01":47500,"2026-05-01":95000,"2026-06-01":95000,"2026-07-01":118750,"2026-08-01":118750,"2026-09-01":118750,"2026-10-01":118750,"2026-11-01":660000}},
-    {"sociedad":"EFICIENCIA URBANA","cuenta":"Marme Group","pagos":{"2025-09-01":950000.02,"2025-11-01":47500.04,"2025-12-01":47500,"2026-01-01":100000.04,"2026-02-01":950000.05,"2026-03-01":47500,"2026-04-01":47500,"2026-05-01":95000,"2026-06-01":95000,"2026-07-01":118750,"2026-08-01":118750,"2026-09-01":118750,"2026-10-01":118750,"2026-11-01":660000}},
-    {"sociedad":"EFICIENCIA URBANA","cuenta":"Socio A JFS y JS","pagos":{"2028-12-01":250000,"2029-12-01":500000,"2030-07-01":2000000,"2030-12-01":700000,"2031-07-01":2500000,"2032-07-01":1250000}},
-    {"sociedad":"CORCOLLE","cuenta":"Dividendos","pagos":{"2025-07-01":51756,"2026-08-01":12987,"2026-09-01":12987,"2026-10-01":12987,"2026-11-01":12987,"2026-12-01":12987,"2027-01-01":12987,"2027-02-01":12987,"2027-03-01":12987,"2027-04-01":12987,"2027-05-01":12987,"2027-06-01":12987,"2027-07-01":40240,"2027-08-01":40240,"2027-09-01":40240,"2027-10-01":40240,"2027-11-01":40240,"2027-12-01":40240,"2028-01-01":40240,"2028-02-01":40240,"2028-03-01":40240,"2028-04-01":40240,"2028-05-01":40240,"2028-06-01":40240,"2028-07-01":40240,"2028-08-01":40240,"2028-09-01":40240,"2028-10-01":40240,"2028-11-01":40240,"2028-12-01":40240,"2029-01-01":40240,"2029-02-01":40240,"2029-03-01":40240,"2029-04-01":40240,"2029-05-01":40240,"2029-06-01":40240,"2029-07-01":40240}},
-]
+import glob as _glob
+
+def _encontrar_excel_ppto():
+    """Busca el archivo PRESUPUESTO en /data/sources/ con cualquier variante de nombre."""
+    patrones = [
+        "/data/sources/PRESUPUESTO_PRESTAMOS_Y_TIERRA.xlsx",
+        "/data/sources/PRESUPUESTO PRESTAMOS Y TIERRA.xlsx",
+        "/data/sources/PRESUPUESTO_PRESTAMOS*.xlsx",
+        "/data/sources/PRESUPUESTO PRESTAMOS*.xlsx",
+    ]
+    for p in patrones:
+        matches = _glob.glob(p)
+        if matches:
+            return matches[0]
+    return None
+
+def _leer_plan_tierra_excel():
+    """
+    Lee PLAN DE PAGOS TIERRA desde el Excel.
+    Estructura: fila 1 = encabezados (col0=SOCIEDAD, cols 6+ = fechas o enteros de año o TOTAL)
+    Retorna lista de dicts compatibles con PLAN_TIERRA.
+    """
+    try:
+        from openpyxl import load_workbook
+        ruta = _encontrar_excel_ppto()
+        if not ruta:
+            return []
+        wb = load_workbook(ruta, read_only=True, data_only=True)
+        ws = wb["PLAN DE PAGOS TIERRA"]
+
+        rows = list(ws.iter_rows(values_only=True))
+        if not rows:
+            return []
+
+        # Fila 0 = encabezados: detectar columnas de fecha
+        header = rows[0]
+        fecha_cols = []  # (col_index, "YYYY-MM-DD")
+        for i, h in enumerate(header):
+            if hasattr(h, 'strftime'):  # es datetime
+                fecha_cols.append((i, h.strftime("%Y-%m-%d")))
+
+        resultado = []
+        sociedad_actual = None
+        for row in rows[1:]:
+            if row[0] is not None:
+                sociedad_actual = str(row[0]).strip().upper()
+            if not sociedad_actual:
+                continue
+            # Solo filas con concepto TIERRA o UTILIDADES (excluir CANJES y PENDIENTE)
+            concepto = str(row[4]).strip().upper() if row[4] else ""
+            if concepto not in ("TIERRA", "UTILIDADES"):
+                continue
+            pagos = {}
+            for col_i, fecha_str in fecha_cols:
+                v = row[col_i]
+                if v and isinstance(v, (int, float)) and v > 0:
+                    pagos[fecha_str] = float(v)
+            if pagos:
+                resultado.append({
+                    "sociedad": sociedad_actual,
+                    "concepto": str(row[4] or "Pago de Tierra"),
+                    "pagos": pagos,
+                })
+        wb.close()
+        return resultado
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).warning(f"Error leyendo PLAN TIERRA desde Excel: {e}")
+        return []
+
+def _leer_plan_dividendos_excel():
+    """
+    Lee PLAN DE PAGOS UTILIDADES desde el Excel.
+    Estructura: fila 1 = encabezados (col0=SOCIEDAD, col2=CONCEPTO, cols 4+ = fechas)
+    Retorna lista de dicts compatibles con PLAN_DIVIDENDOS.
+    """
+    try:
+        from openpyxl import load_workbook
+        ruta = _encontrar_excel_ppto()
+        if not ruta:
+            return []
+        wb = load_workbook(ruta, read_only=True, data_only=True)
+        ws = wb["PLAN DE PAGOS UTILIDADES"]
+
+        rows = list(ws.iter_rows(values_only=True))
+        if not rows:
+            return []
+
+        header = rows[0]
+        fecha_cols = []
+        for i, h in enumerate(header):
+            if hasattr(h, 'strftime'):
+                fecha_cols.append((i, h.strftime("%Y-%m-%d")))
+
+        resultado = []
+        sociedad_actual = None
+        for row in rows[1:]:
+            if row[0] is not None and str(row[0]).strip().upper() not in ("TOTALES", ""):
+                sociedad_actual = str(row[0]).strip().upper()
+            if not sociedad_actual:
+                continue
+            concepto = str(row[2]).strip() if row[2] else ""
+            cuenta   = str(row[3]).strip() if row[3] else concepto
+            if not concepto or concepto.upper() in ("TOTALES", "CONCEPTO"):
+                continue
+            pagos = {}
+            for col_i, fecha_str in fecha_cols:
+                v = row[col_i]
+                if v and isinstance(v, (int, float)) and v > 0:
+                    pagos[fecha_str] = float(v)
+            if pagos:
+                resultado.append({
+                    "sociedad": sociedad_actual,
+                    "cuenta": cuenta,
+                    "pagos": pagos,
+                })
+        wb.close()
+        return resultado
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).warning(f"Error leyendo PLAN DIVIDENDOS desde Excel: {e}")
+        return []
+
+def get_plan_tierra():
+    """Retorna PLAN_TIERRA leyendo del Excel. Si falla, retorna lista vacía."""
+    return _leer_plan_tierra_excel()
+
+def get_plan_dividendos():
+    """Retorna PLAN_DIVIDENDOS leyendo del Excel. Si falla, retorna lista vacía."""
+    return _leer_plan_dividendos_excel()
 
 # ─────────────────────────────────────────────
 # HELPERS
@@ -930,7 +1048,7 @@ async def get_tierra_dividendos(
     # Plan tierra para esta sociedad
     soc_upper = sociedad_flujos.upper().strip()
     plan_tierra_empresa = []
-    for plan in PLAN_TIERRA:
+    for plan in get_plan_tierra():
         plan_soc = plan["sociedad"].upper().strip()
         if plan_soc == soc_upper or plan_soc in soc_upper or soc_upper in plan_soc:
             plan_tierra_empresa.append(plan)
@@ -954,7 +1072,7 @@ async def get_tierra_dividendos(
 
     # Plan dividendos para esta sociedad
     plan_div_empresa = []
-    for plan in PLAN_DIVIDENDOS:
+    for plan in get_plan_dividendos():
         plan_soc = plan["sociedad"].upper().strip()
         if plan_soc == soc_upper or plan_soc in soc_upper or soc_upper in plan_soc:
             plan_div_empresa.append(plan)
@@ -1058,8 +1176,16 @@ async def get_flujo(empresa: str, db: Session = Depends(get_db), user=Depends(ge
     prest = fin.get("prestamo_bancario") or {}
     egr_prest = prest.get("pendiente_total", 0)
     _ic_saldo = fin["intercompany"]["saldo"]
-    _ic_tipo  = fin["intercompany"].get("tipo", "por pagar")
-    egr_ic    = _ic_saldo if _ic_tipo == "por pagar" else -_ic_saldo
+    _ic_tipo  = fin["intercompany"].get("tipo", "")
+    # Usar el campo tipo calculado en /financieros (saldo>0="por pagar", saldo<0="a favor")
+    # "por pagar" → empresa debe pagar → egreso (positivo con paréntesis)
+    # "a favor"   → empresa va a cobrar → ingreso (negativo sin paréntesis)
+    if _ic_tipo == "por pagar":
+        egr_ic = abs(_ic_saldo)   # positivo = egreso
+    elif _ic_tipo == "a favor":
+        egr_ic = -abs(_ic_saldo)  # negativo = ingreso
+    else:
+        egr_ic = -_ic_saldo       # fallback: invertir signo
     egr_fin = egr_prest + egr_ic
 
     # Tierra y dividendos
@@ -1180,8 +1306,8 @@ async def get_flujo(empresa: str, db: Session = Depends(get_db), user=Depends(ge
         factor = pendiente_total / raw_total
         return {yr: round(v * factor, 2) for yr, v in raw.items()}
 
-    tier_por_anio = _dist_plan_scaled(PLAN_TIERRA, sociedad_flujos, hoy, anio_actual, egr_tierra)
-    div_por_anio  = _dist_plan_scaled(PLAN_DIVIDENDOS, sociedad_flujos, hoy, anio_actual, egr_div)
+    tier_por_anio = _dist_plan_scaled(get_plan_tierra(), sociedad_flujos, hoy, anio_actual, egr_tierra)
+    div_por_anio  = _dist_plan_scaled(get_plan_dividendos(), sociedad_flujos, hoy, anio_actual, egr_div)
 
     # ── Desglose de cuotas préstamo por año: capital vs intereses ──
     prest_cap_por_anio = {}
