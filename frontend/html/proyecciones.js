@@ -752,6 +752,9 @@ function renderFlujo(d) {
       ic_proy:        isMix ? (py.ic_proy        || 0) : 0,
       prest_cap_proy: isMix ? (py.prest_cap_proy || 0) : 0,
       prest_int_proy: isMix ? (py.prest_int_proy || 0) : 0,
+      // Flujo neto de operaciones (ingresos - egresos op)
+      fno_real:       isMix ? (r.ing_real||0) - (r.urbanizacion||0) - (r.mov_tierras||0) - (r.administracion||0) : (r.ing_real||0) - (r.urbanizacion||0) - (r.mov_tierras||0) - (r.administracion||0),
+      fno_proy:       isMix ? (py.flujo_neto_op || 0) : 0,
       // Impuestos
       imp_real:       r.iva_neto   || 0,
       iva_proy:       isMix ? (py.iva_proy  || 0) : 0,
@@ -780,6 +783,8 @@ function renderFlujo(d) {
       ic_proy:        r.ic_proy        || 0,
       prest_cap_proy: r.prest_cap_proy || 0,
       prest_int_proy: r.prest_int_proy || 0,
+      fno_real: 0,
+      fno_proy: r.flujo_neto_op || 0,
       imp_real: 0,
       iva_proy: r.iva_proy  || 0,   isr_proy: r.isr_proy  || 0,
       tierra_real: 0,     tierra_proy: r.tierra_proy || 0,
@@ -805,12 +810,12 @@ function renderFlujo(d) {
   });
 
   // ── Helpers ─────────────────────────────────────────────────────────────
-  const fmtC = (val, neg) => {
+  const fmtC = (val, neg, noSpan) => {
     if (val === undefined || val === null) return '<span style="color:var(--muted)">—</span>';
     if (Math.abs(val) < 0.5) return '<span style="color:var(--muted)">—</span>';
     const s = Math.abs(Math.round(val)).toLocaleString('es-GT');
     if (neg && val > 0) return `<span style="color:#c2410c">(Q ${s})</span>`;
-    if (val < 0)        return `<span style="color:#15803d">Q ${s}</span>`; // inflow
+    if (val < 0)        return noSpan ? `Q ${s}` : `<span style="color:#15803d">Q ${s}</span>`; // inflow
     return `Q ${s}`;
   };
   const sum = arr => arr.reduce((s,v) => s+(v||0), 0);
@@ -857,8 +862,8 @@ function renderFlujo(d) {
     const cellClr = v => (v||0) < 0 ? '#ff4444' : '#ffffff';   // rojo si negativo, blanco si positivo
     return `<tr>
       <td style="padding:7px 12px;font-weight:700;font-size:12px;background:${bg};color:#fff;${ST}">${lbl}</td>
-      ${arr.map(v=>`<td style="padding:7px 8px;text-align:right;font-weight:600;font-size:11px;background:${bg};color:${cellClr(v)}">${fmtC(v,false)}</td>`).join('')}
-      <td style="padding:7px 10px;text-align:right;font-weight:700;font-size:12px;background:${bg};color:${cellClr(tot)}">${fmtC(tot,false)}</td>
+      ${arr.map(v=>`<td style="padding:7px 8px;text-align:right;font-weight:600;font-size:11px;background:${bg};color:${cellClr(v)}">${fmtC(v,false,true)}</td>`).join('')}
+      <td style="padding:7px 10px;text-align:right;font-weight:700;font-size:12px;background:${bg};color:${cellClr(tot)}">${fmtC(tot,false,true)}</td>
     </tr>`;
   };
 
@@ -866,7 +871,7 @@ function renderFlujo(d) {
     const cellClr = v => (v||0) < 0 ? '#ff4444' : '#ffffff';   // rojo si negativo, blanco si positivo
     return `<tr>
       <td style="padding:7px 12px;font-weight:700;font-size:12px;background:${bg};color:#fff;${ST}">${lbl}</td>
-      ${arr.map(v=>`<td style="padding:7px 8px;text-align:right;font-weight:600;font-size:11px;background:${bg};color:${cellClr(v)}">${fmtC(v,false)}</td>`).join('')}
+      ${arr.map(v=>`<td style="padding:7px 8px;text-align:right;font-weight:600;font-size:11px;background:${bg};color:${cellClr(v)}">${fmtC(v,false,true)}</td>`).join('')}
       <td style="padding:7px 10px;background:${bg}"></td>
     </tr>`;
   };
@@ -882,6 +887,7 @@ function renderFlujo(d) {
   const urbReal     = g('urb_real');    const movReal     = g('mov_real');    const admReal = g('adm_real');
   const urbProy     = g('urb_proy');    const admProy     = g('adm_proy');
   const egrOpTot    = allYears.map((_,i) => urbReal[i]+movReal[i]+admReal[i]+urbProy[i]+admProy[i]);
+  const fnoTot      = allYears.map((_,i) => ingTot[i] - egrOpTot[i]);   // Flujo Neto de Operaciones
 
   const pintReal    = g('prest_int_real');
   const icReal      = g('ic_real');
@@ -933,6 +939,7 @@ function renderFlujo(d) {
   rows += sub('egrop', 'Urbanización pend. / año',       urbProy, true, C.ing,    BG_PROY);
   rows += sub('egrop', 'Administración pend. / año',     admProy, true, C.ing,    BG_PROY);
   rows += totRow('Total Egresos Operativos', egrOpTot, true, C.egrOp);
+  rows += specRow('Flujo Neto de Operaciones', fnoTot, '#374151');
 
   rows += secToggle('egrfin', 'Egresos financieros', C.egrFin);
   rows += sub('egrfin', 'Intereses bancarios (reclasif.)', pintReal,  true, C.tierra, BG_REAL);

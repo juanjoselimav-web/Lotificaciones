@@ -199,7 +199,7 @@ PRESTAMOS_AMORT = {
         "monto_original": 3000000, "tasa": 0.09,
         "cuotas": []  # Se cargan dinámicamente desde la BD - préstamo casi liquidado
     },
-    "Capipos, S.A.": {
+        "Capipos, S.A.": {
         "banco": "G&T Continental", "no_credito": "10-060179247",
         "monto_original": 11700000, "tasa": 0.0925,
         "cuotas": [
@@ -207,56 +207,56 @@ PRESTAMOS_AMORT = {
           {"op":2,"fecha":"2024-06-05","saldo_capital":11700000.0,"capital":0.0,"interes":91917.12,"cuota":91917.12},
           {"op":3,"fecha":"2024-07-05","saldo_capital":11700000.0,"capital":0.0,"interes":88952.05,"cuota":88952.05},
           {"op":4,"fecha":"2024-08-05","saldo_capital":11700000.0,"capital":0.0,"interes":91917.12,"cuota":91917.12},
-          {"op":5,"fecha":"2024-09-05","saldo_capital":11700000.0,"capital":0.0,"interes":88952.05,"cuota":88952.05},
-          {"op":6,"fecha":"2024-10-05","saldo_capital":11700000.0,"capital":0.0,"interes":91917.12,"cuota":91917.12},
-          {"op":7,"fecha":"2024-11-05","saldo_capital":11700000.0,"capital":0.0,"interes":88952.05,"cuota":88952.05},
-          {"op":8,"fecha":"2024-12-05","saldo_capital":11700000.0,"capital":0.0,"interes":91917.12,"cuota":91917.12},
-          {"op":9,"fecha":"2025-01-05","saldo_capital":11700000.0,"capital":0.0,"interes":88952.05,"cuota":88952.05},
-          {"op":10,"fecha":"2025-02-05","saldo_capital":11700000.0,"capital":0.0,"interes":80304.66,"cuota":80304.66},
-          {"op":11,"fecha":"2025-03-05","saldo_capital":11700000.0,"capital":0.0,"interes":88952.05,"cuota":88952.05},
-          {"op":12,"fecha":"2025-04-05","saldo_capital":11700000.0,"capital":0.0,"interes":88952.05,"cuota":88952.05},
-          {"op":13,"fecha":"2025-05-05","saldo_capital":11700000.0,"capital":292500.0,"interes":91917.12,"cuota":384417.12},
-          {"op":14,"fecha":"2025-06-05","saldo_capital":11407500.0,"capital":292500.0,"interes":89626.44,"cuota":382126.44},
-          {"op":15,"fecha":"2025-07-05","saldo_capital":11115000.0,"capital":292500.0,"interes":87332.88,"cuota":379832.88},
-          {"op":16,"fecha":"2025-08-05","saldo_capital":10822500.0,"capital":292500.0,"interes":85043.84,"cuota":377543.84},
-          {"op":17,"fecha":"2025-09-05","saldo_capital":10530000.0,"capital":292500.0,"interes":80475.41,"cuota":372975.41},
-          {"op":18,"fecha":"2025-10-05","saldo_capital":10237500.0,"capital":292500.0,"interes":80456.51,"cuota":372956.51},
-          {"op":19,"fecha":"2025-11-05","saldo_capital":9945000.0,"capital":292500.0,"interes":78166.03,"cuota":370666.03},
-          {"op":20,"fecha":"2025-12-05","saldo_capital":9652500.0,"capital":292500.0,"interes":75876.99,"cuota":368376.99},
-          {"op":21,"fecha":"2026-01-05","saldo_capital":9360000.0,"capital":292500.0,"interes":71308.77,"cuota":363808.77},
-          {"op":22,"fecha":"2026-02-05","saldo_capital":9067500.0,"capital":292500.0,"interes":71298.97,"cuota":363798.97},
-          {"op":23,"fecha":"2026-03-05","saldo_capital":8775000.0,"capital":292500.0,"interes":66822.95,"cuota":359322.95},
-          {"op":24,"fecha":"2026-04-05","saldo_capital":8482500.0,"capital":292500.0,"interes":66730.48,"cuota":359230.48},
-          {"op":25,"fecha":"2026-05-05","saldo_capital":8190000.0,"capital":292500.0,"interes":64335.62,"cuota":356835.62},
-          {"op":26,"fecha":"2026-06-05","saldo_capital":7897500.0,"capital":292500.0,"interes":62069.18,"cuota":354569.18},
-          {"op":27,"fecha":"2026-07-05","saldo_capital":7605000.0,"capital":292500.0,"interes":59778.08,"cuota":352278.08},
-          {"op":28,"fecha":"2026-08-05","saldo_capital":7312500.0,"capital":292500.0,"interes":57487.36,"cuota":349987.36},
-          {"op":29,"fecha":"2026-09-05","saldo_capital":7020000.0,"capital":292500.0,"interes":55169.59,"cuota":347669.59},
-          {"op":30,"fecha":"2026-10-05","saldo_capital":6727500.0,"capital":292500.0,"interes":52878.49,"cuota":345378.49},
-          {"op":31,"fecha":"2026-11-05","saldo_capital":6435000.0,"capital":292500.0,"interes":50561.10,"cuota":343061.10},
-          {"op":32,"fecha":"2026-12-05","saldo_capital":6142500.0,"capital":292500.0,"interes":48270.0,"cuota":340770.0},
-          {"op":33,"fecha":"2027-01-05","saldo_capital":5850000.0,"capital":292500.0,"interes":44721.92,"cuota":337221.92},
-          {"op":34,"fecha":"2027-02-05","saldo_capital":5557500.0,"capital":292500.0,"interes":43691.51,"cuota":336191.51},
-          {"op":35,"fecha":"2027-03-05","saldo_capital":5265000.0,"capital":292500.0,"interes":40088.22,"cuota":332588.22},
-          {"op":36,"fecha":"2027-04-05","saldo_capital":4972500.0,"capital":292500.0,"interes":39070.27,"cuota":331570.27},
-          {"op":37,"fecha":"2027-05-05","saldo_capital":4680000.0,"capital":292500.0,"interes":36780.0,"cuota":329280.0},
-          {"op":38,"fecha":"2027-06-05","saldo_capital":4387500.0,"capital":292500.0,"interes":34489.73,"cuota":326989.73},
-          {"op":39,"fecha":"2027-07-05","saldo_capital":4095000.0,"capital":292500.0,"interes":32172.33,"cuota":324672.33},
-          {"op":40,"fecha":"2027-08-05","saldo_capital":3802500.0,"capital":292500.0,"interes":29881.23,"cuota":322381.23},
-          {"op":41,"fecha":"2027-09-05","saldo_capital":3510000.0,"capital":292500.0,"interes":27563.84,"cuota":320063.84},
-          {"op":42,"fecha":"2027-10-05","saldo_capital":3217500.0,"capital":292500.0,"interes":25272.74,"cuota":317772.74},
-          {"op":43,"fecha":"2027-11-05","saldo_capital":2925000.0,"capital":292500.0,"interes":22955.34,"cuota":315455.34},
-          {"op":44,"fecha":"2027-12-05","saldo_capital":2632500.0,"capital":292500.0,"interes":20665.07,"cuota":313165.07},
-          {"op":45,"fecha":"2028-01-05","saldo_capital":2340000.0,"capital":292500.0,"interes":17880.0,"cuota":310380.0},
-          {"op":46,"fecha":"2028-02-05","saldo_capital":2047500.0,"capital":292500.0,"interes":16087.89,"cuota":308587.89},
-          {"op":47,"fecha":"2028-03-05","saldo_capital":1755000.0,"capital":292500.0,"interes":13384.11,"cuota":305884.11},
-          {"op":48,"fecha":"2028-04-05","saldo_capital":1462500.0,"capital":292500.0,"interes":11490.41,"cuota":303990.41},
-          {"op":49,"fecha":"2028-04-29","saldo_capital":0.0,"capital":11700000.0,"interes":71161.64,"cuota":11771161.64},
+          {"op":5,"fecha":"2024-09-05","saldo_capital":11700000.0,"capital":0.0,"interes":91917.12,"cuota":91917.12},
+          {"op":6,"fecha":"2024-10-05","saldo_capital":11700000.0,"capital":0.0,"interes":88952.05,"cuota":88952.05},
+          {"op":7,"fecha":"2024-11-05","saldo_capital":11700000.0,"capital":0.0,"interes":91917.12,"cuota":91917.12},
+          {"op":8,"fecha":"2024-12-05","saldo_capital":11700000.0,"capital":0.0,"interes":88952.05,"cuota":88952.05},
+          {"op":9,"fecha":"2025-01-05","saldo_capital":11700000.0,"capital":0.0,"interes":91917.12,"cuota":91917.12},
+          {"op":10,"fecha":"2025-02-05","saldo_capital":11700000.0,"capital":0.0,"interes":91917.12,"cuota":91917.12},
+          {"op":11,"fecha":"2025-03-05","saldo_capital":11700000.0,"capital":0.0,"interes":83021.92,"cuota":83021.92},
+          {"op":12,"fecha":"2025-04-05","saldo_capital":11700000.0,"capital":0.0,"interes":91917.12,"cuota":91917.12},
+          {"op":13,"fecha":"2025-05-05","saldo_capital":11700000.0,"capital":0.0,"interes":88952.05,"cuota":88952.05},
+          {"op":14,"fecha":"2025-06-05","saldo_capital":11700000.0,"capital":0.0,"interes":91917.12,"cuota":91917.12},
+          {"op":15,"fecha":"2025-07-05","saldo_capital":11700000.0,"capital":0.0,"interes":88952.05,"cuota":88952.05},
+          {"op":16,"fecha":"2025-08-05","saldo_capital":11700000.0,"capital":0.0,"interes":91917.12,"cuota":91917.12},
+          {"op":17,"fecha":"2025-09-05","saldo_capital":11700000.0,"capital":0.0,"interes":91917.12,"cuota":91917.12},
+          {"op":18,"fecha":"2025-10-05","saldo_capital":11700000.0,"capital":0.0,"interes":88952.05,"cuota":88952.05},
+          {"op":19,"fecha":"2025-11-05","saldo_capital":11700000.0,"capital":0.0,"interes":91917.12,"cuota":91917.12},
+          {"op":20,"fecha":"2025-12-05","saldo_capital":11700000.0,"capital":0.0,"interes":88952.05,"cuota":88952.05},
+          {"op":21,"fecha":"2026-01-05","saldo_capital":11700000.0,"capital":0.0,"interes":91917.12,"cuota":91917.12},
+          {"op":22,"fecha":"2026-02-05","saldo_capital":11700000.0,"capital":0.0,"interes":91917.12,"cuota":91917.12},
+          {"op":23,"fecha":"2026-03-05","saldo_capital":11700000.0,"capital":0.0,"interes":83021.92,"cuota":83021.92},
+          {"op":24,"fecha":"2026-04-05","saldo_capital":11700000.0,"capital":0.0,"interes":91917.12,"cuota":91917.12},
+          {"op":25,"fecha":"2026-05-05","saldo_capital":11700000.0,"capital":0.0,"interes":88952.05,"cuota":88952.05},
+          {"op":26,"fecha":"2026-06-05","saldo_capital":11700000.0,"capital":0.0,"interes":91917.12,"cuota":91917.12},
+          {"op":27,"fecha":"2026-07-05","saldo_capital":11700000.0,"capital":0.0,"interes":88952.05,"cuota":88952.05},
+          {"op":28,"fecha":"2026-08-05","saldo_capital":11700000.0,"capital":0.0,"interes":91917.12,"cuota":91917.12},
+          {"op":29,"fecha":"2026-09-05","saldo_capital":11700000.0,"capital":0.0,"interes":91917.12,"cuota":91917.12},
+          {"op":30,"fecha":"2026-10-05","saldo_capital":11700000.0,"capital":0.0,"interes":88952.05,"cuota":88952.05},
+          {"op":31,"fecha":"2026-11-05","saldo_capital":11700000.0,"capital":0.0,"interes":91917.12,"cuota":91917.12},
+          {"op":32,"fecha":"2026-12-05","saldo_capital":11700000.0,"capital":0.0,"interes":88952.05,"cuota":88952.05},
+          {"op":33,"fecha":"2027-01-05","saldo_capital":11700000.0,"capital":0.0,"interes":91917.12,"cuota":91917.12},
+          {"op":34,"fecha":"2027-02-05","saldo_capital":11700000.0,"capital":0.0,"interes":91917.12,"cuota":91917.12},
+          {"op":35,"fecha":"2027-03-05","saldo_capital":11700000.0,"capital":0.0,"interes":83021.92,"cuota":83021.92},
+          {"op":36,"fecha":"2027-04-05","saldo_capital":11700000.0,"capital":0.0,"interes":91917.12,"cuota":91917.12},
+          {"op":37,"fecha":"2027-05-05","saldo_capital":11700000.0,"capital":0.0,"interes":88952.05,"cuota":88952.05},
+          {"op":38,"fecha":"2027-06-05","saldo_capital":11700000.0,"capital":0.0,"interes":91917.12,"cuota":91917.12},
+          {"op":39,"fecha":"2027-07-05","saldo_capital":11700000.0,"capital":0.0,"interes":88952.05,"cuota":88952.05},
+          {"op":40,"fecha":"2027-08-05","saldo_capital":11700000.0,"capital":0.0,"interes":91917.12,"cuota":91917.12},
+          {"op":41,"fecha":"2027-09-05","saldo_capital":11700000.0,"capital":0.0,"interes":91917.12,"cuota":91917.12},
+          {"op":42,"fecha":"2027-10-05","saldo_capital":11700000.0,"capital":0.0,"interes":88952.05,"cuota":88952.05},
+          {"op":43,"fecha":"2027-11-05","saldo_capital":11700000.0,"capital":0.0,"interes":91917.12,"cuota":91917.12},
+          {"op":44,"fecha":"2027-12-05","saldo_capital":11700000.0,"capital":0.0,"interes":88952.05,"cuota":88952.05},
+          {"op":45,"fecha":"2028-01-05","saldo_capital":11700000.0,"capital":0.0,"interes":91917.12,"cuota":91917.12},
+          {"op":46,"fecha":"2028-02-05","saldo_capital":11700000.0,"capital":0.0,"interes":91917.12,"cuota":91917.12},
+          {"op":47,"fecha":"2028-03-05","saldo_capital":11700000.0,"capital":0.0,"interes":85986.99,"cuota":85986.99},
+          {"op":48,"fecha":"2028-04-05","saldo_capital":11700000.0,"capital":0.0,"interes":91917.12,"cuota":91917.12},
+          {"op":49,"fecha":"2028-04-29","saldo_capital":0.0,"capital":11700000.0,"interes":71161.64,"cuota":11771161.64}
         ]
-    },
+    }
 }
 
-# Plan de pagos tierra (resumido por sociedad, fecha, monto)
+
 PLAN_TIERRA = [
     {"sociedad":"EFICIENCIA URBANA","concepto":"Pago de Tierra","pagos":{"2024-12-01":700000,"2025-01-01":100000,"2025-02-01":100000,"2025-03-01":100000,"2025-04-01":800000,"2025-05-01":211111.11,"2025-06-01":211111.11,"2025-07-01":261111.11,"2025-08-01":261111.11,"2025-09-01":261111.11,"2025-10-01":261111.11,"2025-11-01":261111.11,"2025-12-01":261111.11,"2026-01-01":261111.11,"2026-02-01":261111.11,"2026-03-01":261111.11,"2026-04-01":261111.11,"2026-05-01":261111.11,"2026-06-01":261111.11,"2026-07-01":261111.11,"2026-08-01":261111.11,"2026-09-01":261111.11,"2026-10-01":261111.11,"2026-11-01":150000,"2026-12-01":150000,"2027-01-01":150000,"2027-02-01":150000,"2027-03-01":150000,"2027-04-01":150000,"2027-05-01":150000,"2027-06-01":150000,"2027-07-01":150000,"2027-08-01":150000,"2027-09-01":150000,"2027-10-01":150000,"2027-11-01":150000,"2027-12-01":150000,"2028-01-01":150000,"2028-02-01":150000,"2028-03-01":150000,"2028-04-01":150000,"2028-05-01":150000,"2028-06-01":150000,"2028-07-01":150000,"2028-08-01":150000,"2028-09-01":150000,"2028-10-01":150000,"2028-11-01":150000,"2028-12-01":150000,"2029-01-01":150000,"2029-02-01":150000,"2029-03-01":150000,"2029-04-01":150000,"2029-05-01":150000,"2029-06-01":150000,"2029-07-01":1725000}},
     {"sociedad":"UTILICA","concepto":"Pago de Tierra","pagos":{"2025-02-01":50000,"2025-03-01":700000,"2025-11-01":1222500,"2026-01-01":118541.66,"2026-02-01":118541.66,"2026-03-01":118541.66,"2026-04-01":118541.66,"2026-05-01":118541.66,"2026-06-01":118541.66,"2026-07-01":118541.66,"2026-08-01":118541.66,"2026-09-01":118541.66,"2026-10-01":118541.66,"2026-11-01":118541.66,"2026-12-01":118541.74}},
@@ -1057,8 +1057,7 @@ async def get_flujo(empresa: str, db: Session = Depends(get_db), user=Depends(ge
     # Financiero
     prest = fin.get("prestamo_bancario") or {}
     egr_prest = prest.get("pendiente_total", 0)
-    # IC sign: "por pagar" = we owe them = outflow (+); "a favor" = they owe us = inflow (-)
-    _ic_saldo = fin["intercompany"]["saldo"]           # always positive (abs)
+    _ic_saldo = fin["intercompany"]["saldo"]
     _ic_tipo  = fin["intercompany"].get("tipo", "por pagar")
     egr_ic    = _ic_saldo if _ic_tipo == "por pagar" else -_ic_saldo
     egr_fin = egr_prest + egr_ic
@@ -1146,7 +1145,7 @@ async def get_flujo(empresa: str, db: Session = Depends(get_db), user=Depends(ge
     anos_egr_eff = anos_egr_saved if anos_egr_saved > 0 else anos
     anos_ic_eff  = anos_ic_saved if anos_ic_saved > 0 else anos
     egr_a  = egr_op_total / anos_egr_eff if anos_egr_eff else egr_op_total
-    # iva_a / isr_a removed: now computed per year inside the loop
+    # iva_a/isr_a removed — computed per year in loop
 
     # Cuotas préstamo por año calendario
     cuotas_pend = prest.get("cuotas_pendientes", [])
@@ -1162,11 +1161,6 @@ async def get_flujo(empresa: str, db: Session = Depends(get_db), user=Depends(ge
 
     # Tierra y dividendos: distribuir por plan (fecha de cada pago pendiente → año calendario)
     def _dist_plan_scaled(plan_list, sociedad_flujos, hoy, anio_actual, pendiente_total):
-        """
-        Distribuye pendiente_total por año calendario usando el plan de pagos como pesos.
-        Si la suma de pagos futuros del plan difiere del pendiente (por pagos del plan
-        que ya vencieron pero no aparecen en flujos_efectivo), escala proporcionalmente.
-        """
         raw = {}
         for plan in plan_list:
             plan_soc = plan["sociedad"].upper().strip()
@@ -1183,7 +1177,6 @@ async def get_flujo(empresa: str, db: Session = Depends(get_db), user=Depends(ge
         raw_total = sum(raw.values())
         if raw_total <= 0 or pendiente_total <= 0:
             return raw
-        # Scale so distribution sums exactly to pendiente_total
         factor = pendiente_total / raw_total
         return {yr: round(v * factor, 2) for yr, v in raw.items()}
 
@@ -1203,8 +1196,8 @@ async def get_flujo(empresa: str, db: Session = Depends(get_db), user=Depends(ge
         except: pass
 
     # ── Desglose egresos operativos: urbanización vs administración ──
-    egr_urb = egr.get("urbanizacion", {})   # top-level key in egresos_operativos response
-    egr_adm = egr.get("administracion", {}) # top-level key in egresos_operativos response
+    egr_urb = egr.get("urbanizacion", {})
+    egr_adm = egr.get("administracion", {})
     egr_urb_pend = float(egr_urb.get("pendiente", 0) if isinstance(egr_urb, dict) else 0)
     egr_adm_pend = float(egr_adm.get("pendiente", 0) if isinstance(egr_adm, dict) else 0)
     egr_urb_a = egr_urb_pend / anos_egr_eff if anos_egr_eff else 0
@@ -1223,10 +1216,6 @@ async def get_flujo(empresa: str, db: Session = Depends(get_db), user=Depends(ge
         adm_yr = egr_adm_a if yr <= anos_egr_eff else 0
         egr_yr = urb_yr + adm_yr
 
-        # IVA y ISR calculados por año según ingresos/egresos de ese año
-        # IVA débito = ingresos del año * 70% * 12%  (OV gravadas)
-        # IVA crédito = egresos op del año * 12%
-        # IVA neto = débito - crédito (si positivo = pagar, si negativo = crédito fiscal)
         if yr <= anos:
             iva_deb_yr  = ing_yr * 0.70 * 0.12
             iva_cred_yr = (urb_yr + adm_yr) * 0.12
@@ -1244,50 +1233,45 @@ async def get_flujo(empresa: str, db: Session = Depends(get_db), user=Depends(ge
         ic_yr = fin_yr_ic if yr <= anos_ic_eff else 0
         efin_yr = prest_cap_yr + prest_int_yr + ic_yr
 
+        fno_yr = ing_yr - egr_yr   # Flujo Neto de Operaciones (ingresos - egresos op)
         fn_yr = ing_yr - egr_yr - iva_yr - efin_yr - isr_yr - tier_yr - div_yr
         acum  = (flujo_anual[-1]["flujo_acumulado"] if flujo_anual else 0) + fn_yr
         flujo_anual.append({
             "anio": yr, "anio_cal": anio_cal,
-            # Ingresos
-            "ingresos": round(ing_yr, 2),
-            "ing_real": round(ing_real_yr, 2),
-            "ing_proy": round(ing_proy_yr, 2),
-            # Egresos operativos — para años reales (anio_cal < anio_actual) los valores
-            # provienen de flujo_real_anual; aquí solo va lo proyectado pendiente
-            "urbanizacion": round(urb_yr, 2),       # proyectado pendiente / año
-            "administracion": round(adm_yr, 2),     # proyectado pendiente / año
-            "urb_proy": round(urb_yr, 2),
-            "adm_proy": round(adm_yr, 2),
-            "egresos_op": round(egr_yr, 2),
-            # Egresos financieros — desglose proyectado
-            "intercompany": round(ic_yr, 2),
-            "ic_proy": round(ic_yr, 2),
-            "prestamo_capital": round(prest_cap_yr, 2),
-            "prest_cap_proy": round(prest_cap_yr, 2),
-            "prestamo_interes": round(prest_int_yr, 2),
-            "prest_int_proy": round(prest_int_yr, 2),
-            "egresos_fin": round(efin_yr, 2),
-            # Impuestos — desglose proyectado
-            "iva_neto": round(iva_yr, 2),
-            "iva_proy": round(iva_yr, 2),
-            "isr": round(isr_yr, 2),
-            "isr_proy": round(isr_yr, 2),
-            # Tierra y dividendos — proyectado
-            "tierra": round(tier_yr, 2),
-            "tierra_proy": round(tier_yr, 2),
-            "dividendos": round(div_yr, 2),
-            "div_proy": round(div_yr, 2),
-            "tierra_capital": round(tier_yr + div_yr, 2),
-            # Totales
-            "flujo_neto": round(fn_yr, 2),
-            "flujo_acumulado": round(acum, 2),
-            "es_negativo": fn_yr < 0,
+            "ingresos":          round(ing_yr, 2),
+            "ing_real":          round(ing_real_yr, 2),
+            "ing_proy":          round(ing_proy_yr, 2),
+            "urbanizacion":      round(urb_yr, 2),
+            "urb_proy":          round(urb_yr, 2),
+            "administracion":    round(adm_yr, 2),
+            "adm_proy":          round(adm_yr, 2),
+            "egresos_op":        round(egr_yr, 2),
+            "intercompany":      round(ic_yr, 2),
+            "ic_proy":           round(ic_yr, 2),
+            "prestamo_capital":  round(prest_cap_yr, 2),
+            "prest_cap_proy":    round(prest_cap_yr, 2),
+            "prestamo_interes":  round(prest_int_yr, 2),
+            "prest_int_proy":    round(prest_int_yr, 2),
+            "egresos_fin":       round(efin_yr, 2),
+            "iva_neto":          round(iva_yr, 2),
+            "iva_proy":          round(iva_yr, 2),
+            "isr":               round(isr_yr, 2),
+            "isr_proy":          round(isr_yr, 2),
+            "tierra":            round(tier_yr, 2),
+            "tierra_proy":       round(tier_yr, 2),
+            "dividendos":        round(div_yr, 2),
+            "div_proy":          round(div_yr, 2),
+            "tierra_capital":    round(tier_yr + div_yr, 2),
+            "flujo_neto_op":     round(fno_yr, 2),
+            "flujo_neto":        round(fn_yr, 2),
+            "flujo_acumulado":   round(acum, 2),
+            "es_negativo":       fn_yr < 0,
         })
         if fn_yr < pico["flujo"]:
             pico = {"anio": yr, "flujo": round(fn_yr, 2)}
 
     inv0 = -(egr_tierra + egr_div + prest.get("pendiente_capital", 0))
-    flujos_calc = [inv0] + [f["flujo_neto"] for f in flujo_anual]
+    flujos_calc = [inv0] + [f["flujo_neto_op"] for f in flujo_anual]
     tir = calcular_tir(flujos_calc)
     van = calcular_van(flujos_calc, tasa_desc)
 
@@ -1296,100 +1280,81 @@ async def get_flujo(empresa: str, db: Session = Depends(get_db), user=Depends(ge
     lotes_pe = int((egr_op_total + iva_neto + egr_fin + isr + egr_tierra + egr_div) / ticket_prom) if ticket_prom > 0 else 0
     margen = round(flujo_neto / total_ing * 100, 2) if total_ing else 0
 
-    # ── Saldo inicial histórico (PARTIDA INICIAL / primer registro) ──
+    # ── Saldo inicial desde flujos_saldo_inicial ──────────────────────────
     saldo_ini_row = db.execute(text("""
         SELECT monto FROM flujos_saldo_inicial
-        WHERE sociedad ILIKE :s
-        ORDER BY id ASC LIMIT 1
+        WHERE sociedad ILIKE :s ORDER BY id ASC LIMIT 1
     """), {"s": f"%{sociedad_flujos}%"}).fetchone()
     saldo_inicial_real = float(saldo_ini_row.monto if saldo_ini_row else 0)
 
-    # ── Flujo real histórico desglosado por año ──
-    # Incluye el año actual (anio_actual) para mostrar real enero-a-hoy en el año mixto
-    # SQL con reclasificaciones aplicadas — idéntico a lo que produce flujos.py
-    # Esto garantiza que los valores reales de proyecciones cuadren con la sección
-    # Flujos de Efectivo del tablero, incluyendo todas las reclasificaciones.
+    # ── Flujo real con reclasificaciones aplicadas (cuadra con sección Flujos) ──
     flujo_real_rows = db.execute(text("""
         WITH base AS (
             SELECT anio,
-                COALESCE(SUM(CASE WHEN seccion = 'INGRESOS'
-                    THEN monto_ingreso - monto_egreso ELSE 0 END), 0)                          AS ingresos,
-                COALESCE(SUM(CASE WHEN seccion = 'EGRESOS / URBANIZACION'
-                    THEN monto_egreso - monto_ingreso ELSE 0 END), 0)                          AS urb,
+                COALESCE(SUM(CASE WHEN seccion='INGRESOS'
+                    THEN monto_ingreso - monto_egreso ELSE 0 END),0)                         AS ingresos,
+                COALESCE(SUM(CASE WHEN seccion='EGRESOS / URBANIZACION'
+                    THEN monto_egreso - monto_ingreso ELSE 0 END),0)                         AS urb,
                 COALESCE(SUM(CASE WHEN seccion IN (
                     'EGRESOS / MOVIMIENTO DE TIERRAS','EGRESOS / MOV. TIERRAS / MAQUINARIA')
-                    THEN monto_egreso - monto_ingreso ELSE 0 END), 0)                          AS mov,
-                COALESCE(SUM(CASE WHEN seccion = 'EGRESOS / ADMINISTRACION'
-                    THEN monto_egreso - monto_ingreso ELSE 0 END), 0)                          AS adm,
-                COALESCE(SUM(CASE WHEN seccion = 'FINANCIAMIENTO'
-                    THEN monto_egreso - monto_ingreso ELSE 0 END), 0)                          AS fin,
-                COALESCE(SUM(CASE WHEN seccion = 'IMPUESTOS'
-                    THEN monto_egreso - monto_ingreso ELSE 0 END), 0)                          AS impuestos,
-                COALESCE(SUM(CASE WHEN seccion = 'TERRENO'
-                    THEN monto_egreso - monto_ingreso ELSE 0 END), 0)                          AS tierra
-            FROM flujos_efectivo
-            WHERE sociedad ILIKE :s
-            GROUP BY anio
+                    THEN monto_egreso - monto_ingreso ELSE 0 END),0)                         AS mov,
+                COALESCE(SUM(CASE WHEN seccion='EGRESOS / ADMINISTRACION'
+                    THEN monto_egreso - monto_ingreso ELSE 0 END),0)                         AS adm,
+                COALESCE(SUM(CASE WHEN seccion='FINANCIAMIENTO'
+                    THEN monto_egreso - monto_ingreso ELSE 0 END),0)                         AS fin,
+                COALESCE(SUM(CASE WHEN seccion='IMPUESTOS'
+                    THEN monto_egreso - monto_ingreso ELSE 0 END),0)                         AS impuestos,
+                COALESCE(SUM(CASE WHEN seccion='TERRENO'
+                    THEN monto_egreso - monto_ingreso ELSE 0 END),0)                         AS tierra
+            FROM flujos_efectivo WHERE sociedad ILIKE :s GROUP BY anio
         ),
         adj AS (
             SELECT EXTRACT(YEAR FROM fecha_contable)::int AS anio,
-                COALESCE(SUM(CASE WHEN seccion_destino='EGRESOS / URBANIZACION'   AND seccion_origen != seccion_destino THEN monto ELSE 0 END), 0)
-               -COALESCE(SUM(CASE WHEN seccion_origen ='EGRESOS / URBANIZACION'   AND seccion_origen != seccion_destino THEN monto ELSE 0 END), 0) AS urb_adj,
-                COALESCE(SUM(CASE WHEN seccion_destino='EGRESOS / ADMINISTRACION' AND seccion_origen != seccion_destino THEN monto ELSE 0 END), 0)
-               -COALESCE(SUM(CASE WHEN seccion_origen ='EGRESOS / ADMINISTRACION' AND seccion_origen != seccion_destino THEN monto ELSE 0 END), 0) AS adm_adj,
-                COALESCE(SUM(CASE WHEN seccion_destino='FINANCIAMIENTO'           AND seccion_origen != seccion_destino THEN monto ELSE 0 END), 0)
-               -COALESCE(SUM(CASE WHEN seccion_origen ='FINANCIAMIENTO'           AND seccion_origen != seccion_destino THEN monto ELSE 0 END), 0) AS fin_adj
-            FROM flujos_reclasificaciones
-            WHERE sociedad ILIKE :s
-            GROUP BY 1
+                COALESCE(SUM(CASE WHEN seccion_destino='EGRESOS / URBANIZACION'   AND seccion_origen!=seccion_destino THEN monto ELSE 0 END),0)
+               -COALESCE(SUM(CASE WHEN seccion_origen ='EGRESOS / URBANIZACION'   AND seccion_origen!=seccion_destino THEN monto ELSE 0 END),0) AS urb_adj,
+                COALESCE(SUM(CASE WHEN seccion_destino='EGRESOS / ADMINISTRACION' AND seccion_origen!=seccion_destino THEN monto ELSE 0 END),0)
+               -COALESCE(SUM(CASE WHEN seccion_origen ='EGRESOS / ADMINISTRACION' AND seccion_origen!=seccion_destino THEN monto ELSE 0 END),0) AS adm_adj,
+                COALESCE(SUM(CASE WHEN seccion_destino='FINANCIAMIENTO'           AND seccion_origen!=seccion_destino THEN monto ELSE 0 END),0)
+               -COALESCE(SUM(CASE WHEN seccion_origen ='FINANCIAMIENTO'           AND seccion_origen!=seccion_destino THEN monto ELSE 0 END),0) AS fin_adj
+            FROM flujos_reclasificaciones WHERE sociedad ILIKE :s GROUP BY 1
         )
-        SELECT b.anio                            AS anio_cal,
+        SELECT b.anio AS anio_cal,
                b.ingresos,
-               b.urb  + COALESCE(a.urb_adj, 0)  AS urbanizacion,
-               b.mov                             AS mov_tierras,
-               b.adm  + COALESCE(a.adm_adj, 0)  AS administracion,
-               b.fin  + COALESCE(a.fin_adj, 0)   AS financiamiento,
+               b.urb + COALESCE(a.urb_adj,0) AS urbanizacion,
+               b.mov                          AS mov_tierras,
+               b.adm + COALESCE(a.adm_adj,0) AS administracion,
+               b.fin + COALESCE(a.fin_adj,0)  AS financiamiento,
                b.impuestos,
                b.tierra
-        FROM base b
-        LEFT JOIN adj a ON a.anio = b.anio
-        ORDER BY b.anio
+        FROM base b LEFT JOIN adj a ON a.anio=b.anio ORDER BY b.anio
     """), {"s": f"%{sociedad_flujos}%"}).fetchall()
 
-    # Intereses bancarios reales desde reclasificaciones (no están en flujos_efectivo directamente)
+    # Intereses bancarios reales desde reclasificaciones
     intereses_reclas_rows = db.execute(text("""
-        SELECT EXTRACT(YEAR FROM fecha_contable)::int AS anio,
-               SUM(monto) AS total
+        SELECT EXTRACT(YEAR FROM fecha_contable)::int AS anio, SUM(monto) AS total
         FROM flujos_reclasificaciones
-        WHERE sociedad ILIKE :s
-          AND seccion_destino = 'FINANCIAMIENTO'
+        WHERE sociedad ILIKE :s AND seccion_destino='FINANCIAMIENTO'
           AND (LOWER(nombre_destino) LIKE '%interes%' OR LOWER(nombre_destino) LIKE '%interés%')
         GROUP BY 1
     """), {"s": f"%{sociedad_flujos}%"}).fetchall()
     intereses_reclas_por_anio = {int(r.anio): float(r.total or 0) for r in intereses_reclas_rows}
 
-    # Intercompany real por año — RAW desde flujos_efectivo (sub-fila de display)
-    # NO se resta IC→DIV porque eso ya está reflejado en fin_neto_real (sección total)
-    # La sub-fila IC muestra el flujo real de cuentas intercompany sin ajustes adicionales
+    # Intercompany real RAW por año (sin restar IC→DIV, eso ya está en financiamiento_neto)
     ic_real_rows = db.execute(text("""
         SELECT EXTRACT(YEAR FROM fecha_contable)::int AS anio,
-               COALESCE(SUM(monto_egreso - monto_ingreso), 0) AS ic_neto
-        FROM flujos_efectivo
-        WHERE sociedad ILIKE :s
-          AND seccion = 'FINANCIAMIENTO'
-          AND LOWER(nombre_categoria) LIKE '%intercompany%'
+               COALESCE(SUM(monto_egreso - monto_ingreso),0) AS ic_neto
+        FROM flujos_efectivo WHERE sociedad ILIKE :s
+          AND seccion='FINANCIAMIENTO' AND LOWER(nombre_categoria) LIKE '%intercompany%'
         GROUP BY 1
     """), {"s": f"%{sociedad_flujos}%"}).fetchall()
     ic_real_por_anio = {int(r.anio): float(r.ic_neto or 0) for r in ic_real_rows}
 
-    # Préstamo bancario real neto por año (para sub-fila de display)
+    # Préstamo bancario real neto por año
     prest_real_rows = db.execute(text("""
         SELECT EXTRACT(YEAR FROM fecha_contable)::int AS anio,
-               COALESCE(SUM(monto_egreso - monto_ingreso), 0) AS prest_neto
-        FROM flujos_efectivo
-        WHERE sociedad ILIKE :s
-          AND seccion = 'FINANCIAMIENTO'
-          AND LOWER(nombre_categoria) LIKE '%prestamo%'
+               COALESCE(SUM(monto_egreso - monto_ingreso),0) AS prest_neto
+        FROM flujos_efectivo WHERE sociedad ILIKE :s
+          AND seccion='FINANCIAMIENTO' AND LOWER(nombre_categoria) LIKE '%prestamo%'
         GROUP BY 1
     """), {"s": f"%{sociedad_flujos}%"}).fetchall()
     prest_real_por_anio = {int(r.anio): float(r.prest_neto or 0) for r in prest_real_rows}
@@ -1403,18 +1368,15 @@ async def get_flujo(empresa: str, db: Session = Depends(get_db), user=Depends(ge
     div_real_por_anio = {int(r.anio): float(r.total or 0) for r in div_real_rows}
 
     flujo_real_anual = []
-    acum_real = saldo_inicial_real   # inicia desde saldo inicial real (PARTIDA INICIAL)
+    acum_real = saldo_inicial_real
     for r in flujo_real_rows:
         yr_cal = int(r.anio_cal)
         if yr_cal > anio_actual: continue
-        ing_r  = float(r.ingresos      or 0)
-        urb_r  = float(r.urbanizacion  or 0)
-        mov_r  = float(r.mov_tierras   or 0)
+        ing_r  = float(r.ingresos       or 0)
+        urb_r  = float(r.urbanizacion   or 0)
+        mov_r  = float(r.mov_tierras    or 0)
         adm_r  = float(r.administracion or 0)
-        # FINANCIAMIENTO: resultado neto post-reclasificaciones (ya incluye IC, prestamo, intereses, etc.)
-        # Positivo = egreso neto  |  Negativo = ingreso neto (ej. año que recibió préstamo grande)
         fin_r  = float(r.financiamiento or 0)
-        # Intereses préstamo real vienen de flujos_reclasificaciones (sub-row para display)
         pint_r_reclas = intereses_reclas_por_anio.get(yr_cal, 0)
         imp_r  = float(r.impuestos or 0)
         tier_r = float(r.tierra    or 0)
@@ -1424,34 +1386,28 @@ async def get_flujo(empresa: str, db: Session = Depends(get_db), user=Depends(ge
         acum_real += fn_r
         es_anio_mixto = (yr_cal == anio_actual)
         flujo_real_anual.append({
-            "anio_cal":         yr_cal,
-            "es_mixto":         es_anio_mixto,
-            # Ingresos
-            "ingresos":         round(ing_r, 2),
-            "ing_real":         round(ing_r, 2),
-            "ing_proy":         0,
-            # Egresos operativos (post-reclasificaciones, cuadran con flujos tablero)
-            "urbanizacion":     round(urb_r, 2),
-            "mov_tierras":      round(mov_r, 2),
-            "administracion":   round(adm_r, 2),
-            "egresos_op":       round(egr_r, 2),
-            # Egresos financieros — total neto post-reclasif (para cálculo de saldo)
+            "anio_cal":            yr_cal,
+            "es_mixto":            es_anio_mixto,
+            "ingresos":            round(ing_r, 2),
+            "ing_real":            round(ing_r, 2),
+            "ing_proy":            0,
+            "urbanizacion":        round(urb_r, 2),
+            "mov_tierras":         round(mov_r, 2),
+            "administracion":      round(adm_r, 2),
+            "egresos_op":          round(egr_r, 2),
             "financiamiento_neto": round(fin_r, 2),
-            # Sub-filas de display (no afectan el saldo, solo presentación)
-            "prestamo_interes": round(pint_r_reclas, 2),
-            "intercompany":     round(ic_real_por_anio.get(yr_cal, 0), 2),
-            "prestamo_capital": round(prest_real_por_anio.get(yr_cal, 0), 2),
-            "otros_fin":        0,
-            "egresos_fin":      round(fin_r, 2),
-            # Impuestos, terreno, dividendos
-            "iva_neto":         round(imp_r, 2),
-            "isr":              0,
-            "tierra":           round(tier_r, 2),
-            "dividendos":       round(div_r, 2),
-            "tierra_capital":   round(tier_r + div_r, 2),
-            # Totales
-            "flujo_neto":       round(fn_r, 2),
-            "flujo_acumulado":  round(acum_real, 2),
+            "prestamo_interes":    round(pint_r_reclas, 2),
+            "intercompany":        round(ic_real_por_anio.get(yr_cal, 0), 2),
+            "prestamo_capital":    round(prest_real_por_anio.get(yr_cal, 0), 2),
+            "otros_fin":           0,
+            "egresos_fin":         round(fin_r, 2),
+            "iva_neto":            round(imp_r, 2),
+            "isr":                 0,
+            "tierra":              round(tier_r, 2),
+            "dividendos":          round(div_r, 2),
+            "tierra_capital":      round(tier_r + div_r, 2),
+            "flujo_neto":          round(fn_r, 2),
+            "flujo_acumulado":     round(acum_real, 2),
         })
 
     # Ajustar acumulado de proyección para que continúe desde el real
