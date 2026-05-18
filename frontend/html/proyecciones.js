@@ -896,7 +896,7 @@ function renderFlujo(d) {
   const icReal      = g('ic_real');
   const prestReal   = g('prest_real');
   const icProyRaw   = g('ic_proy');
-  const icProy      = icProyRaw.map(v => -v);  // invertir: backend negativo=cobro→display positivo sin paréntesis, positivo=pago→display negativo con paréntesis
+  const icProy      = icProyRaw.map(v => Math.abs(v));  // siempre positivo = cobro sin paréntesis
   const pcapProy    = g('prest_cap_proy');
   const pintProy    = g('prest_int_proy');
   const finNetReal  = g('fin_neto_real');

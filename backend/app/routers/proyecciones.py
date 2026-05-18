@@ -268,10 +268,13 @@ import glob as _glob
 def _encontrar_excel_ppto():
     """Busca el archivo PRESUPUESTO en /data/sources/ con cualquier variante de nombre."""
     patrones = [
+        "/data/sources/PRESUPUESTO, PRESTAMOS Y TIERRA.xlsx",
         "/data/sources/PRESUPUESTO_PRESTAMOS_Y_TIERRA.xlsx",
         "/data/sources/PRESUPUESTO PRESTAMOS Y TIERRA.xlsx",
+        "/data/sources/PRESUPUESTO, PRESTAMOS*.xlsx",
         "/data/sources/PRESUPUESTO_PRESTAMOS*.xlsx",
         "/data/sources/PRESUPUESTO PRESTAMOS*.xlsx",
+        "/data/sources/PRESUPUESTO*.xlsx",
     ]
     for p in patrones:
         matches = _glob.glob(p)
@@ -280,11 +283,6 @@ def _encontrar_excel_ppto():
     return None
 
 def _leer_plan_tierra_excel():
-    """
-    Lee PLAN DE PAGOS TIERRA desde el Excel.
-    Estructura: fila 1 = encabezados (col0=SOCIEDAD, cols 6+ = fechas o enteros de año o TOTAL)
-    Retorna lista de dicts compatibles con PLAN_TIERRA.
-    """
     try:
         from openpyxl import load_workbook
         ruta = _encontrar_excel_ppto()
@@ -292,38 +290,33 @@ def _leer_plan_tierra_excel():
             return []
         wb = load_workbook(ruta, read_only=True, data_only=True)
         ws = wb["PLAN DE PAGOS TIERRA"]
-
         rows = list(ws.iter_rows(values_only=True))
         if not rows:
             return []
-
-        # Fila 0 = encabezados: detectar columnas de fecha
+        # Fila 0 = encabezados: col0=SOCIEDAD, col4=CONCEPTO, col6+=fechas
         header = rows[0]
-        fecha_cols = []  # (col_index, "YYYY-MM-DD")
+        fecha_cols = []
         for i, h in enumerate(header):
-            if hasattr(h, 'strftime'):  # es datetime
+            if i < 6: continue
+            if hasattr(h, 'strftime'):
                 fecha_cols.append((i, h.strftime("%Y-%m-%d")))
-
         resultado = []
-        sociedad_actual = None
         for row in rows[1:]:
-            if row[0] is not None:
-                sociedad_actual = str(row[0]).strip().upper()
-            if not sociedad_actual:
+            sociedad = str(row[0]).strip().upper() if row[0] else None
+            if not sociedad or sociedad in ('NONE', 'TOTALES', 'SOCIEDAD'):
                 continue
-            # Solo filas con concepto TIERRA o UTILIDADES (excluir CANJES y PENDIENTE)
-            concepto = str(row[4]).strip().upper() if row[4] else ""
-            if concepto not in ("TIERRA", "UTILIDADES"):
+            concepto = str(row[4]).strip() if row[4] else ""
+            if concepto.upper() not in ("TIERRA", "PAGO DE TIERRA", "UTILIDADES"):
                 continue
             pagos = {}
             for col_i, fecha_str in fecha_cols:
-                v = row[col_i]
+                v = row[col_i] if col_i < len(row) else None
                 if v and isinstance(v, (int, float)) and v > 0:
                     pagos[fecha_str] = float(v)
             if pagos:
                 resultado.append({
-                    "sociedad": sociedad_actual,
-                    "concepto": str(row[4] or "Pago de Tierra"),
+                    "sociedad": sociedad,
+                    "concepto": concepto,
                     "pagos": pagos,
                 })
         wb.close()
@@ -334,11 +327,6 @@ def _leer_plan_tierra_excel():
         return []
 
 def _leer_plan_dividendos_excel():
-    """
-    Lee PLAN DE PAGOS UTILIDADES desde el Excel.
-    Estructura: fila 1 = encabezados (col0=SOCIEDAD, col2=CONCEPTO, cols 4+ = fechas)
-    Retorna lista de dicts compatibles con PLAN_DIVIDENDOS.
-    """
     try:
         from openpyxl import load_workbook
         ruta = _encontrar_excel_ppto()
@@ -346,36 +334,33 @@ def _leer_plan_dividendos_excel():
             return []
         wb = load_workbook(ruta, read_only=True, data_only=True)
         ws = wb["PLAN DE PAGOS UTILIDADES"]
-
         rows = list(ws.iter_rows(values_only=True))
         if not rows:
             return []
-
+        # Fila 0 = encabezados: col0=SOCIEDAD, col2=CONCEPTO, col3=CTA SECCION, col4+=fechas
         header = rows[0]
         fecha_cols = []
         for i, h in enumerate(header):
+            if i < 4: continue
             if hasattr(h, 'strftime'):
                 fecha_cols.append((i, h.strftime("%Y-%m-%d")))
-
         resultado = []
-        sociedad_actual = None
         for row in rows[1:]:
-            if row[0] is not None and str(row[0]).strip().upper() not in ("TOTALES", ""):
-                sociedad_actual = str(row[0]).strip().upper()
-            if not sociedad_actual:
+            sociedad = str(row[0]).strip().upper() if row[0] else None
+            if not sociedad or sociedad in ('NONE', 'TOTALES QTZ', 'SOCIEDAD'):
                 continue
             concepto = str(row[2]).strip() if row[2] else ""
             cuenta   = str(row[3]).strip() if row[3] else concepto
-            if not concepto or concepto.upper() in ("TOTALES", "CONCEPTO"):
+            if not concepto or concepto.upper() in ('NONE', 'CONCEPTO'):
                 continue
             pagos = {}
             for col_i, fecha_str in fecha_cols:
-                v = row[col_i]
+                v = row[col_i] if col_i < len(row) else None
                 if v and isinstance(v, (int, float)) and v > 0:
                     pagos[fecha_str] = float(v)
             if pagos:
                 resultado.append({
-                    "sociedad": sociedad_actual,
+                    "sociedad": sociedad,
                     "cuenta": cuenta,
                     "pagos": pagos,
                 })
