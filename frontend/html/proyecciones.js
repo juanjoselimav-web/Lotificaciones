@@ -84,6 +84,7 @@ const S = {
   tierraDividendos: null,
   flujo: null,
   plazosVenta: [],        // [{plazo, unidMes, ticket, tasa, inicio, fin, unidProy}]
+  divGrupoTabla: [],      // [{anio, monto}] — tabla editable dividendos grupo
   anos: 5,
   tasaDesc: 0.12,
   pctISR: 0,
@@ -121,6 +122,7 @@ async function onProyectoChange() {
   S.plazosVenta = [];
   resetUI();
   await Promise.all([cargarSupuestos(), cargarIngresos(), cargarEgresosOp(), cargarFinancieros(), cargarTierra()]);
+  await cargarHorizonte();
 }
 
 // ─────────────────────────────────────────────
@@ -135,6 +137,11 @@ async function cargarSupuestos() {
       document.getElementById('inpISR').value     = d.pct_isr ? +(d.pct_isr * 100).toFixed(2) : '';
       if (d.anos_ic && document.getElementById('inpAnosIC')) document.getElementById('inpAnosIC').value = d.anos_ic;
       if (d.anos_egr && document.getElementById('inpAnosEgr')) document.getElementById('inpAnosEgr').value = d.anos_egr;
+      // Dividendos Grupo — cargar tabla desde supuestos guardados
+      if (d.div_grupo_tabla) {
+        S.divGrupoTabla = typeof d.div_grupo_tabla === 'string'
+          ? JSON.parse(d.div_grupo_tabla) : d.div_grupo_tabla;
+      }
       S.anos     = d.anos_proyecto || 5;
       S.tasaDesc = d.tasa_descuento || 0.12;
       S.pctISR   = d.pct_isr || 0;
@@ -161,6 +168,7 @@ async function guardarTodo() {
     pct_isr:          parseFloat(document.getElementById('inpISR').value) / 100 || 0,
     anos_ic:          parseInt(document.getElementById('inpAnosIC')?.value) || 0,
     anos_egr:         parseInt(document.getElementById('inpAnosEgr')?.value) || 0,
+    div_grupo_tabla: S.divGrupoTabla || [],
     plazos_venta:     S.plazosVenta,
     prestamos_manual: [],
     pagos_tierra_manual: [],
@@ -653,6 +661,67 @@ function renderTierra(d) {
 }
 
 // ─────────────────────────────────────────────
+//  DIVIDENDOS GRUPO — tabla editable por año
+// ─────────────────────────────────────────────
+function renderDivGrupoTabla() {
+  const wrap = document.getElementById('divGrupoTablaWrap');
+  if (!wrap) return;
+  const tabla = S.divGrupoTabla || [];
+  if (!tabla.length) {
+    wrap.innerHTML = '<div style="color:var(--muted);font-size:12px;padding:8px 0">Sin años de proyección disponibles. Calculá el flujo primero o verificá los supuestos.</div>';
+    return;
+  }
+  const total = tabla.reduce((s, r) => s + (r.monto || 0), 0);
+  wrap.innerHTML = `
+    <div style="overflow-x:auto;max-width:480px">
+      <table class="plazos-table" style="min-width:280px">
+        <thead>
+          <tr>
+            <th style="text-align:left;width:110px">Año</th>
+            <th style="text-align:right">Monto (Q)</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${tabla.map((r, i) => `
+            <tr>
+              <td style="padding:0 10px;font-weight:700;color:var(--azul);font-size:12px;vertical-align:middle">${r.anio}</td>
+              <td style="padding:0"><input type="number" min="0" step="1000" value="${r.monto || ''}"
+                placeholder="0"
+                style="text-align:right"
+                oninput="S.divGrupoTabla[${i}].monto = parseFloat(this.value)||0; actualizarTotalDivGrupo();"
+              ></td>
+            </tr>`).join('')}
+        </tbody>
+        <tfoot>
+          <tr style="background:var(--azul);color:#fff">
+            <td style="padding:8px 10px;font-weight:700;font-size:12px">TOTAL</td>
+            <td id="divGrupoTotal" style="padding:8px 10px;text-align:right;font-weight:700;font-size:12px">Q ${total.toLocaleString('es-GT',{minimumFractionDigits:0,maximumFractionDigits:0})}</td>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+    <div style="font-size:11px;color:var(--muted);margin-top:8px">Ingresá el monto a distribuir por año. Dejá en 0 los años sin pago.</div>`;
+}
+
+function actualizarTotalDivGrupo() {
+  const total = (S.divGrupoTabla || []).reduce((s, r) => s + (r.monto || 0), 0);
+  const el = document.getElementById('divGrupoTotal');
+  if (el) el.textContent = 'Q ' + total.toLocaleString('es-GT', {minimumFractionDigits:0, maximumFractionDigits:0});
+  S.dirty = true;
+}
+
+function actualizarPreviewDivGrupo() { /* legacy — no-op */ }
+
+function initDivGrupoTabla(anios) {
+  // anios: array de años enteros del horizonte proyectado
+  const tablaActual = S.divGrupoTabla || [];
+  const mapaActual  = {};
+  tablaActual.forEach(r => { mapaActual[r.anio] = r.monto || 0; });
+  S.divGrupoTabla = anios.map(a => ({ anio: a, monto: mapaActual[a] || 0 }));
+  renderDivGrupoTabla();
+}
+
+// ─────────────────────────────────────────────
 //  FLUJO CONSOLIDADO
 // ─────────────────────────────────────────────
 async function cargarFlujo() {
@@ -765,6 +834,7 @@ function renderFlujo(d) {
       tierra_proy:    isMix ? (py.tierra_proy || 0) : 0,
       div_real:       r.dividendos || 0,
       div_proy:       isMix ? (py.div_proy   || 0) : 0,
+      div_grupo_proy: isMix ? (py.div_grupo_proy || 0) : 0,
       // Totales
       flujo_neto:     flujoNetoMix,
       flujo_acumulado: saldoFinMix,
@@ -791,6 +861,7 @@ function renderFlujo(d) {
       iva_proy: r.iva_proy  || 0,   isr_proy: r.isr_proy  || 0,
       tierra_real: 0,     tierra_proy: r.tierra_proy || 0,
       div_real: 0,        div_proy:    r.div_proy    || 0,
+      div_grupo_proy: r.div_grupo_proy || 0,
       flujo_neto: r.flujo_neto || 0,
       flujo_acumulado: r.flujo_acumulado || 0,
     });
@@ -919,9 +990,11 @@ function renderFlujo(d) {
   const tierTot     = allYears.map((_,i) => tierReal[i]+tierProy[i]);
   const divReal     = g('div_real');    const divProy  = g('div_proy');
   const divTot      = allYears.map((_,i) => divReal[i]+divProy[i]);
+  const divGrupoProy = g('div_grupo_proy');
+  const divGrupoTot  = divGrupoProy;  // solo existe en años proyectados
 
   const flujoNeto   = allYears.map((_,i) =>
-    ingTot[i] - egrOpTot[i] - egrFinTot[i] - impTot[i] - tierTot[i] - divTot[i]
+    ingTot[i] - egrOpTot[i] - egrFinTot[i] - impTot[i] - tierTot[i] - divTot[i] - divGrupoTot[i]
   );
   const saldoFin    = (() => {
     const arr = [];
@@ -982,10 +1055,15 @@ function renderFlujo(d) {
   rows += sub('tierra', 'Terreno pend. (plan pago)',    tierProy, true, C.ing,    BG_PROY);
   rows += totRow('Total Terreno', tierTot, true, C.tierra);
 
-  rows += secToggle('div', 'Dividendos', C.div);
+  rows += secToggle('div', 'Dividendos Tierra', C.div);
   rows += sub('div', 'Dividendos pagados (flujo ef.)',   divReal, true, C.tierra, BG_REAL);
   rows += sub('div', 'Dividendos pend. (plan pago)',    divProy, true, C.ing,    BG_PROY);
-  rows += totRow('Total Dividendos', divTot, true, C.div);
+  rows += totRow('Total Dividendos Tierra', divTot, true, C.div);
+
+  const divGrupoTotColTotal = divGrupoTot.reduce((a,b) => a+b, 0);
+  rows += secToggle('divgrp', 'Dividendos Grupo', '#7c3aed');
+  rows += sub('divgrp', 'Dividendos Grupo proyectados', divGrupoProy, true, '#7c3aed', 'rgba(124,58,237,.05)');
+  rows += totRow('Total Dividendos Grupo', divGrupoTot, true, '#7c3aed', divGrupoTotColTotal);
 
   const flujoNetoTotal = (saldoFin[saldoFin.length-1] || 0) - (S.flujo.saldo_inicial_real || 0);
   rows += specRow('Flujo Neto', flujoNeto, '#1e3a5f', flujoNetoTotal);
@@ -1027,6 +1105,12 @@ async function cargarHorizonte() {
       inpAnos.value = d.horizonte_calculado;
     }
     verificarHorizonte();
+    // Inicializar tabla Dividendos Grupo con años del horizonte
+    const anioHoy = new Date().getFullYear();
+    const anioFin = d.ultimo_anio_ov || (anioHoy + d.horizonte_calculado - 1);
+    const aniosHorizonte = [];
+    for (let a = anioHoy; a <= anioFin; a++) aniosHorizonte.push(a);
+    initDivGrupoTabla(aniosHorizonte);
   } catch (e) { /* silencioso */ }
 }
 
@@ -1053,6 +1137,8 @@ async function limpiarProyecto() {
     document.getElementById('inpAnos').value = '';
     document.getElementById('inpDesc').value = '';
     document.getElementById('inpISR').value  = '';
+    S.divGrupoTabla = [];
+    renderDivGrupoTabla();
     S.plazosVenta = [];
     S.anos = 5; S.tasaDesc = 0.12; S.pctISR = 0;
     S.horizonteCalc = null;
