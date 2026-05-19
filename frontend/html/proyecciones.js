@@ -1111,7 +1111,14 @@ async function cargarHorizonte() {
     const aniosHorizonte = [];
     for (let a = anioHoy; a <= anioFin; a++) aniosHorizonte.push(a);
     initDivGrupoTabla(aniosHorizonte);
-  } catch (e) { /* silencioso */ }
+  } catch (e) {
+    // Fallback: generar tabla con años estimados desde supuestos
+    const anioHoy = new Date().getFullYear();
+    const anos = parseInt(document.getElementById('inpAnos')?.value) || 10;
+    const aniosHorizonte = [];
+    for (let a = anioHoy; a <= anioHoy + anos; a++) aniosHorizonte.push(a);
+    initDivGrupoTabla(aniosHorizonte);
+  }
 }
 
 function verificarHorizonte() {
