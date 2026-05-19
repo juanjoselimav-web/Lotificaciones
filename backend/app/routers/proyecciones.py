@@ -572,10 +572,11 @@ async def get_supuestos(empresa: str, db: Session = Depends(get_db), user=Depend
         "tasa_descuento":    float(row.tasa_descuento or 0.12),
         "pct_isr":           float(row.pct_isr or 0),
         "plazos_venta":      row.egresos_operativos or [],  # reutilizamos campo para plazos
-        "anos_ic":           getattr(row, 'anos_ic', 0) or 0,
-        "anos_egr":          getattr(row, 'anos_egr', 0) or 0,
-        "actualizado_por":   row.actualizado_por,
-        "actualizado_en":    str(row.actualizado_en) if row.actualizado_en else None,
+        "anos_ic":            getattr(row, 'anos_ic', 0) or 0,
+        "anos_egr":           getattr(row, 'anos_egr', 0) or 0,
+        "div_grupo_tabla":    (lambda v: v if isinstance(v, list) else (json.loads(v) if isinstance(v, str) else []))(getattr(row, 'div_grupo_tabla', None) or []),
+        "actualizado_por":    row.actualizado_por,
+        "actualizado_en":     str(row.actualizado_en) if row.actualizado_en else None,
     }
 
 
@@ -587,10 +588,13 @@ async def save_supuestos(empresa: str, body: dict, db: Session = Depends(get_db)
            anos_proyecto, tasa_descuento, pct_isr,
            egresos_operativos, prestamos, pagos_tierra,
            anos_ic, anos_egr,
+           div_grupo_tabla,
            actualizado_por, actualizado_en)
         VALUES (:e, :tk, :ti, :pm, :ap, :td, :isr,
                 CAST(:eo AS jsonb), CAST(:pr AS jsonb), CAST(:pt AS jsonb),
-                :anos_ic_val, :anos_egr_val, :who, NOW())
+                :anos_ic_val, :anos_egr_val,
+                CAST(:div_grupo_tabla AS jsonb),
+                :who, NOW())
         ON CONFLICT (empresa) DO UPDATE SET
           ticket_proyectado  = EXCLUDED.ticket_proyectado,
           tasa_interes       = EXCLUDED.tasa_interes,
@@ -603,6 +607,7 @@ async def save_supuestos(empresa: str, body: dict, db: Session = Depends(get_db)
           pagos_tierra       = EXCLUDED.pagos_tierra,
           anos_ic            = EXCLUDED.anos_ic,
           anos_egr           = EXCLUDED.anos_egr,
+          div_grupo_tabla    = EXCLUDED.div_grupo_tabla,
           actualizado_por    = EXCLUDED.actualizado_por,
           actualizado_en     = NOW()
     """), {
@@ -616,6 +621,7 @@ async def save_supuestos(empresa: str, body: dict, db: Session = Depends(get_db)
         "eo":  json.dumps(body.get("plazos_venta", [])),
         "anos_ic_val": body.get("anos_ic", 0),
         "anos_egr_val": body.get("anos_egr", 0),
+        "div_grupo_tabla":   json.dumps(body.get("div_grupo_tabla", [])),
         "pr":  json.dumps(body.get("prestamos_manual", [])),
         "pt":  json.dumps(body.get("pagos_tierra_manual", [])),
         "who": getattr(user, "email", getattr(user, "nombre", "sistema")),
@@ -1118,6 +1124,14 @@ async def get_flujo(empresa: str, db: Session = Depends(get_db), user=Depends(ge
     sociedad_flujos = normalizar_sociedad_flujos(empresa)
     anos_ic_saved = int(sup.anos_ic or 0) if hasattr(sup, 'anos_ic') and sup.anos_ic else 0
     anos_egr_saved = int(sup.anos_egr or 0) if hasattr(sup, 'anos_egr') and sup.anos_egr else 0
+    _dgt_raw = getattr(sup, 'div_grupo_tabla', None) or []
+    if isinstance(_dgt_raw, str):
+        try: div_grupo_tabla = json.loads(_dgt_raw)
+        except: div_grupo_tabla = []
+    elif isinstance(_dgt_raw, list):
+        div_grupo_tabla = _dgt_raw
+    else:
+        div_grupo_tabla = list(_dgt_raw) if _dgt_raw else []
     _eo_raw = sup.egresos_operativos
     if isinstance(_eo_raw, str):
         try: plazos = json.loads(_eo_raw)
@@ -1176,11 +1190,12 @@ async def get_flujo(empresa: str, db: Session = Depends(get_db), user=Depends(ge
     # Tierra y dividendos
     egr_tierra = tier["tierra"]["pendiente"]
     egr_div = tier["dividendos"]["pendiente"]
+    total_div_grupo = sum(float(e.get("monto", 0) or 0) for e in div_grupo_tabla if e.get("monto"))
 
     # ISR
     isr = total_ing * pct_isr
 
-    flujo_neto = total_ing - egr_op_total - iva_neto - egr_fin - isr - egr_tierra - egr_div
+    flujo_neto = total_ing - egr_op_total - iva_neto - egr_fin - isr - egr_tierra - egr_div - total_div_grupo
 
     # ── Distribución anual de ingresos reales por fecha_programada_cobro ──
     anio_actual = date.today().year
@@ -1294,6 +1309,17 @@ async def get_flujo(empresa: str, db: Session = Depends(get_db), user=Depends(ge
     tier_por_anio = _dist_plan_scaled(get_plan_tierra(), sociedad_flujos, hoy, anio_actual, egr_tierra)
     div_por_anio  = _dist_plan_scaled(get_plan_dividendos(), sociedad_flujos, hoy, anio_actual, egr_div)
 
+    # Dividendos Grupo: leer exactamente del array tabla por año
+    div_grupo_por_anio = {}
+    for entrada in div_grupo_tabla:
+        try:
+            a_cal = int(entrada.get("anio", 0))
+            monto_e = float(entrada.get("monto", 0) or 0)
+            if a_cal and monto_e:
+                yr_k = max(1, a_cal - anio_actual + 1)
+                div_grupo_por_anio[yr_k] = div_grupo_por_anio.get(yr_k, 0) + monto_e
+        except: pass
+
     # ── Desglose de cuotas préstamo por año: capital vs intereses ──
     prest_cap_por_anio = {}
     prest_int_por_anio = {}
@@ -1337,6 +1363,7 @@ async def get_flujo(empresa: str, db: Session = Depends(get_db), user=Depends(ge
             isr_yr = 0.0
         tier_yr = tier_por_anio.get(yr, 0)
         div_yr  = div_por_anio.get(yr, 0)
+        div_grupo_yr = div_grupo_por_anio.get(yr, 0)
 
         # Egresos financieros desglosados
         prest_cap_yr = prest_cap_por_anio.get(yr, 0)
@@ -1345,7 +1372,8 @@ async def get_flujo(empresa: str, db: Session = Depends(get_db), user=Depends(ge
         efin_yr = prest_cap_yr + prest_int_yr + ic_yr
 
         fno_yr = ing_yr - egr_yr   # Flujo Neto de Operaciones (ingresos - egresos op)
-        fn_yr = ing_yr - egr_yr - iva_yr - efin_yr - isr_yr - tier_yr - div_yr
+        fvp_yr = fno_yr - iva_yr - isr_yr - div_yr  # Flujo VAN Puro (sin financieros ni div_grupo)
+        fn_yr = ing_yr - egr_yr - iva_yr - efin_yr - isr_yr - tier_yr - div_yr - div_grupo_yr
         acum  = (flujo_anual[-1]["flujo_acumulado"] if flujo_anual else 0) + fn_yr
         flujo_anual.append({
             "anio": yr, "anio_cal": anio_cal,
@@ -1372,8 +1400,11 @@ async def get_flujo(empresa: str, db: Session = Depends(get_db), user=Depends(ge
             "tierra_proy":       round(tier_yr, 2),
             "dividendos":        round(div_yr, 2),
             "div_proy":          round(div_yr, 2),
-            "tierra_capital":    round(tier_yr + div_yr, 2),
+            "div_grupo":         round(div_grupo_yr, 2),
+            "div_grupo_proy":    round(div_grupo_yr, 2),
+            "tierra_capital":    round(tier_yr + div_yr + div_grupo_yr, 2),
             "flujo_neto_op":     round(fno_yr, 2),
+            "flujo_van_puro":    round(fvp_yr, 2),
             "flujo_neto":        round(fn_yr, 2),
             "flujo_acumulado":   round(acum, 2),
             "es_negativo":       fn_yr < 0,
@@ -1381,10 +1412,7 @@ async def get_flujo(empresa: str, db: Session = Depends(get_db), user=Depends(ge
         if fn_yr < pico["flujo"]:
             pico = {"anio": yr, "flujo": round(fn_yr, 2)}
 
-    inv0 = -(egr_tierra + egr_div + prest.get("pendiente_capital", 0))
-    flujos_calc = [inv0] + [f["flujo_neto_op"] for f in flujo_anual]
-    tir = calcular_tir(flujos_calc)
-    van = calcular_van(flujos_calc, tasa_desc)
+    total_div_grupo = sum(div_grupo_por_anio.values())
 
     u_total = ing["total_disponibles"] + ing["ingresos_reales"]["contratos"]
     ticket_prom = total_ing / u_total if u_total else 0
@@ -1517,6 +1545,7 @@ async def get_flujo(empresa: str, db: Session = Depends(get_db), user=Depends(ge
             "tierra":              round(tier_r, 2),
             "dividendos":          round(div_r, 2),
             "tierra_capital":      round(tier_r + div_r, 2),
+            "flujo_van_puro":      round((ing_r - egr_r) - imp_r - div_r, 2),
             "flujo_neto":          round(fn_r, 2),
             "flujo_acumulado":     round(acum_real, 2),
         })
@@ -1527,6 +1556,14 @@ async def get_flujo(empresa: str, db: Session = Depends(get_db), user=Depends(ge
         for fa in flujo_anual:
             fa["flujo_acumulado"] = round(fa["flujo_acumulado"] + base_acum, 2)
 
+    # TIR/VAN: inv0 = Total Plan Tierra; flujos = FNO - Imp - DivTierra (sin financieros ni div_grupo)
+    # flujo_real_anual ya está disponible aquí
+    _serie_real_van = [f["flujo_van_puro"] for f in flujo_real_anual if not f.get("es_mixto")]
+    _serie_proy_van = [f["flujo_van_puro"] for f in flujo_anual]
+    flujos_van_puro = [-egr_tierra] + _serie_real_van + _serie_proy_van
+    tir = calcular_tir(flujos_van_puro)
+    van = calcular_van(flujos_van_puro, tasa_desc)
+
     return {
         "empresa": empresa,
         "saldo_inicial_real": round(saldo_inicial_real, 2),
@@ -1535,7 +1572,7 @@ async def get_flujo(empresa: str, db: Session = Depends(get_db), user=Depends(ge
         "iva": {"debito": round(iva_deb,2), "credito": round(iva_cred,2), "neto": round(iva_neto,2)},
         "egresos_financieros": {"prestamo": egr_prest, "intercompany": egr_ic, "total": round(egr_fin,2)},
         "isr": {"pct": pct_isr, "total": round(isr, 2)},
-        "tierra_dividendos": {"tierra": egr_tierra, "dividendos": egr_div, "total": round(egr_tierra+egr_div,2)},
+        "tierra_dividendos": {"tierra": egr_tierra, "dividendos": egr_div, "div_grupo": total_div_grupo, "total": round(egr_tierra+egr_div+total_div_grupo,2)},
         "flujo_neto_total": round(flujo_neto, 2),
         "flujo_anual": flujo_anual,
         "flujo_real_anual": flujo_real_anual,
