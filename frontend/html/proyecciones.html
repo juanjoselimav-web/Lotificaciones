@@ -473,12 +473,28 @@ select{background:var(--blanco);border:1px solid var(--borde);color:var(--texto)
             </div>
           </div>
 
-          <!-- Dividendos Grupo v14 -->
+          <!-- Dividendos Grupo v13 -->
           <div style="margin-top:20px;border-top:1px solid var(--borde);padding-top:16px">
             <div style="font-size:11px;font-weight:700;color:var(--azul);text-transform:uppercase;letter-spacing:.08em;margin-bottom:12px">📊 Dividendos Grupo</div>
-            <div id="divGrupoTablaWrap">
-              <div style="color:var(--muted);font-size:12px">Seleccioná un proyecto para ver la tabla de años.</div>
+            <div style="display:flex;gap:14px;align-items:flex-end;flex-wrap:wrap">
+              <div class="sup-field">
+                <label>Año inicio</label>
+                <input type="number" id="divGrupoInicio" min="2020" max="2040" step="1" placeholder="ej. 2027"
+                  style="width:100px" oninput="actualizarPreviewDivGrupo(); S.dirty=true;">
+              </div>
+              <div class="sup-field">
+                <label>Años distribución</label>
+                <input type="number" id="divGrupoAnos" min="1" max="20" step="1" placeholder="ej. 3"
+                  style="width:90px" oninput="actualizarPreviewDivGrupo(); S.dirty=true;">
+              </div>
+              <div class="sup-field">
+                <label>Monto total (Q)</label>
+                <input type="number" id="divGrupoMonto" min="0" step="1000" placeholder="ej. 3000000"
+                  style="width:160px" oninput="actualizarPreviewDivGrupo(); S.dirty=true;">
+              </div>
+              <div id="divGrupoPreview" style="font-size:12px;font-weight:600;color:var(--azul);padding-bottom:8px"></div>
             </div>
+            <div style="font-size:11px;color:var(--muted);margin-top:8px">El monto se distribuye en partes iguales entre los años indicados a partir del año de inicio.</div>
           </div>
         </div>
       </div>
